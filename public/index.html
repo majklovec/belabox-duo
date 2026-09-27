@@ -3,17 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SRTLA Relay</title>
-    <link rel="stylesheet" href="./style.css" />
+    <title>Belabox Duo</title>
+    <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
     <header>
       <h1>
         <a id="back" href="../../" title="All devices" hidden>←</a>
-        SRTLA Relay <span id="device-name" class="muted"></span>
+        Belabox Duo <span id="device-name" class="muted"></span>
       </h1>
       <span class="actions">
-        <label class="check" title="Resume the last stream when the service starts"
+        <label
+          class="check"
+          title="Resume the last stream when the service starts"
           ><input type="checkbox" id="autostart" /> Autostart</label
         >
         <span id="role" class="badge" hidden></span>
@@ -42,11 +44,15 @@
             </select></label
           >
           <label id="overlay-field" class="check" hidden
-            ><input type="checkbox" name="bitrateOverlay" id="bitrate-overlay" /> Bitrate overlay</label
+            ><input
+              type="checkbox"
+              name="bitrateOverlay"
+              id="bitrate-overlay"
+            />
+            Bitrate overlay</label
           >
           <label id="encoder-host-field"
-            >Relay host
-            <input name="host" placeholder="192.168.1.10" required
+            >Relay host <input name="host" placeholder="192.168.1.10" required
           /></label>
           <label id="encoder-port-field"
             >Relay SRT port
@@ -54,30 +60,48 @@
           /></label>
           <label
             >Max bitrate (kbps)
-            <input name="maxBitrate" type="number" min="300" max="30000" step="100" placeholder="5000"
+            <input
+              name="maxBitrate"
+              type="number"
+              min="300"
+              max="30000"
+              step="100"
+              placeholder="5000"
           /></label>
           <label
             >SRT latency (ms)
-            <input name="latency" type="number" min="100" max="10000" step="100" placeholder="2000"
+            <input
+              name="latency"
+              type="number"
+              min="100"
+              max="10000"
+              step="100"
+              placeholder="2000"
           /></label>
           <label
             >Audio delay (ms)
-            <input name="delay" type="number" min="-2000" max="2000" placeholder="0"
+            <input
+              name="delay"
+              type="number"
+              min="-2000"
+              max="2000"
+              placeholder="0"
           /></label>
           <label
-            >Stream ID
-            <input name="streamid" placeholder="optional"
+            >Stream ID <input name="streamid" placeholder="optional"
           /></label>
           <div class="actions">
             <button type="submit" id="encoder-start">Start</button>
             <button type="button" id="encoder-stop" class="danger">Stop</button>
-            <button type="button" id="encoder-bitrate" class="secondary">Apply bitrate</button>
+            <button type="button" id="encoder-bitrate" class="secondary">
+              Apply bitrate
+            </button>
           </div>
         </form>
       </section>
 
       <section class="card" id="srtla">
-        <h2>srtla_send</h2>
+        <h2>SRTLA</h2>
         <dl id="srtla-info"></dl>
         <form id="srtla-form">
           <label id="srtla-listen-field"
@@ -135,22 +159,12 @@
         <div id="modem-list" class="grid"></div>
       </section>
 
-      <section class="card" id="at">
-        <h2>AT console</h2>
-        <form id="at-form" class="inline">
-          <select name="index" id="at-modem" required></select>
-          <input name="command" placeholder="AT+CSQ" required />
-          <button type="submit">Send</button>
-        </form>
-        <pre id="at-output" class="muted">—</pre>
-      </section>
-
       <section class="card" id="log-card">
         <h2>Log</h2>
-        <ol id="log"></ol>
+        <code id="log"></code>
       </section>
     </main>
 
-    <script type="module" src="./app.ts"></script>
+    <script type="module" src="ts/app.ts"></script>
   </body>
 </html>

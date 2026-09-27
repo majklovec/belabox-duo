@@ -1,0 +1,310 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0f1115;
+  --card: #181b22;
+  --border: #2a2f3a;
+  --text: #e6e8ee;
+  --muted: #8b93a7;
+  --accent: #3b82f6;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --bad: #ef4444;
+  --encoder: #ff6c6c;
+  --relay: #38bdf8;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+h1 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+main {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.card-head h2 {
+  margin: 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--border);
+}
+.badge.on {
+  background: color-mix(in srgb, var(--ok) 25%, transparent);
+  color: var(--ok);
+}
+.badge.off {
+  background: color-mix(in srgb, var(--bad) 25%, transparent);
+  color: var(--bad);
+}
+.badge.warn {
+  background: color-mix(in srgb, var(--warn) 25%, transparent);
+  color: var(--warn);
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0 0 1rem;
+}
+dt {
+  color: var(--muted);
+}
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+form.inline {
+  align-items: center;
+}
+label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+input,
+select,
+button {
+  font: inherit;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+input:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+button {
+  cursor: pointer;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+button.secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+button.danger {
+  background: var(--bad);
+  border-color: var(--bad);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+th,
+td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+th {
+  color: var(--muted);
+  font-weight: 500;
+}
+tr.selected td {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+.modem {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+.modem h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.modem dl {
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+.modem .actions button {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+meter {
+  width: 80px;
+  vertical-align: middle;
+}
+
+pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem;
+  margin: 0.75rem 0 0;
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow: auto;
+}
+
+#log {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.85rem;
+  max-height: 180px;
+  overflow: auto;
+}
+#log li.error {
+  color: var(--bad);
+}
+#log time {
+  color: var(--muted);
+  margin-right: 0.5rem;
+}
+
+h1 a,
+a.device {
+  color: var(--accent);
+  text-decoration: none;
+}
+h1 a {
+  margin-right: 0.4rem;
+}
+h1 a:hover,
+a.device:hover {
+  text-decoration: underline;
+}
+
+/* Author `display` rules (e.g. label grid) would otherwise defeat the hidden attribute */
+[hidden] {
+  display: none !important;
+}
+label.wide {
+  flex: 1 1 100%;
+}
+header .actions {
+  align-items: center;
+}
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: center;
+}
+
+/* Device type icons */
+.role {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+.role-icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.role-icon-encoder {
+  color: var(--encoder);
+}
+.role-icon-relay {
+  color: var(--relay);
+}
+.role .role-icon + .role-icon {
+  margin-left: -0.1rem;
+}
+a.device {
+  font-weight: 600;
+}
+th .role-icon {
+  vertical-align: -0.2em;
+}

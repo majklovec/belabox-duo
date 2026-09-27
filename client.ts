@@ -9,7 +9,7 @@
  *
  * Modem management mirrors BELABOX/belaUI (ws_nodejs):
  *   - enumeration via ModemManager (mmcli)
- *   - per-modem state, signal quality, operator, AT passthrough
+ *   - per-modem state, signal quality, operator
  *   - enable/disable/reset/connect/disconnect
  *   - integration into bonding selection + routing
  *

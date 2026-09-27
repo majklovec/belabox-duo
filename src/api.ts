@@ -17,7 +17,7 @@
  * Methods:
  *   status, interfaces.list, reconfigure
  *   modems.list, modems.select {modems?|ips?}, modems.toggle {iface}
- *   modems.enable|disable|reset|connect|disconnect {index}, modems.at {index, command}
+ *   modems.enable|disable|reset|connect|disconnect {index}
  *   srtla.status, srtla.start {listenPort, remoteHost, remotePort}, srtla.stop, srtla.reload
  *   pipelines.list
  *   encoder.status, encoder.start {pipeline, host, port, maxBitrate?, latency?, delay?, streamid?,
@@ -64,7 +64,6 @@ import {
 	detectModems,
 	disconnectModem,
 	resetModem,
-	sendAtCommand,
 	setModemEnabled,
 } from "./modems";
 import {
@@ -294,12 +293,6 @@ const methods: Record<string, Method> = {
 	"modems.reset": modemAction("reset", resetModem),
 	"modems.connect": modemAction("connect", connectModem),
 	"modems.disconnect": modemAction("disconnect", disconnectModem),
-
-	"modems.at": async (p) => {
-		const index = requireModemIndex(p);
-		const command = requireString(p, "command");
-		return { modemIndex: index, command, output: await sendAtCommand(index, command) };
-	},
 
 	"srtla.status": () => ({ srtla: srtlaStatus() }),
 

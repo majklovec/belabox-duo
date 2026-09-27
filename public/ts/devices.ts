@@ -1,6 +1,6 @@
-import { badge, byId, h, since } from "../../public/dom";
-import { icon, roleTag, type Shape } from "../../public/icons";
-import type { DeviceSummary } from "../../public/types";
+import { badge, byId, h, since } from "./dom";
+import { icon, roleTag, type Shape } from "./icons";
+import type { DeviceSummary } from "../types";
 
 const REFRESH_MS = 3_000;
 

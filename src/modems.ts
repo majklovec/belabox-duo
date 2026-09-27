@@ -1,6 +1,6 @@
 /*
  * ModemManager integration (mmcli): enumeration, per-modem details,
- * network interface lookup, AT passthrough and control actions.
+ * network interface lookup and control actions.
  */
 import { run } from "./exec";
 
@@ -90,9 +90,6 @@ export async function modemNetworkIface(modem: ModemInfo): Promise<string | null
     }
     return null;
 }
-
-export const sendAtCommand = (idx: number, cmd: string) =>
-    run("mmcli", ["-m", String(idx), `--command=${cmd}`], true);
 
 export const setModemEnabled = async (idx: number, enabled: boolean) => {
     await run("mmcli", ["-m", String(idx), enabled ? "-e" : "-d"], true);

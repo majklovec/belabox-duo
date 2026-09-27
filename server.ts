@@ -34,8 +34,8 @@
  */
 import type { ServerWebSocket } from "bun";
 import { createHash, timingSafeEqual } from "node:crypto";
-import { arg, argFail, flag, intArg } from "../src/args";
-import type { DeviceInfo, DeviceSummary, Role, Status } from "../public/types";
+import { arg, argFail, flag, intArg } from "./src/args";
+import type { DeviceInfo, DeviceSummary, Role, Status } from "./public/types";
 
 const PORT         = intArg("--port", 8090, 1, 65535);
 const HOST         = arg("--host", "0.0.0.0");
@@ -137,7 +137,7 @@ async function buildPage(entry: string): Promise<Page> {
 }
 
 const devicesPage = await buildPage(new URL("./public/devices.html", import.meta.url).pathname);
-const devicePage  = await buildPage(new URL("../public/index.html", import.meta.url).pathname);
+const devicePage  = await buildPage(new URL("./public/index.html", import.meta.url).pathname);
 
 const htmlResponse = (page: Page) =>
     new Response(page.html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });

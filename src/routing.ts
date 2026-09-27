@@ -297,7 +297,8 @@ export async function reconfigure(): Promise<ReconfigureResult> {
 		await applyRouting(plan);
 
 		const ips = selected.map((i) => i.ip);
-		const content = `${ips.join("\n")}\n`;
+		console.log(`Detected IPs: ${ips.join(", ")}`);
+		const content = `127.0.0.1\n${ips.join("\n")}\n`;
 
 		const previous = lastUplinksContent ?? (await readUplinksFile());
 		const changed = previous !== content;

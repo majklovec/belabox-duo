@@ -1,7 +1,7 @@
 import { badge, byId, type Child, h, since } from "./dom";
 import { roleTag } from "./icons";
-import type { ModemInfo } from "../src/modems";
-import type { DeviceInfo, Pipeline, Role, Status } from "./types";
+import type { ModemInfo } from "../../src/modems";
+import type { DeviceInfo, Pipeline, Role, Status } from "../types";
 
 type Params = Record<string, unknown>;
 
@@ -15,7 +15,7 @@ function definitionList(target: HTMLElement, rows: [string, Child][]): void {
 function log(message: string, error = false): void {
 	const list = byId<HTMLOListElement>("log");
 	list.prepend(
-		h("li", { className: error ? "error" : "" }, h("time", {}, new Date().toLocaleTimeString()), message),
+		h("p", { className: error ? "error" : "" }, h("time", {}, new Date().toLocaleTimeString()), message),
 	);
 	while (list.children.length > 50) list.lastElementChild?.remove();
 }
@@ -255,13 +255,6 @@ function renderModems(modems: ModemInfo[]): void {
 		...(cards.length ? cards : [h("p", { className: "muted" }, "No modems found (ModemManager).")]),
 	);
 
-	// Keep the AT console modem picker in sync, preserving the current choice
-	const select = byId<HTMLSelectElement>("at-modem");
-	const current = select.value;
-	select.replaceChildren(
-		...modems.map((m) => h("option", { value: String(m.index) }, `#${m.index} ${m.model ?? ""}`)),
-	);
-	if (modems.some((m) => String(m.index) === current)) select.value = current;
 }
 
 // ----------------------------------------------------------------------
@@ -270,6 +263,7 @@ function renderModems(modems: ModemInfo[]): void {
 let pipelinesLoaded = false;
 let role: Role = "relay";
 const pipelines = new Map<string, Pipeline>();
+let lastLoggedEncoderError: string | undefined;
 
 /** Show only the audio / overlay options the selected pipeline supports. */
 function updatePipelineFields(): void {
@@ -327,6 +321,10 @@ function renderEncoder(status: Status): void {
 	const e = status.state.encoder;
 	const cfg = e.config;
 	const srtla = status.state.srtla;
+	if (e.lastError !== lastLoggedEncoderError) {
+		lastLoggedEncoderError = e.lastError;
+		if (e.lastError) log(`Encoder: ${e.lastError}`, true);
+	}
 
 	byId("encoder-title").textContent = combined ? "Stream (belacoder → srtla_send)" : "Encoder (belacoder)";
 
@@ -396,7 +394,7 @@ function applyRole(next: Role): void {
 		roleBadge.replaceChildren(roleTag(role));
 	}
 	byId("encoder").hidden = !hasEncoder;
-	for (const id of ["srtla", "interfaces", "modems", "at"]) byId(id).hidden = !hasRelay;
+	for (const id of ["srtla", "interfaces", "modems"]) byId(id).hidden = !hasRelay;
 	// Combined: the receiver is entered in the srtla_send card, but the stream card's single
 	// Start/Stop drives srtla_send, and its local listen port is internal
 	const combined = role === "combined";
@@ -495,18 +493,6 @@ byId<HTMLButtonElement>("encoder-stop").onclick = (e) =>
 byId<HTMLButtonElement>("encoder-bitrate").onclick = (e) => {
 	const input = byId<HTMLFormElement>("encoder-form").elements.namedItem("maxBitrate") as HTMLInputElement;
 	void act(e.currentTarget as HTMLButtonElement, "encoder.bitrate", { maxBitrate: optionalNumber(input.value) });
-};
-
-byId<HTMLFormElement>("at-form").onsubmit = async (e) => {
-	e.preventDefault();
-	const form = e.currentTarget as HTMLFormElement;
-	const data = new FormData(form);
-	const button = form.querySelector("button");
-	const result = await act<{ output: string }>(button, "modems.at", {
-		index: Number(data.get("index")),
-		command: String(data.get("command")),
-	});
-	if (result) byId("at-output").textContent = result.output || "(no output)";
 };
 
 // Refresh relative times ("12s ago") without waiting for a push

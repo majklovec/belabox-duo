@@ -1,5 +1,5 @@
 /* Device type icons (inline SVG, stroked with the current text colour). */
-import type { Role } from "./types";
+import type { Role } from "../types";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -24,7 +24,7 @@ export const ROLE_LABEL: Record<Role, string> = { relay: "relay", encoder: "enco
 export function icon(shape: Shape): SVGSVGElement {
 	const svg = document.createElementNS(SVG_NS, "svg");
 	svg.setAttribute("viewBox", "0 0 24 24");
-	svg.setAttribute("class", "role-icon");
+	svg.setAttribute("class", `role-icon role-icon-${shape}`);
 	svg.setAttribute("aria-hidden", "true");
 	for (const [tag, attrs] of SHAPES[shape]) {
 		const el = document.createElementNS(SVG_NS, tag);
@@ -44,6 +44,6 @@ export function roleTag(role: Role): HTMLSpanElement {
 	const span = document.createElement("span");
 	span.className = "role";
 	span.title = ROLE_LABEL[role];
-	span.append(...roleIcons(role), ROLE_LABEL[role]);
+	span.append(...roleIcons(role));
 	return span;
 }
