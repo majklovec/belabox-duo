@@ -1,15 +1,32 @@
 import { DRY_RUN, STATE_FILE } from "./config";
 import type { ModemConfig } from "./routing";
+import type { EncoderState } from "./encoder";
 import type { SrtlaState } from "./srtla";
 
-export interface PersistentState { selection: ModemConfig; srtla: SrtlaState; }
+/** Last target of a combined-device stream (`stream.start`), kept for the UI to prefill. */
+export interface StreamTarget { remoteHost: string; remotePort: string; listenPort: string; }
+
+/** Last srtla_send target (`srtla.start`), kept after stop for prefill and autostart. */
+export interface SrtlaTarget { listenPort: string; remoteHost: string; remotePort: string; }
+
+export interface PersistentState {
+    selection: ModemConfig;
+    srtla: SrtlaState;
+    srtlaTarget?: SrtlaTarget;
+    encoder: EncoderState;
+    stream?: StreamTarget;
+    autostart?: boolean;      // resume the last stream when the service starts
+}
+
+const defaults = (): PersistentState => ({ selection: {}, srtla: { running: false }, encoder: { running: false } });
 
 async function loadState(): Promise<PersistentState> {
     const file = Bun.file(STATE_FILE);
     if (await file.exists()) {
-        try { return (await file.json()) as PersistentState; } catch {}
+        // Merge so state files from older versions gain new sections
+        try { return { ...defaults(), ...((await file.json()) as Partial<PersistentState>) }; } catch {}
     }
-    return { selection: {}, srtla: { running: false } };
+    return defaults();
 }
 
 type ChangeListener = () => void;

@@ -20,15 +20,24 @@
  *   modems.ts   ModemManager integration
  *   routing.ts  interface detection, selection, routing, uplinks, monitor
  *   srtla.ts    srtla_send process management
+ *   encoder.ts  belacoder pipelines + process management (encoder / combined roles)
+ *   stream.ts   combined srtla_send + belacoder start/stop, autostart
  *   api.ts      WebSocket API (ws://host:port/ws) + web UI from public/ at /
  *   remote.ts   outbound WebSocket to a remote control server (same protocol);
  *               the server itself lives in server/ (bun server/server.ts)
  *
  * Prefers Bun runtime APIs ($, Bun.file, Bun.serve, Bun.spawn).
  *
+ * Roles (--role, sent to the control server as the device type):
+ *   relay      receives SRT from an encoder and bonds it out via srtla_send (default)
+ *   encoder    belacoder + GStreamer pipeline → SRT to a relay; no routing or modems
+ *   combined   belacoder → local srtla_send → bonded uplinks; one Start for both
+ *
  * Usage:
  *   bun srtla_relay.ts [--monitor] [--config modems.json] [--dry-run]
  *   bun srtla_relay.ts --api --port 8085
+ *   bun srtla_relay.ts --api --role encoder   --pipelines /usr/share/belacoder/pipelines
+ *   bun srtla_relay.ts --api --role combined  --pipelines ./pipeline
  *   bun srtla_relay.ts --start-srtla 6000 rec.example.com 5000 --monitor
  *   SRTLA_REMOTE_TOKEN=secret bun srtla_relay.ts --remote wss://ctl.example.com/device [--remote-id cam1] [--api]
  *
@@ -39,20 +48,23 @@
  */
 
 import { startApiServer } from "./src/api";
-import { API_MODE, MONITOR, REMOTE_URL, argv } from "./src/config";
+import { API_MODE, HAS_RELAY, MONITOR, PIPELINES_DIR, REMOTE_URL, ROLE, argv } from "./src/config";
+import { listPipelines, stopEncoder } from "./src/encoder";
 import { startRemote, stopRemote } from "./src/remote";
+import { runAutostart } from "./src/stream";
 import { detectInterfaces, reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
-import { reloadSrtla, startSrtla, stopSrtla, maybeStartSrtla } from "./src/srtla";
+import { maybeStartSrtla, reloadSrtla, stopSrtla } from "./src/srtla";
 
 
 
 async function main(): Promise<void> {
-    console.log("=== SRTLA Bonding Setup (Bun) ===\n");
+    console.log(`=== SRTLA Bonding Setup (Bun) — role: ${ROLE} ===\n`);
 
     const shutdown = async (signal: string) => {
         console.log(`\nReceived ${signal}, shutting down...`);
         stopRemote();
         await stopInterfaceMonitor();
+        await stopEncoder();
         await stopSrtla();
         process.exit(0);
     };
@@ -60,16 +72,18 @@ async function main(): Promise<void> {
     process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
     if (API_MODE || REMOTE_URL) {
-        // 1. Prime routing + write uplinks file
-        const result = await reconfigure();
-        if (!result.ok) {
-            console.error("Initial reconfigure failed:", result.error);
-            process.exit(1);
-        }
-        console.log(`Initial uplinks: ${result.ips.join(", ")}`);
+        if (HAS_RELAY) {
+            // 1. Prime routing + write uplinks file
+            const result = await reconfigure();
+            if (!result.ok) {
+                console.error("Initial reconfigure failed:", result.error);
+                process.exit(1);
+            }
+            console.log(`Initial uplinks: ${result.ips.join(", ")}`);
 
-        // 2. Start srtla_send if requested (uses the file we just wrote)
-        await maybeStartSrtla(argv);
+            // 2. Start srtla_send if requested (uses the file we just wrote)
+            await maybeStartSrtla(argv);
+        }
 
         // 3. Start the monitor (will reload srtla_send on changes)
         if (MONITOR) startInterfaceMonitor(reloadSrtla);
@@ -77,10 +91,21 @@ async function main(): Promise<void> {
         // 4. Start the local API and/or the remote control link
         if (API_MODE) startApiServer();
         if (REMOTE_URL) startRemote();
+
+        // 5. Resume the last stream if autostart is enabled (retries until it succeeds)
+        runAutostart();
         return;
     }
 
     // One-shot CLI
+    if (!HAS_RELAY) {
+        const pipelines = await listPipelines();
+        console.log(`${pipelines.length} pipeline(s) in ${PIPELINES_DIR}:`);
+        for (const p of pipelines) console.log(`  ${p.id}`);
+        console.log("\nEncoder devices are controlled via --api and/or --remote.");
+        return;
+    }
+
     const all = await detectInterfaces();
     console.log(`Detected ${all.length} non-virtual IPv4 interface(s):`);
     for (const i of all) {

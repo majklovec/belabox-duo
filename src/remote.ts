@@ -9,12 +9,12 @@
  *     with `{ "type": "response", ... }`.
  *
  * On connect a hello is sent first:
- *   { "type": "hello", "id": "<device id>", "token"?: "<token>" }
+ *   { "type": "hello", "id": "<device id>", "role": "relay|encoder|combined", "token"?: "<token>" }
  * The token is also sent as `Authorization: Bearer <token>` on the upgrade.
  *
  * Reconnects with exponential backoff; dead links are detected via ping/pong.
  */
-import { REMOTE_ID, REMOTE_INTERVAL, REMOTE_TOKEN, REMOTE_URL } from "./config";
+import { REMOTE_ID, REMOTE_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
 import { addStatusSink, handleRequest, statusEvent } from "./api";
 
 const BACKOFF_MIN_MS = 1_000;
@@ -80,7 +80,7 @@ function connect(): void {
     if (stopped) return;
     reconnectTimer = null;
 
-    const headers: Record<string, string> = { "x-device-id": REMOTE_ID };
+    const headers: Record<string, string> = { "x-device-id": REMOTE_ID, "x-device-role": ROLE };
     if (REMOTE_TOKEN) headers.authorization = `Bearer ${REMOTE_TOKEN}`;
 
     console.log(`[remote] connecting to ${safeUrl()} as "${REMOTE_ID}"...`);
@@ -92,7 +92,7 @@ function connect(): void {
         console.log("[remote] connected");
         backoff = BACKOFF_MIN_MS;
         touch();
-        send(JSON.stringify({ type: "hello", id: REMOTE_ID, ...(REMOTE_TOKEN ? { token: REMOTE_TOKEN } : {}) }));
+        send(JSON.stringify({ type: "hello", id: REMOTE_ID, role: ROLE, ...(REMOTE_TOKEN ? { token: REMOTE_TOKEN } : {}) }));
         void sendStatus();
 
         pingTimer = setInterval(() => {

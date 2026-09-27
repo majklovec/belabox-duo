@@ -18,11 +18,16 @@ export interface SrtlaState {
 let srtlaProc: Bun.Subprocess | null = null;
 let srtlaArgs: [string, string, string] | null = null;
 
-const isRunning = (): boolean => srtlaProc !== null && srtlaProc.exitCode === null;
+let dryRunActive = false;   // --dry-run has no process to track
+let wanted = false;         // srtla_send should be running; unexpected exits are restarted
+let restartTimer: ReturnType<typeof setTimeout> | null = null;
+const RESTART_DELAY_MS = 2_000;
+
+const isRunning = (): boolean => DRY_RUN ? dryRunActive : srtlaProc !== null && srtlaProc.exitCode === null;
 
 export function srtlaStatus(): SrtlaState {
     if (isRunning()) return state.srtla;
-    if (state.srtla.running && srtlaProc === null) return { ...state.srtla, running: false };
+    if (state.srtla.running && srtlaProc === null && !DRY_RUN) return { ...state.srtla, running: false };
     return { running: false };
 }
 
@@ -83,11 +88,13 @@ export async function startSrtla(
     }
 
     srtlaArgs = [listenPort, remoteHost, remotePort];
+    state.srtlaTarget = { listenPort, remoteHost, remotePort };
     const bin = process.env.SRTLA_SEND_BIN ?? "srtla_send";
     console.log(`Starting ${bin} listen: ${listenPort} target: ${remoteHost}:${remotePort} ${UPLINKS_FILE}`);
 
     if (DRY_RUN) {
         const s: SrtlaState = { running: true, listenPort, remoteHost, remotePort, startedAt: Date.now() };
+        dryRunActive = true;
         state.srtla = s;
         await saveState();
         return s;
@@ -98,6 +105,7 @@ export async function startSrtla(
         { stdout: "inherit", stderr: "inherit", stdin: "inherit" }
     );
     srtlaProc = proc;
+    wanted = true;
 
     const s: SrtlaState = {
         running: true,
@@ -115,17 +123,39 @@ export async function startSrtla(
         state.srtla = { running: false, reloadCount: state.srtla.reloadCount };
         srtlaProc = null;
         saveState().catch(() => {});
+        if (wanted) scheduleRestart();
     });
 
     return s;
 }
 
+/** srtla_send died on its own (e.g. all uplinks lost): keep retrying like belaUI does. */
+function scheduleRestart(): void {
+    const args = srtlaArgs;
+    if (!args || restartTimer) return;
+    console.warn(`srtla_send stopped unexpectedly; restarting in ${RESTART_DELAY_MS / 1000}s`);
+    restartTimer = setTimeout(async () => {
+        restartTimer = null;
+        if (!wanted || isRunning()) return;
+        try {
+            await startSrtla(...args);
+        } catch (err: unknown) {
+            console.error("srtla_send restart failed:", err instanceof Error ? err.message : String(err));
+            scheduleRestart();
+        }
+    }, RESTART_DELAY_MS);
+}
+
 export async function stopSrtla(): Promise<void> {
+    wanted = false;   // before killing, so the exit handler does not restart it
+    if (restartTimer) clearTimeout(restartTimer);
+    restartTimer = null;
     if (srtlaProc && isRunning()) {
         srtlaProc.kill("SIGTERM");
         await srtlaProc.exited;
     }
     srtlaProc = null;
+    dryRunActive = false;
     state.srtla = { ...state.srtla, running: false };
     await saveState();
 }

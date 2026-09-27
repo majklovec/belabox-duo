@@ -3,22 +3,37 @@ import type { DeviceSummary } from "../../public/types";
 
 const REFRESH_MS = 3_000;
 
+const ROLE_LABEL = { relay: "relay", encoder: "encoder", combined: "encoder + relay" } as const;
+
 function row(d: DeviceSummary): HTMLTableRowElement {
 	const s = d.srtla;
+	const e = d.encoder;
+	const hasEncoder = d.role === "encoder" || d.role === "combined";
+	const hasRelay = d.role !== "encoder";
 	return h(
 		"tr",
 		{},
 		h("td", {}, h("a", { className: "device", href: `d/${encodeURIComponent(d.id)}/` }, d.id)),
+		h("td", {}, d.role ? ROLE_LABEL[d.role] : "—"),
 		h("td", {}, d.online ? badge("online", "on") : badge("offline", "off")),
 		h("td", {}, d.address || "—"),
 		h("td", {}, d.online ? since(d.connectedAt) : `last seen ${since(d.lastSeen)}`),
 		h(
 			"td",
 			{},
-			s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : badge("stopped", "warn")) : "—",
+			hasEncoder && e
+				? e.running
+					? badge(e.config?.pipeline ?? "streaming", "on")
+					: badge("stopped", "warn")
+				: "—",
 		),
-		h("td", {}, d.uplinks?.length ? d.uplinks.join(", ") : "—"),
-		h("td", {}, d.modems ?? "—"),
+		h(
+			"td",
+			{},
+			hasRelay && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : badge("stopped", "warn")) : "—",
+		),
+		h("td", {}, hasRelay && d.uplinks?.length ? d.uplinks.join(", ") : "—"),
+		h("td", {}, hasRelay ? (d.modems ?? "—") : "—"),
 	);
 }
 
@@ -34,7 +49,7 @@ async function refresh(): Promise<void> {
 		byId("device-rows").replaceChildren(
 			...(list.length
 				? list.map(row)
-				: [h("tr", {}, h("td", { colSpan: 7, className: "muted" }, "No devices have connected yet."))]),
+				: [h("tr", {}, h("td", { colSpan: 9, className: "muted" }, "No devices have connected yet."))]),
 		);
 	} catch (err) {
 		conn.textContent = err instanceof Error ? err.message : "error";

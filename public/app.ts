@@ -1,6 +1,6 @@
 import { badge, byId, type Child, h, since } from "./dom";
 import type { ModemInfo } from "../src/modems";
-import type { DeviceInfo, Status } from "./types";
+import type { DeviceInfo, Pipeline, Role, Status } from "./types";
 
 type Params = Record<string, unknown>;
 
@@ -53,6 +53,7 @@ function renderDevice(info: DeviceInfo): void {
 	document.title = `${info.id} — SRTLA Relay`;
 	if (wasOnline !== undefined && wasOnline !== info.online) {
 		log(`Device ${info.online ? "online" : "offline"}`, !info.online);
+		if (info.online) pipelinesLoaded = false;
 	}
 	updateConnBadge();
 }
@@ -65,6 +66,7 @@ function connect(): void {
 
 	ws.onopen = () => {
 		setConnected(true);
+		pipelinesLoaded = false;
 		log("Connected");
 	};
 
@@ -154,7 +156,8 @@ function renderSrtla(status: Status): void {
 	const form = byId<HTMLFormElement>("srtla-form");
 	for (const key of ["listenPort", "remoteHost", "remotePort"] as const) {
 		const input = form.elements.namedItem(key) as HTMLInputElement;
-		if (!input.value && document.activeElement !== input && s[key]) input.value = s[key] ?? "";
+		const value = s[key] ?? status.state.srtlaTarget?.[key];
+		if (!input.value && document.activeElement !== input && value) input.value = value;
 	}
 }
 
@@ -259,13 +262,154 @@ function renderModems(modems: ModemInfo[]): void {
 	if (modems.some((m) => String(m.index) === current)) select.value = current;
 }
 
+// ----------------------------------------------------------------------
+// Encoder (encoder and combined roles)
+// ----------------------------------------------------------------------
+let pipelinesLoaded = false;
+let role: Role = "relay";
+const pipelines = new Map<string, Pipeline>();
+
+/** Show only the audio / overlay options the selected pipeline supports. */
+function updatePipelineFields(): void {
+	const p = pipelines.get(byId<HTMLSelectElement>("pipeline").value);
+	byId("asrc-field").hidden = !p?.asrc;
+	byId("acodec-field").hidden = !p?.acodec;
+	byId("overlay-field").hidden = !p?.overlay;
+}
+
+// Selects always have a value, so remember which ones the user changed to avoid clobbering them
+const touched = new Set<string>();
+function prefillSelect(id: string, value: string | undefined): void {
+	const select = byId<HTMLSelectElement>(id);
+	if (touched.has(id) || value === undefined || document.activeElement === select) return;
+	if ([...select.options].some((o) => o.value === value)) select.value = value;
+}
+
+async function loadPipelines(): Promise<void> {
+	pipelinesLoaded = true;
+	const result = await act<{ dir: string; pipelines: Pipeline[] }>(null, "pipelines.list");
+	if (!result) {
+		pipelinesLoaded = false;
+		return;
+	}
+	const select = byId<HTMLSelectElement>("pipeline");
+	const current = select.value || lastStatus?.state.encoder.config?.pipeline || "";
+	pipelines.clear();
+	for (const p of result.pipelines) pipelines.set(p.id, p);
+	const groups = new Map<string, Pipeline[]>();
+	for (const p of result.pipelines) groups.set(p.group, [...(groups.get(p.group) ?? []), p]);
+	const nodes: Node[] = [];
+	for (const [group, list] of groups) {
+		const options = list.map((p) => h("option", { value: p.id }, p.name));
+		if (group) nodes.push(h("optgroup", { label: group }, ...options));
+		else nodes.push(...options);
+	}
+	if (!nodes.length) nodes.push(h("option", { value: "", disabled: true }, `No pipelines in ${result.dir}`));
+	select.replaceChildren(...nodes);
+	if (result.pipelines.some((p) => p.id === current)) select.value = current;
+	updatePipelineFields();
+}
+
+/** Fill empty, unfocused inputs from the device's last known settings. */
+function prefill(form: HTMLFormElement, values: Record<string, string | number | undefined>): void {
+	for (const [key, value] of Object.entries(values)) {
+		const input = form.elements.namedItem(key) as HTMLInputElement | null;
+		if (input && !input.value && document.activeElement !== input && value !== undefined && value !== "") {
+			input.value = String(value);
+		}
+	}
+}
+
+function renderEncoder(status: Status): void {
+	const combined = status.role === "combined";
+	const e = status.state.encoder;
+	const cfg = e.config;
+	const stream = status.state.stream;
+	const srtla = status.state.srtla;
+
+	byId("encoder-title").textContent = combined ? "Stream (belacoder → srtla_send)" : "Encoder (belacoder)";
+	byId("host-label").textContent = combined ? "SRTLA receiver host" : "Relay host";
+	byId("port-label").textContent = combined ? "SRTLA receiver port" : "Relay SRT port";
+	byId("listen-port-field").hidden = !combined;
+
+	const state = !e.running
+		? badge("stopped", "off")
+		: combined && !srtla.running
+			? badge("srtla_send down", "warn")
+			: e.pid || !e.restarts
+				? badge("streaming", "on")
+				: badge("restarting", "warn");
+	const target = combined
+		? srtla.remoteHost && `${srtla.remoteHost}:${srtla.remotePort} via srtla_send :${srtla.listenPort}`
+		: cfg && `${cfg.host}:${cfg.port}`;
+
+	definitionList(byId("encoder-info"), [
+		["State", state],
+		["Pipeline", cfg?.pipeline],
+		["Target", e.running ? target : null],
+		["Bitrate", cfg ? `max ${cfg.maxBitrate} kbps` : null],
+		["Latency", cfg ? `${cfg.latency} ms (audio delay ${cfg.delay} ms)` : null],
+		[
+			"Audio",
+			cfg
+				? `${status.audioSources.find((a) => a.id === cfg.audioSource)?.name ?? cfg.audioSource ?? "Pipeline default"}, ${(cfg.audioCodec ?? "aac").toUpperCase()}`
+				: null,
+		],
+		["Started", e.running ? since(e.startedAt) : null],
+		["Restarts", e.running ? (e.restarts ?? 0) : null],
+		["Last error", e.lastError],
+	]);
+
+	const form = byId<HTMLFormElement>("encoder-form");
+	prefill(form, {
+		host: combined ? stream?.remoteHost : cfg?.host,
+		port: combined ? stream?.remotePort : cfg?.port,
+		listenPort: combined ? stream?.listenPort : undefined,
+		maxBitrate: cfg?.maxBitrate,
+		latency: cfg?.latency,
+		delay: cfg?.delay,
+		streamid: cfg?.streamid,
+	});
+	byId<HTMLButtonElement>("encoder-bitrate").disabled = !e.running;
+
+	// Audio sources change as USB devices come and go; keep the current choice if still present
+	const asrc = byId<HTMLSelectElement>("audio-source");
+	const chosen = asrc.value;
+	asrc.replaceChildren(...status.audioSources.map((a) => h("option", { value: a.id }, a.name)));
+	if (status.audioSources.some((a) => a.id === chosen)) asrc.value = chosen;
+	prefillSelect("audio-source", cfg?.audioSource);
+	prefillSelect("audio-codec", cfg?.audioCodec);
+	const overlay = byId<HTMLInputElement>("bitrate-overlay");
+	if (!touched.has("bitrate-overlay") && cfg) overlay.checked = !!cfg.bitrateOverlay;
+}
+
+function applyRole(next: Role): void {
+	role = next;
+	const hasEncoder = role !== "relay";
+	const hasRelay = role !== "encoder";
+	const roleBadge = byId("role");
+	roleBadge.hidden = false;
+	roleBadge.textContent = role;
+	byId("encoder").hidden = !hasEncoder;
+	for (const id of ["srtla", "interfaces", "modems", "at"]) byId(id).hidden = !hasRelay;
+	// Combined devices start srtla_send together with the encoder
+	byId("srtla-form").hidden = role === "combined";
+	if (hasEncoder && !pipelinesLoaded) void loadPipelines();
+}
+
 let lastStatus: Status | null = null;
 
 function render(status: Status): void {
 	lastStatus = status;
-	renderSrtla(status);
-	renderInterfaces(status);
-	renderModems(status.modems);
+	const autostart = byId<HTMLInputElement>("autostart");
+	if (!autostart.disabled) autostart.checked = !!status.state.autostart;
+	applyRole(status.role ?? "relay");
+	if (role !== "relay") renderEncoder(status);
+	if (role !== "encoder") {
+		renderSrtla(status);
+		renderInterfaces(status);
+		renderModems(status.modems);
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -284,6 +428,51 @@ byId<HTMLButtonElement>("srtla-reload").onclick = (e) =>
 byId<HTMLButtonElement>("reconfigure").onclick = (e) =>
 	void act(e.currentTarget as HTMLButtonElement, "reconfigure");
 
+const optionalNumber = (v: FormDataEntryValue | null) => (v === null || v === "" ? undefined : Number(v));
+
+byId<HTMLFormElement>("encoder-form").onsubmit = (e) => {
+	e.preventDefault();
+	const data = new FormData(e.currentTarget as HTMLFormElement);
+	const common = {
+		pipeline: data.get("pipeline"),
+		maxBitrate: optionalNumber(data.get("maxBitrate")),
+		latency: optionalNumber(data.get("latency")),
+		delay: optionalNumber(data.get("delay")),
+		streamid: data.get("streamid") || undefined,
+		audioSource: data.get("audioSource") || undefined,
+		audioCodec: data.get("audioCodec") || undefined,
+		bitrateOverlay: byId<HTMLInputElement>("bitrate-overlay").checked,
+	};
+	const button = byId<HTMLButtonElement>("encoder-start");
+	if (role === "combined") {
+		void act(button, "stream.start", {
+			...common,
+			remoteHost: data.get("host"),
+			remotePort: data.get("port"),
+			listenPort: optionalNumber(data.get("listenPort")),
+		});
+	} else {
+		void act(button, "encoder.start", { ...common, host: data.get("host"), port: data.get("port") });
+	}
+};
+byId<HTMLInputElement>("autostart").onchange = async (e) => {
+	const box = e.currentTarget as HTMLInputElement;
+	box.disabled = true;
+	const result = await act<{ autostart: boolean }>(null, "autostart.set", { enabled: box.checked });
+	box.disabled = false;
+	box.checked = result ? result.autostart : !box.checked;
+};
+byId<HTMLSelectElement>("pipeline").onchange = updatePipelineFields;
+for (const id of ["audio-source", "audio-codec", "bitrate-overlay"]) {
+	byId(id).addEventListener("change", () => touched.add(id));
+}
+byId<HTMLButtonElement>("encoder-stop").onclick = (e) =>
+	void act(e.currentTarget as HTMLButtonElement, role === "combined" ? "stream.stop" : "encoder.stop");
+byId<HTMLButtonElement>("encoder-bitrate").onclick = (e) => {
+	const input = byId<HTMLFormElement>("encoder-form").elements.namedItem("maxBitrate") as HTMLInputElement;
+	void act(e.currentTarget as HTMLButtonElement, "encoder.bitrate", { maxBitrate: optionalNumber(input.value) });
+};
+
 byId<HTMLFormElement>("at-form").onsubmit = async (e) => {
 	e.preventDefault();
 	const form = e.currentTarget as HTMLFormElement;
@@ -297,6 +486,10 @@ byId<HTMLFormElement>("at-form").onsubmit = async (e) => {
 };
 
 // Refresh relative times ("12s ago") without waiting for a push
-setInterval(() => lastStatus && renderSrtla(lastStatus), 5_000);
+setInterval(() => {
+	if (!lastStatus) return;
+	if (role !== "relay") renderEncoder(lastStatus);
+	if (role !== "encoder") renderSrtla(lastStatus);
+}, 5_000);
 
 connect();

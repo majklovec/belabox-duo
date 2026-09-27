@@ -19,12 +19,46 @@
  *   modems.list, modems.select {modems?|ips?}, modems.toggle {iface}
  *   modems.enable|disable|reset|connect|disconnect {index}, modems.at {index, command}
  *   srtla.status, srtla.start {listenPort, remoteHost, remotePort}, srtla.stop, srtla.reload
+ *   pipelines.list
+ *   encoder.status, encoder.start {pipeline, host, port, maxBitrate?, latency?, delay?, streamid?,
+ *                                  audioSource?, audioCodec? ("aac"|"opus"), bitrateOverlay?},
+ *   encoder.stop, encoder.bitrate {maxBitrate}
+ *   stream.start {pipeline, remoteHost, remotePort, listenPort?, ...same encoder options},
+ *   stream.stop   (combined devices: srtla_send + belacoder in one action)
+ *   autostart.set {enabled}   resume the last stream when the service starts
+ *
+ * Methods are limited by the device role (--role): relay → modems/srtla/reconfigure,
+ * encoder → pipelines/encoder, combined → everything plus stream.*.
  *
  * The same protocol is spoken over the outbound remote connection (see remote.ts).
  */
 import type { Server, ServerWebSocket } from "bun";
 import index from "../public/index.html";
-import { ALLOWED_ORIGINS, API_HOST, API_PORT, RELOAD_MODE, UPLINKS_FILE } from "./config";
+import {
+	ALLOWED_ORIGINS,
+	API_HOST,
+	API_PORT,
+	HAS_ENCODER,
+	HAS_RELAY,
+	PIPELINES_DIR,
+	RELOAD_MODE,
+	ROLE,
+	UPLINKS_FILE,
+} from "./config";
+import {
+	AUDIO_CODECS,
+	AUDIO_DEFAULT,
+	type AudioCodec,
+	type EncoderConfig,
+	encoderStatus,
+	listAudioSources,
+	listPipelines,
+	MAX_BITRATE_KBPS,
+	MIN_BITRATE_KBPS,
+	setEncoderBitrate,
+	startEncoder,
+	stopEncoder,
+} from "./encoder";
 import {
 	connectModem,
 	detectModems,
@@ -43,6 +77,7 @@ import {
 } from "./routing";
 import { reloadSrtla, srtlaStatus, startSrtla, stopSrtla } from "./srtla";
 import { onStateChange, state } from "./state";
+import { cancelAutostart, setAutostart, startCombined, stopCombined } from "./stream";
 
 const WS_PATH = "/ws";
 const STATUS_TOPIC = "status";
@@ -79,6 +114,28 @@ function optionalStringList(p: Params, key: string): string[] | undefined {
 	return v;
 }
 
+function optionalInt(p: Params, key: string, fallback: number, min: number, max: number): number {
+	const v = p[key];
+	if (v === undefined || v === null || v === "") return fallback;
+	const n = Number(v);
+	if (!Number.isInteger(n) || n < min || n > max) {
+		throw new ApiError(`${key} must be an integer between ${min} and ${max}`);
+	}
+	return n;
+}
+
+function requirePort(p: Params, key: string): string {
+	if (p[key] === undefined || p[key] === "") throw new ApiError(`${key} is required`);
+	return String(optionalInt(p, key, 0, 1, 65535));
+}
+
+/** Hostnames / IPs only — anything else could be mistaken for a CLI flag by the child process. */
+function requireHost(p: Params, key: string): string {
+	const v = requireString(p, key);
+	if (!/^[A-Za-z0-9[][A-Za-z0-9.:_\[\]-]*$/.test(v)) throw new ApiError(`${key} is not a valid host`);
+	return v;
+}
+
 function requireModemIndex(p: Params): number {
 	const n = Number(p.index);
 	if (p.index === undefined || !Number.isInteger(n) || n < 0) {
@@ -93,10 +150,20 @@ function requireModemIndex(p: Params): number {
 async function buildStatus() {
 	const all = await detectInterfaces();
 	return {
-		state: { selection: state.selection, srtla: srtlaStatus() },
+		role: ROLE,
+		state: {
+			selection: state.selection,
+			srtla: srtlaStatus(),
+			encoder: encoderStatus(),
+			stream: state.stream,
+			srtlaTarget: state.srtlaTarget,
+			autostart: !!state.autostart,
+		},
 		interfaces: all,
-		selected: await resolveSelection(all),
-		modems: await detectModems(),
+		// Encoder-only devices do no bonding and have no modems to manage
+		selected: HAS_RELAY ? await resolveSelection(all) : [],
+		modems: HAS_RELAY ? await detectModems() : [],
+		audioSources: HAS_ENCODER ? await listAudioSources() : [],
 		uplinksFile: UPLINKS_FILE,
 		monitor: { running: isMonitorRunning(), reloadMode: RELOAD_MODE },
 	};
@@ -120,6 +187,56 @@ async function applySelection(selection: ModemConfig) {
 		uplinksFile: result.uplinksFile,
 		changed: result.changed,
 	};
+}
+
+function parseEncoderConfig(p: Params, host: string, port: string): EncoderConfig {
+	const prev = state.encoder.config;
+	const streamid = p.streamid === undefined || p.streamid === "" ? undefined : requireString(p, "streamid");
+	const audioSource = p.audioSource === undefined || p.audioSource === ""
+		? prev?.audioSource ?? AUDIO_DEFAULT
+		: requireString(p, "audioSource");
+	const audioCodec = (p.audioCodec ?? prev?.audioCodec ?? "aac") as AudioCodec;
+	if (!AUDIO_CODECS.includes(audioCodec)) throw new ApiError(`audioCodec must be one of ${AUDIO_CODECS.join(", ")}`);
+	if (p.bitrateOverlay !== undefined && typeof p.bitrateOverlay !== "boolean") {
+		throw new ApiError("bitrateOverlay must be a boolean");
+	}
+	return {
+		pipeline: requireString(p, "pipeline"),
+		host,
+		port,
+		maxBitrate: optionalInt(p, "maxBitrate", prev?.maxBitrate ?? 5000, MIN_BITRATE_KBPS, MAX_BITRATE_KBPS),
+		latency: optionalInt(p, "latency", prev?.latency ?? 2000, 100, 10_000),
+		delay: optionalInt(p, "delay", prev?.delay ?? 0, -2000, 2000),
+		streamid,
+		audioSource,
+		audioCodec,
+		bitrateOverlay: (p.bitrateOverlay as boolean | undefined) ?? prev?.bitrateOverlay ?? false,
+	};
+}
+
+async function startEncoderChecked(cfg: EncoderConfig) {
+	try {
+		return await startEncoder(cfg);
+	} catch (e: unknown) {
+		const msg = errorMessage(e);
+		throw new ApiError(msg, /already running/.test(msg) ? 409 : /pipeline|audio/i.test(msg) ? 400 : 500);
+	}
+}
+
+/** Combined devices: bring up srtla_send, then point belacoder at it. */
+async function startStream(p: Params) {
+	const remoteHost = requireHost(p, "remoteHost");
+	const remotePort = requirePort(p, "remotePort");
+	const listenPort = String(optionalInt(p, "listenPort", Number(state.stream?.listenPort ?? 9000), 1, 65535));
+	const cfg = parseEncoderConfig(p, "127.0.0.1", listenPort);
+	cancelAutostart();
+	try {
+		await startCombined({ remoteHost, remotePort, listenPort }, cfg);
+	} catch (e: unknown) {
+		const msg = errorMessage(e);
+		throw new ApiError(msg, /already/.test(msg) ? 409 : /pipeline|audio/i.test(msg) ? 400 : 500);
+	}
+	return { srtla: srtlaStatus(), encoder: encoderStatus() };
 }
 
 const modemAction =
@@ -187,9 +304,10 @@ const methods: Record<string, Method> = {
 	"srtla.status": () => ({ srtla: srtlaStatus() }),
 
 	"srtla.start": async (p) => {
-		const listenPort = requireString(p, "listenPort");
-		const remoteHost = requireString(p, "remoteHost");
-		const remotePort = requireString(p, "remotePort");
+		cancelAutostart();
+		const listenPort = requirePort(p, "listenPort");
+		const remoteHost = requireHost(p, "remoteHost");
+		const remotePort = requirePort(p, "remotePort");
 		try {
 			return { srtla: await startSrtla(listenPort, remoteHost, remotePort) };
 		} catch (e: unknown) {
@@ -198,6 +316,7 @@ const methods: Record<string, Method> = {
 	},
 
 	"srtla.stop": async () => {
+		cancelAutostart();
 		await stopSrtla();
 		return { srtla: srtlaStatus() };
 	},
@@ -206,7 +325,50 @@ const methods: Record<string, Method> = {
 		await reloadSrtla();
 		return { srtla: srtlaStatus() };
 	},
+
+	"pipelines.list": async () => ({ dir: PIPELINES_DIR, pipelines: await listPipelines() }),
+
+	"encoder.status": () => ({ encoder: encoderStatus() }),
+
+	"encoder.start": async (p) => {
+		cancelAutostart();
+		const cfg = parseEncoderConfig(p, requireHost(p, "host"), requirePort(p, "port"));
+		return { encoder: await startEncoderChecked(cfg) };
+	},
+
+	"encoder.stop": async () => {
+		cancelAutostart();
+		await stopEncoder();
+		return { encoder: encoderStatus() };
+	},
+
+	"encoder.bitrate": async (p) => {
+		if (p.maxBitrate === undefined) throw new ApiError("maxBitrate is required");
+		const kbps = optionalInt(p, "maxBitrate", 0, MIN_BITRATE_KBPS, MAX_BITRATE_KBPS);
+		return { encoder: await setEncoderBitrate(kbps) };
+	},
+
+	"stream.start": startStream,
+
+	"stream.stop": async () => {
+		cancelAutostart();
+		await stopCombined();
+		return { srtla: srtlaStatus(), encoder: encoderStatus() };
+	},
+
+	"autostart.set": async (p) => {
+		if (typeof p.enabled !== "boolean") throw new ApiError("enabled must be a boolean");
+		await setAutostart(p.enabled);
+		return { autostart: !!state.autostart };
+	},
 };
+
+function methodAllowed(name: string): boolean {
+	if (name.startsWith("stream.")) return ROLE === "combined";
+	if (name.startsWith("encoder.") || name === "pipelines.list") return HAS_ENCODER;
+	if (name.startsWith("modems.") || name.startsWith("srtla.") || name === "reconfigure") return HAS_RELAY;
+	return true;
+}
 
 // ----------------------------------------------------------------------
 // Message handling
@@ -234,6 +396,7 @@ export async function handleRequest(raw: string | Buffer | ArrayBuffer | Uint8Ar
 
 		const handler = Object.hasOwn(methods, method) ? methods[method] : undefined;
 		if (!handler) throw new ApiError(`Unknown method: ${method}`, 404);
+		if (!methodAllowed(method)) throw new ApiError(`${method} is not available on ${ROLE} devices`, 409);
 
 		const params =
 			req.params && typeof req.params === "object" && !Array.isArray(req.params)

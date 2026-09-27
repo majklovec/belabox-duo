@@ -12,10 +12,74 @@
         <a id="back" href="../../" title="All devices" hidden>←</a>
         SRTLA Relay <span id="device-name" class="muted"></span>
       </h1>
-      <span id="conn" class="badge off">disconnected</span>
+      <span class="actions">
+        <label class="check" title="Resume the last stream when the service starts"
+          ><input type="checkbox" id="autostart" /> Autostart</label
+        >
+        <span id="role" class="badge" hidden></span>
+        <span id="conn" class="badge off">disconnected</span>
+      </span>
     </header>
 
     <main>
+      <section class="card" id="encoder" hidden>
+        <h2 id="encoder-title">Encoder</h2>
+        <dl id="encoder-info"></dl>
+        <form id="encoder-form">
+          <label class="wide"
+            >Pipeline
+            <select name="pipeline" id="pipeline" required></select
+          ></label>
+          <label id="asrc-field" hidden
+            >Audio source
+            <select name="audioSource" id="audio-source"></select
+          ></label>
+          <label id="acodec-field" hidden
+            >Audio codec
+            <select name="audioCodec" id="audio-codec">
+              <option value="aac">AAC</option>
+              <option value="opus">Opus</option>
+            </select></label
+          >
+          <label id="overlay-field" class="check" hidden
+            ><input type="checkbox" name="bitrateOverlay" id="bitrate-overlay" /> Bitrate overlay</label
+          >
+          <label
+            ><span id="host-label">Relay host</span>
+            <input name="host" placeholder="192.168.1.10" required
+          /></label>
+          <label
+            ><span id="port-label">Relay SRT port</span>
+            <input name="port" inputmode="numeric" placeholder="6000" required
+          /></label>
+          <label id="listen-port-field" hidden
+            >Local SRT port
+            <input name="listenPort" inputmode="numeric" placeholder="9000"
+          /></label>
+          <label
+            >Max bitrate (kbps)
+            <input name="maxBitrate" type="number" min="300" max="30000" step="100" placeholder="5000"
+          /></label>
+          <label
+            >SRT latency (ms)
+            <input name="latency" type="number" min="100" max="10000" step="100" placeholder="2000"
+          /></label>
+          <label
+            >Audio delay (ms)
+            <input name="delay" type="number" min="-2000" max="2000" placeholder="0"
+          /></label>
+          <label
+            >Stream ID
+            <input name="streamid" placeholder="optional"
+          /></label>
+          <div class="actions">
+            <button type="submit" id="encoder-start">Start</button>
+            <button type="button" id="encoder-stop" class="danger">Stop</button>
+            <button type="button" id="encoder-bitrate" class="secondary">Apply bitrate</button>
+          </div>
+        </form>
+      </section>
+
       <section class="card" id="srtla">
         <h2>srtla_send</h2>
         <dl id="srtla-info"></dl>

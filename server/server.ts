@@ -2,7 +2,7 @@
 /*
  * SRTLA control server.
  *
- * Relays connect out to this server (`srtla_relay.ts --remote ws(s)://host:port/device`)
+ * Devices (relay, encoder, or combined encoder+relay) connect out to this server (`srtla_relay.ts --remote ws(s)://host:port/device`)
  * and operators control them from a browser, using the relay's own web UI
  * (../public) served per device.
  *
@@ -11,7 +11,8 @@
  *   GET  /d/<id>/          relay UI for one device (../public/index.html)
  *   WS   /d/<id>/ws        browser ⇄ device; same protocol as the relay's local /ws
  *   GET  /api/devices      JSON list of known devices
- *   WS   /device           relay connections (Authorization: Bearer <token>, x-device-id: <id>)
+ *   WS   /device           device connections (Authorization: Bearer <token>, x-device-id: <id>,
+ *                          x-device-role: relay|encoder|combined)
  *   GET  /healthz          liveness (no auth)
  *
  * Browser requests `{id, method, params}` are forwarded to the device with a
@@ -34,7 +35,7 @@
 import type { ServerWebSocket } from "bun";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { arg, argFail, flag, intArg } from "../src/args";
-import type { DeviceInfo, DeviceSummary, Status } from "../public/types";
+import type { DeviceInfo, DeviceSummary, Role, Status } from "../public/types";
 
 const PORT         = intArg("--port", 8090, 1, 65535);
 const HOST         = arg("--host", "0.0.0.0");
@@ -46,6 +47,8 @@ const NO_AUTH      = flag("--no-auth");
 
 const REQUEST_TIMEOUT_MS = 60_000;
 const ID_RE = /^[\w.-]{1,64}$/;
+const ROLES: readonly Role[] = ["relay", "encoder", "combined"];
+const asRole = (v: unknown): Role | undefined => (ROLES as readonly unknown[]).includes(v) ? (v as Role) : undefined;
 const viewersTopic = (id: string) => `viewers:${id}`;
 
 // ----------------------------------------------------------------------
@@ -143,12 +146,13 @@ const htmlResponse = (page: Page) =>
 // Device registry and request routing
 // ----------------------------------------------------------------------
 type WsData =
-    | { kind: "device"; id: string; address: string }
+    | { kind: "device"; id: string; address: string; role?: Role }
     | { kind: "viewer"; id: string };
 type Socket = ServerWebSocket<WsData>;
 
 interface Device {
     id: string;
+    role?: Role;              // device type, from the upgrade header / hello / status
     ws: Socket | null;
     address?: string;
     connectedAt?: number;
@@ -178,6 +182,7 @@ const deviceFor = (id: string): Device => {
 
 const deviceInfo = (d: Device): DeviceInfo => ({
     id: d.id,
+    role: d.role,
     online: d.ws !== null,
     connectedAt: d.connectedAt,
     lastSeen: d.lastSeen,
@@ -231,13 +236,23 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
             d.statusMsg = text;
             d.status = msg.data as Status;
             d.statusAt = Date.now();
+            const role = asRole(d.status?.role);
+            if (role && role !== d.role) {
+                d.role = role;
+                server.publish(viewersTopic(d.id), deviceEvent(d));
+            }
         }
         server.publish(viewersTopic(d.id), text);
         return;
     }
 
-    if (msg.type === "hello" && msg.id !== d.id) {
-        console.warn(`[device ${d.id}] hello announced a different id (${String(msg.id)}) — ignored`);
+    if (msg.type === "hello") {
+        if (msg.id !== d.id) console.warn(`[device ${d.id}] hello announced a different id (${String(msg.id)}) — ignored`);
+        const role = asRole(msg.role);
+        if (role && role !== d.role) {
+            d.role = role;
+            server.publish(viewersTopic(d.id), deviceEvent(d));
+        }
     }
 }
 
@@ -277,6 +292,7 @@ function summaries(): DeviceSummary[] {
             ...deviceInfo(d),
             statusAt: d.statusAt,
             srtla: d.status?.state.srtla,
+            encoder: d.status?.state.encoder,
             uplinks: d.status?.selected.map((i) => i.ip),
             modems: d.status?.modems.length,
         }))
@@ -302,7 +318,8 @@ const server = Bun.serve({
                 return new Response("Unauthorized\n", { status: 401 });
             }
             const address = srv.requestIP(req)?.address ?? "";
-            if (srv.upgrade(req, { data: { kind: "device", id, address } })) return undefined;
+            const role = asRole(req.headers.get("x-device-role"));
+            if (srv.upgrade(req, { data: { kind: "device", id, address, role } })) return undefined;
             return new Response("Expected a WebSocket upgrade\n", { status: 426 });
         }
 
@@ -342,6 +359,7 @@ const server = Bun.serve({
                 if (d.ws) d.ws.close(4001, "replaced by a new connection");
                 d.ws = ws;
                 d.address = data.address;
+                d.role = data.role ?? d.role;
                 d.connectedAt = d.lastSeen = Date.now();
                 console.log(`[device ${d.id}] connected from ${data.address}`);
                 server.publish(viewersTopic(d.id), deviceEvent(d));

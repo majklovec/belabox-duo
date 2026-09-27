@@ -143,3 +143,9 @@ pre {
 h1 a, a.device { color: var(--accent); text-decoration: none; }
 h1 a { margin-right: 0.4rem; }
 h1 a:hover, a.device:hover { text-decoration: underline; }
+
+/* Author `display` rules (e.g. label grid) would otherwise defeat the hidden attribute */
+[hidden] { display: none !important; }
+label.wide { flex: 1 1 100%; }
+header .actions { align-items: center; }
+label.check { display: flex; align-items: center; gap: 0.4rem; align-self: center; }

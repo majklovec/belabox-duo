@@ -1,0 +1,21 @@
+[Unit]
+Description=SRTLA control server (fleet UI for relays and encoders)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+WorkingDirectory=/opt/srtla_relay
+EnvironmentFile=/etc/default/srtla-control
+ExecStart=/usr/local/bin/bun server/server.ts $SRTLA_CONTROL_ARGS
+Restart=always
+RestartSec=3
+SyslogIdentifier=srtla-control
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
