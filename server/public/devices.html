@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SRTLA Control</title>
+    <link rel="stylesheet" href="../../public/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>SRTLA Control</h1>
+      <span id="conn" class="badge off">loading</span>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>Devices</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Device</th>
+              <th>State</th>
+              <th>Address</th>
+              <th>Connected</th>
+              <th>srtla_send</th>
+              <th>Uplinks</th>
+              <th>Modems</th>
+            </tr>
+          </thead>
+          <tbody id="device-rows"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <script type="module" src="./devices.ts"></script>
+  </body>
+</html>

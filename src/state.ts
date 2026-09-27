@@ -12,7 +12,21 @@ async function loadState(): Promise<PersistentState> {
     return { selection: {}, srtla: { running: false } };
 }
 
+type ChangeListener = () => void;
+const listeners = new Set<ChangeListener>();
+
+/** Subscribe to state / uplink changes; returns an unsubscribe function. */
+export function onStateChange(listener: ChangeListener): () => void {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+}
+
+export function notifyStateChange(): void {
+    for (const listener of listeners) listener();
+}
+
 export async function saveState(): Promise<void> {
+    notifyStateChange();
     if (DRY_RUN) return;
     await Bun.write(STATE_FILE, JSON.stringify(state, null, 2));
 }

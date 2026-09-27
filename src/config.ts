@@ -1,39 +1,9 @@
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 
-export const argv = Bun.argv.slice(2);
-const flag = (name: string): boolean => argv.includes(name);
+import { arg, argFail, argv, enumArg, flag, intArg } from "./args";
 
-const argFail = (name: string, value: string, expected: string): never => {
-    console.error(`Invalid value for ${name}: "${value}" (expected ${expected})`);
-    process.exit(2);
-};
-
-/** Reads `--name value` or `--name=value`; the overload guarantees a string when a fallback is given. */
-function arg(name: string): string | undefined;
-function arg(name: string, fallback: string): string;
-function arg(name: string, fallback?: string): string | undefined {
-    const prefix = `${name}=`;
-    for (let i = 0; i < argv.length; i++) {
-        const a = argv[i];
-        if (a === name) return argv[i + 1] ?? fallback;
-        if (a.startsWith(prefix)) return a.slice(prefix.length);
-    }
-    return fallback;
-}
-
-const intArg = (name: string, fallback: number, min = 0, max = Number.MAX_SAFE_INTEGER): number => {
-    const raw = arg(name);
-    if (raw === undefined) return fallback;
-    const n = Number(raw);
-    return Number.isInteger(n) && n >= min && n <= max ? n : argFail(name, raw, `integer ${min}-${max}`);
-};
-
-const enumArg = <T extends string>(name: string, allowed: readonly T[], fallback: T): T => {
-    const raw = arg(name);
-    if (raw === undefined) return fallback;
-    return (allowed as readonly string[]).includes(raw) ? (raw as T) : argFail(name, raw, allowed.join(" | "));
-};
+export { argv };
 
 const TMP = tmpdir();
 export const CONFIG_FILE     = arg("--config", "modems.json");
@@ -43,6 +13,16 @@ export const DRY_RUN         = flag("--dry-run");
 export const API_MODE        = flag("--api");
 export const API_PORT        = intArg("--port", 8085, 1, 65535);
 export const API_HOST        = arg("--host", "127.0.0.1");
-export const MONITOR         = flag("--monitor") || API_MODE;   // API mode implies monitor
+// Extra browser origins allowed to open the WebSocket (comma-separated, `*` = any)
+export const ALLOWED_ORIGINS = arg("--allow-origin", "").split(",").map((o) => o.trim()).filter(Boolean);
+// Outbound control connection: status is pushed to and requests accepted from this server.
+// Token/URL may come from env to keep secrets out of the process list.
+export const REMOTE_URL      = arg("--remote", process.env.SRTLA_REMOTE_URL ?? "");
+export const REMOTE_TOKEN    = arg("--remote-token", process.env.SRTLA_REMOTE_TOKEN ?? "");
+export const REMOTE_ID       = arg("--remote-id", process.env.SRTLA_REMOTE_ID ?? hostname());
+export const REMOTE_INTERVAL = intArg("--remote-interval", 30);   // periodic status push, seconds (0 = off)
+if (REMOTE_URL && !/^wss?:\/\//.test(REMOTE_URL)) argFail("--remote", REMOTE_URL, "ws:// or wss:// URL");
+
+export const MONITOR         = flag("--monitor") || API_MODE || !!REMOTE_URL;   // daemon modes imply monitor
 export const RELOAD_MODE     = enumArg("--srtla-reload", ["signal", "restart"] as const, "signal");
 export const DEBOUNCE_MS     = intArg("--debounce-ms", 1500);

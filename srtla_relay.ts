@@ -20,7 +20,9 @@
  *   modems.ts   ModemManager integration
  *   routing.ts  interface detection, selection, routing, uplinks, monitor
  *   srtla.ts    srtla_send process management
- *   api.ts      HTTP API
+ *   api.ts      WebSocket API (ws://host:port/ws) + web UI from public/ at /
+ *   remote.ts   outbound WebSocket to a remote control server (same protocol);
+ *               the server itself lives in server/ (bun server/server.ts)
  *
  * Prefers Bun runtime APIs ($, Bun.file, Bun.serve, Bun.spawn).
  *
@@ -28,6 +30,7 @@
  *   bun srtla_relay.ts [--monitor] [--config modems.json] [--dry-run]
  *   bun srtla_relay.ts --api --port 8085
  *   bun srtla_relay.ts --start-srtla 6000 rec.example.com 5000 --monitor
+ *   SRTLA_REMOTE_TOKEN=secret bun srtla_relay.ts --remote wss://ctl.example.com/device [--remote-id cam1] [--api]
  *
  * Reload strategy (default `signal`):
  *   --srtla-reload=signal    send SIGHUP, srtla_send re-reads uplinks file
@@ -36,7 +39,8 @@
  */
 
 import { startApiServer } from "./src/api";
-import { API_MODE, MONITOR, argv } from "./src/config";
+import { API_MODE, MONITOR, REMOTE_URL, argv } from "./src/config";
+import { startRemote, stopRemote } from "./src/remote";
 import { detectInterfaces, reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
 import { reloadSrtla, startSrtla, stopSrtla, maybeStartSrtla } from "./src/srtla";
 
@@ -47,6 +51,7 @@ async function main(): Promise<void> {
 
     const shutdown = async (signal: string) => {
         console.log(`\nReceived ${signal}, shutting down...`);
+        stopRemote();
         await stopInterfaceMonitor();
         await stopSrtla();
         process.exit(0);
@@ -54,7 +59,7 @@ async function main(): Promise<void> {
     process.on("SIGINT",  () => void shutdown("SIGINT"));
     process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
-    if (API_MODE) {
+    if (API_MODE || REMOTE_URL) {
         // 1. Prime routing + write uplinks file
         const result = await reconfigure();
         if (!result.ok) {
@@ -69,8 +74,9 @@ async function main(): Promise<void> {
         // 3. Start the monitor (will reload srtla_send on changes)
         if (MONITOR) startInterfaceMonitor(reloadSrtla);
 
-        // 4. Start the API
-        startApiServer();
+        // 4. Start the local API and/or the remote control link
+        if (API_MODE) startApiServer();
+        if (REMOTE_URL) startRemote();
         return;
     }
 
@@ -94,7 +100,7 @@ async function main(): Promise<void> {
     for (const i of result.selected) console.log(`  ${i.iface}  ${i.ip}`);
     console.log(`\nUplinks file: ${result.uplinksFile}`);
 
-    const started = await maybeStartSrtla();
+    const started = await maybeStartSrtla(argv);
 
     if (MONITOR) {
         startInterfaceMonitor(reloadSrtla);

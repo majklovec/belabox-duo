@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SRTLA Relay</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>
+        <a id="back" href="../../" title="All devices" hidden>←</a>
+        SRTLA Relay <span id="device-name" class="muted"></span>
+      </h1>
+      <span id="conn" class="badge off">disconnected</span>
+    </header>
+
+    <main>
+      <section class="card" id="srtla">
+        <h2>srtla_send</h2>
+        <dl id="srtla-info"></dl>
+        <form id="srtla-form">
+          <label
+            >Listen port
+            <input
+              name="listenPort"
+              inputmode="numeric"
+              placeholder="6000"
+              required
+          /></label>
+          <label
+            >Remote host
+            <input name="remoteHost" placeholder="rec.example.com" required
+          /></label>
+          <label
+            >Remote port
+            <input
+              name="remotePort"
+              inputmode="numeric"
+              placeholder="5000"
+              required
+          /></label>
+          <div class="actions">
+            <button type="submit" id="srtla-start">Start</button>
+            <button type="button" id="srtla-stop" class="danger">Stop</button>
+            <button type="button" id="srtla-reload">Reload</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card" id="interfaces">
+        <div class="card-head">
+          <h2>Interfaces</h2>
+          <button type="button" id="reconfigure">Reconfigure</button>
+        </div>
+        <p id="selection-mode" class="muted"></p>
+        <table>
+          <thead>
+            <tr>
+              <th>Bond</th>
+              <th>Interface</th>
+              <th>Address</th>
+              <th>Modem</th>
+              <th>Signal</th>
+              <th>Operator</th>
+              <th>Tech</th>
+            </tr>
+          </thead>
+          <tbody id="iface-rows"></tbody>
+        </table>
+      </section>
+
+      <section class="card" id="modems">
+        <h2>Modems</h2>
+        <div id="modem-list" class="grid"></div>
+      </section>
+
+      <section class="card" id="at">
+        <h2>AT console</h2>
+        <form id="at-form" class="inline">
+          <select name="index" id="at-modem" required></select>
+          <input name="command" placeholder="AT+CSQ" required />
+          <button type="submit">Send</button>
+        </form>
+        <pre id="at-output" class="muted">—</pre>
+      </section>
+
+      <section class="card" id="log-card">
+        <h2>Log</h2>
+        <ol id="log"></ol>
+      </section>
+    </main>
+
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>
