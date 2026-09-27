@@ -149,3 +149,19 @@ h1 a:hover, a.device:hover { text-decoration: underline; }
 label.wide { flex: 1 1 100%; }
 header .actions { align-items: center; }
 label.check { display: flex; align-items: center; gap: 0.4rem; align-self: center; }
+
+/* Device type icons */
+.role { display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap; }
+.role-icon {
+	width: 1.15em;
+	height: 1.15em;
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.role .role-icon + .role-icon { margin-left: -0.1rem; }
+a.device { font-weight: 600; }
+th .role-icon { vertical-align: -0.2em; }

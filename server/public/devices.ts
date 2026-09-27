@@ -1,9 +1,8 @@
 import { badge, byId, h, since } from "../../public/dom";
+import { icon, roleTag, type Shape } from "../../public/icons";
 import type { DeviceSummary } from "../../public/types";
 
 const REFRESH_MS = 3_000;
-
-const ROLE_LABEL = { relay: "relay", encoder: "encoder", combined: "encoder + relay" } as const;
 
 function row(d: DeviceSummary): HTMLTableRowElement {
 	const s = d.srtla;
@@ -13,8 +12,12 @@ function row(d: DeviceSummary): HTMLTableRowElement {
 	return h(
 		"tr",
 		{},
-		h("td", {}, h("a", { className: "device", href: `d/${encodeURIComponent(d.id)}/` }, d.id)),
-		h("td", {}, d.role ? ROLE_LABEL[d.role] : "—"),
+		h(
+			"td",
+			{},
+			h("a", { className: "device", href: `d/${encodeURIComponent(d.id)}/` }, d.id),
+		),
+		h("td", { className: "muted" }, d.role ? roleTag(d.role) : "—"),
 		h("td", {}, d.online ? badge("online", "on") : badge("offline", "off")),
 		h("td", {}, d.address || "—"),
 		h("td", {}, d.online ? since(d.connectedAt) : `last seen ${since(d.lastSeen)}`),
@@ -55,6 +58,11 @@ async function refresh(): Promise<void> {
 		conn.textContent = err instanceof Error ? err.message : "error";
 		conn.className = "badge off";
 	}
+}
+
+// Column headers for the encoder / relay parts get the matching device icon
+for (const th of document.querySelectorAll<HTMLElement>("th[data-icon]")) {
+	th.prepend(icon(th.dataset.icon as Shape), " ");
 }
 
 void refresh();

@@ -44,17 +44,13 @@
           <label id="overlay-field" class="check" hidden
             ><input type="checkbox" name="bitrateOverlay" id="bitrate-overlay" /> Bitrate overlay</label
           >
-          <label
-            ><span id="host-label">Relay host</span>
+          <label id="encoder-host-field"
+            >Relay host
             <input name="host" placeholder="192.168.1.10" required
           /></label>
-          <label
-            ><span id="port-label">Relay SRT port</span>
+          <label id="encoder-port-field"
+            >Relay SRT port
             <input name="port" inputmode="numeric" placeholder="6000" required
-          /></label>
-          <label id="listen-port-field" hidden
-            >Local SRT port
-            <input name="listenPort" inputmode="numeric" placeholder="9000"
           /></label>
           <label
             >Max bitrate (kbps)
@@ -84,7 +80,7 @@
         <h2>srtla_send</h2>
         <dl id="srtla-info"></dl>
         <form id="srtla-form">
-          <label
+          <label id="srtla-listen-field"
             >Listen port
             <input
               name="listenPort"
@@ -93,18 +89,18 @@
               required
           /></label>
           <label
-            >Remote host
+            ><span id="srtla-host-label">Remote host</span>
             <input name="remoteHost" placeholder="rec.example.com" required
           /></label>
           <label
-            >Remote port
+            ><span id="srtla-port-label">Remote port</span>
             <input
               name="remotePort"
               inputmode="numeric"
               placeholder="5000"
               required
           /></label>
-          <div class="actions">
+          <div class="actions" id="srtla-actions">
             <button type="submit" id="srtla-start">Start</button>
             <button type="button" id="srtla-stop" class="danger">Stop</button>
             <button type="button" id="srtla-reload">Reload</button>

@@ -1,4 +1,5 @@
 import { badge, byId, type Child, h, since } from "./dom";
+import { roleTag } from "./icons";
 import type { ModemInfo } from "../src/modems";
 import type { DeviceInfo, Pipeline, Role, Status } from "./types";
 
@@ -145,7 +146,8 @@ function renderSrtla(status: Status): void {
 	definitionList(byId("srtla-info"), [
 		["State", s.running ? badge("running", "on") : badge("stopped", "off")],
 		["PID", s.pid],
-		["Target", s.remoteHost ? `${s.remoteHost}:${s.remotePort} (listen ${s.listenPort})` : null],
+		// On combined devices the listen port is an internal belacoder → srtla_send detail
+		["Target", s.remoteHost ? `${s.remoteHost}:${s.remotePort}${role === "combined" ? "" : ` (listen ${s.listenPort})`}` : null],
 		["Started", s.running ? since(s.startedAt) : null],
 		["Reloads", `${s.reloadCount ?? 0} (last ${since(s.lastReloadAt)}, mode ${status.monitor.reloadMode})`],
 		["Monitor", status.monitor.running ? badge("watching", "on") : badge("off", "warn")],
@@ -324,13 +326,9 @@ function renderEncoder(status: Status): void {
 	const combined = status.role === "combined";
 	const e = status.state.encoder;
 	const cfg = e.config;
-	const stream = status.state.stream;
 	const srtla = status.state.srtla;
 
 	byId("encoder-title").textContent = combined ? "Stream (belacoder → srtla_send)" : "Encoder (belacoder)";
-	byId("host-label").textContent = combined ? "SRTLA receiver host" : "Relay host";
-	byId("port-label").textContent = combined ? "SRTLA receiver port" : "Relay SRT port";
-	byId("listen-port-field").hidden = !combined;
 
 	const state = !e.running
 		? badge("stopped", "off")
@@ -340,7 +338,7 @@ function renderEncoder(status: Status): void {
 				? badge("streaming", "on")
 				: badge("restarting", "warn");
 	const target = combined
-		? srtla.remoteHost && `${srtla.remoteHost}:${srtla.remotePort} via srtla_send :${srtla.listenPort}`
+		? srtla.remoteHost && `${srtla.remoteHost}:${srtla.remotePort} via srtla_send`
 		: cfg && `${cfg.host}:${cfg.port}`;
 
 	definitionList(byId("encoder-info"), [
@@ -362,9 +360,9 @@ function renderEncoder(status: Status): void {
 
 	const form = byId<HTMLFormElement>("encoder-form");
 	prefill(form, {
-		host: combined ? stream?.remoteHost : cfg?.host,
-		port: combined ? stream?.remotePort : cfg?.port,
-		listenPort: combined ? stream?.listenPort : undefined,
+		// Combined devices take the receiver from the srtla_send card instead
+		host: combined ? undefined : cfg?.host,
+		port: combined ? undefined : cfg?.port,
 		maxBitrate: cfg?.maxBitrate,
 		latency: cfg?.latency,
 		delay: cfg?.delay,
@@ -383,17 +381,35 @@ function renderEncoder(status: Status): void {
 	if (!touched.has("bitrate-overlay") && cfg) overlay.checked = !!cfg.bitrateOverlay;
 }
 
+function setRequired(formId: string, name: string, required: boolean): void {
+	(byId<HTMLFormElement>(formId).elements.namedItem(name) as HTMLInputElement).required = required;
+}
+
 function applyRole(next: Role): void {
 	role = next;
 	const hasEncoder = role !== "relay";
 	const hasRelay = role !== "encoder";
 	const roleBadge = byId("role");
 	roleBadge.hidden = false;
-	roleBadge.textContent = role;
+	if (roleBadge.dataset.role !== role) {
+		roleBadge.dataset.role = role;
+		roleBadge.replaceChildren(roleTag(role));
+	}
 	byId("encoder").hidden = !hasEncoder;
 	for (const id of ["srtla", "interfaces", "modems", "at"]) byId(id).hidden = !hasRelay;
-	// Combined devices start srtla_send together with the encoder
-	byId("srtla-form").hidden = role === "combined";
+	// Combined: the receiver is entered in the srtla_send card, but the stream card's single
+	// Start/Stop drives srtla_send, and its local listen port is internal
+	const combined = role === "combined";
+	byId("srtla-listen-field").hidden = combined;
+	byId("srtla-actions").hidden = combined;
+	byId("srtla-host-label").textContent = combined ? "SRTLA receiver host" : "Remote host";
+	byId("srtla-port-label").textContent = combined ? "SRTLA receiver port" : "Remote port";
+	byId("encoder-host-field").hidden = combined;
+	byId("encoder-port-field").hidden = combined;
+	// Hidden required inputs would block form submission
+	setRequired("srtla-form", "listenPort", !combined);
+	setRequired("encoder-form", "host", !combined);
+	setRequired("encoder-form", "port", !combined);
 	if (hasEncoder && !pipelinesLoaded) void loadPipelines();
 }
 
@@ -417,6 +433,11 @@ function render(status: Status): void {
 // ----------------------------------------------------------------------
 byId<HTMLFormElement>("srtla-form").onsubmit = (e) => {
 	e.preventDefault();
+	// Enter in the receiver fields of a combined device means "start the stream"
+	if (role === "combined") {
+		byId<HTMLFormElement>("encoder-form").requestSubmit();
+		return;
+	}
 	const form = e.currentTarget as HTMLFormElement;
 	const params = Object.fromEntries(new FormData(form));
 	void act(byId<HTMLButtonElement>("srtla-start"), "srtla.start", params);
@@ -439,17 +460,20 @@ byId<HTMLFormElement>("encoder-form").onsubmit = (e) => {
 		latency: optionalNumber(data.get("latency")),
 		delay: optionalNumber(data.get("delay")),
 		streamid: data.get("streamid") || undefined,
-		audioSource: data.get("audioSource") || undefined,
-		audioCodec: data.get("audioCodec") || undefined,
-		bitrateOverlay: byId<HTMLInputElement>("bitrate-overlay").checked,
+		// Options the selected pipeline does not support are hidden; do not send their stale values
+		audioSource: byId("asrc-field").hidden ? "default" : data.get("audioSource") || undefined,
+		audioCodec: byId("acodec-field").hidden ? undefined : data.get("audioCodec") || undefined,
+		bitrateOverlay: !byId("overlay-field").hidden && byId<HTMLInputElement>("bitrate-overlay").checked,
 	};
 	const button = byId<HTMLButtonElement>("encoder-start");
 	if (role === "combined") {
+		const receiver = byId<HTMLFormElement>("srtla-form");
+		if (!receiver.reportValidity()) return;
+		const r = new FormData(receiver);
 		void act(button, "stream.start", {
 			...common,
-			remoteHost: data.get("host"),
-			remotePort: data.get("port"),
-			listenPort: optionalNumber(data.get("listenPort")),
+			remoteHost: r.get("remoteHost"),
+			remotePort: r.get("remotePort"),
 		});
 	} else {
 		void act(button, "encoder.start", { ...common, host: data.get("host"), port: data.get("port") });
