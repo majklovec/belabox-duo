@@ -1,0 +1,16 @@
+v4l2src device=/dev/video0 ! 
+image/jpeg,width=1920,height=1080,framerate=25/1 ! 
+jpegparse ! 
+jpegdec ! 
+videoconvert ! 
+nvh265enc preset=low-latency-hp rc-mode=cbr name=venc_kbps !
+h265parse config-interval=-1 !
+ queue max-size-time=10000000000 max-size-buffers=1000 max-size-bytes=41943040 !
+ mux.
+audiotestsrc !
+ audio/x-raw,channels=2,rate=48000 !
+voaacenc bitrate=128000 !
+ aacparse !
+ queue max-size-time=10000000000 max-size-buffers=1000 !
+ mux.
+mpegtsmux name=mux

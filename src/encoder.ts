@@ -132,6 +132,7 @@ export async function listAudioSources(): Promise<AudioSource[]> {
 /** Write the pipeline with audio / overlay adjustments applied; returns the file to run. */
 async function preparePipeline(file: string, cfg: EncoderConfig, write = true): Promise<string> {
     let text = await readFile(file, "utf8");
+    if (!text.trim()) throw new Error(`Pipeline is empty: ${relative(pipelinesRoot, file)}`);
     const source = cfg.audioSource ?? AUDIO_DEFAULT;
 
     if (source === AUDIO_NONE) {
