@@ -323,15 +323,19 @@ function renderInterfaces(status: Status): void {
 			togglingIfaces.delete(i.iface);
 			box.disabled = false;
 		};
-		const sub = [i.cidr, i.speed ? formatSpeed(i.speed) : null, i.modemIndex !== undefined ? `modem #${i.modemIndex}` : null]
-			.filter(Boolean)
-			.join(" · ");
+		const sub = [i.cidr, i.modemIndex !== undefined ? `modem #${i.modemIndex}` : null].filter(Boolean).join(" · ");
 		const network = [i.operatorName, i.accessTech].filter(Boolean).join(" · ");
 		return h(
 			"tr",
 			{ className: selected.has(i.iface) ? "selected" : "" },
 			h("td", {}, box),
-			h("td", {}, i.iface, sub ? h("span", { className: "iface-sub muted" }, sub) : null),
+			h(
+				"td",
+				{},
+				i.iface,
+				i.speed ? h("small", { className: "muted" }, ` · ${formatSpeed(i.speed)}`) : null,
+				sub ? h("span", { className: "iface-sub muted" }, sub) : null,
+			),
 			h("td", {}, signal(i.signalQuality)),
 			h("td", {}, network || "—"),
 			...linkCells(links.get(i.ip), total),
