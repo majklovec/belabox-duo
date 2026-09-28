@@ -22,6 +22,7 @@
  *   srtla.ts    srtla_send process management
  *   encoder.ts  belacoder pipelines + process management (encoder / combined roles)
  *   stream.ts   combined srtla_send + belacoder start/stop, autostart
+ *   eventlog.ts persistent event log shown in the web UI (--log-file)
  *   api.ts      WebSocket API (ws://host:port/ws) + web UI from public/ at /
  *   remote.ts   outbound WebSocket to a remote control server (same protocol);
  *               the server itself lives in server/ (bun server/server.ts)
@@ -50,6 +51,7 @@
 import { startApiServer } from "./src/api";
 import { API_MODE, HAS_RELAY, MONITOR, PIPELINES_DIR, REMOTE_URL, ROLE, argv } from "./src/config";
 import { listPipelines, stopEncoder } from "./src/encoder";
+import { flushLog, logEvent } from "./src/eventlog";
 import { startRemote, stopRemote } from "./src/remote";
 import { runAutostart } from "./src/stream";
 import { detectInterfaces, reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
@@ -62,21 +64,27 @@ async function main(): Promise<void> {
 
     const shutdown = async (signal: string) => {
         console.log(`\nReceived ${signal}, shutting down...`);
+        // Before stopRemote so the control server still receives it
+        if (API_MODE || REMOTE_URL) logEvent("info", "Service", `Stopped (${signal})`);
         stopRemote();
         await stopInterfaceMonitor();
         await stopEncoder();
         await stopSrtla();
+        await flushLog();
         process.exit(0);
     };
     process.on("SIGINT",  () => void shutdown("SIGINT"));
     process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
     if (API_MODE || REMOTE_URL) {
+        logEvent("info", "Service", `Started (${ROLE})`);
         if (HAS_RELAY) {
             // 1. Prime routing + write uplinks file
             const result = await reconfigure();
             if (!result.ok) {
                 console.error("Initial reconfigure failed:", result.error);
+                logEvent("error", "Interfaces", `Initial reconfigure failed: ${result.error}`);
+                await flushLog();
                 process.exit(1);
             }
             console.log(`Initial uplinks: ${result.ips.join(", ")}`);

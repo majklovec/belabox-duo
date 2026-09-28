@@ -2,6 +2,7 @@
  * srtla_send process management: start / stop / reload (SIGHUP or restart).
  */
 import { DRY_RUN, RELOAD_MODE, SRTLA_SOCKET, UPLINKS_FILE } from "./config";
+import { logEvent } from "./eventlog";
 import { type SrtlaOptions, saveState, state } from "./state";
 import {
     prepareSrtlaControl,
@@ -144,7 +145,9 @@ export async function startSrtla(
         state.srtla = { running: false, reloadCount: state.srtla.reloadCount };
         srtlaProc = null;
         saveState().catch(() => {});
-        if (wanted) scheduleRestart();
+        if (!wanted) return;
+        logEvent("warn", "SRTLA", `srtla_send exited with code ${code}; restarting in ${RESTART_DELAY_MS / 1000}s`);
+        scheduleRestart();
     });
 
     return s;
@@ -161,7 +164,9 @@ function scheduleRestart(): void {
         try {
             await startSrtla(...args);
         } catch (err: unknown) {
-            console.error("srtla_send restart failed:", err instanceof Error ? err.message : String(err));
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error("srtla_send restart failed:", msg);
+            logEvent("error", "SRTLA", `Restart failed: ${msg}`);
             scheduleRestart();
         }
     }, RESTART_DELAY_MS);

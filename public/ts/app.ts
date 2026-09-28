@@ -1,5 +1,6 @@
 import { badge, byId, type Child, formatBitrate, h, since } from "./dom";
-import { roleTag } from "./icons";
+import { type Level, levelIcon, roleTag } from "./icons";
+import { type LogEntry, type LogEvent, methodLog } from "../../src/logMessages";
 import type { ModemInfo } from "../../src/modems";
 import type { DeviceInfo, Pipeline, Role, SrtlaLinkStats, SrtlaStats, SrtlaStatsEvent, Status } from "../types";
 
@@ -13,12 +14,64 @@ function definitionList(target: HTMLElement, rows: [string, Child][]): void {
 	target.replaceChildren(...rows.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v ?? "—")]));
 }
 
-function log(message: string, error = false): void {
-	const list = byId<HTMLOListElement>("log");
-	list.prepend(
-		h("p", { className: error ? "error" : "" }, h("time", {}, new Date().toLocaleTimeString()), message),
+const LEVEL_LABEL: Record<Level, string> = { info: "INFO", warn: "WARNING", error: "ERROR" };
+const LOG_MAX = 200;
+
+// Device entries arrive via `log` events (persisted on the device; the control server adds its
+// own online / offline ones); browser entries (connection, request failures) live in this page only
+const logRows = new Map<string, LogEntry>();
+const logKey = (e: LogEntry) => `${e.origin ?? "device"}:${e.id}`;
+let nextLocalId = 1;
+
+function formatLogTime(at: number): HTMLTimeElement {
+	const date = new Date(at);
+	const today = date.toDateString() === new Date().toDateString();
+	return h(
+		"time",
+		{ dateTime: date.toISOString(), title: date.toLocaleString() },
+		today ? date.toLocaleTimeString() : date.toLocaleString(),
 	);
-	while (list.children.length > 50) list.lastElementChild?.remove();
+}
+
+function renderLog(): void {
+	const rows = [...logRows.values()].sort((a, b) => b.at - a.at || b.id - a.id);
+	for (const old of rows.splice(LOG_MAX)) logRows.delete(logKey(old));
+	byId<HTMLUListElement>("log").replaceChildren(
+		...rows.map((e) =>
+			h(
+				"li",
+				{ className: `log-${e.level}` },
+				levelIcon(e.level),
+				formatLogTime(e.at),
+				h("span", { className: "log-level" }, LEVEL_LABEL[e.level]),
+				h("span", { className: "log-section" }, e.section),
+				h("span", { className: "log-message" }, e.message),
+				h("span", { className: "log-count" }, (e.count ?? 1) > 1 ? `×${e.count}` : null),
+			),
+		),
+	);
+}
+
+function applyLog(data: LogEvent): void {
+	if (data.reset) {
+		for (const [key, e] of logRows) if (e.origin !== "browser") logRows.delete(key);
+	}
+	for (const e of data.entries) logRows.set(logKey(e), e);
+	renderLog();
+}
+
+/** Browser-side entry; a repeat of the newest one bumps its counter instead. */
+function log(level: Level, section: string, message: string): void {
+	const at = Date.now();
+	const newest = [...logRows.values()].reduce<LogEntry | undefined>((n, e) => (!n || e.at >= n.at ? e : n), undefined);
+	if (newest?.origin === "browser" && newest.level === level && newest.section === section && newest.message === message) {
+		newest.count = (newest.count ?? 1) + 1;
+		newest.at = at;
+	} else {
+		const entry: LogEntry = { id: nextLocalId++, origin: "browser", at, level, section, message };
+		logRows.set(logKey(entry), entry);
+	}
+	renderLog();
 }
 
 // ----------------------------------------------------------------------
@@ -29,6 +82,7 @@ let nextId = 1;
 const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 
 let socketOpen = false;
+let connectionLost = false;
 let device: DeviceInfo | null = null;   // null = talking to the relay directly
 
 function updateConnBadge(): void {
@@ -53,10 +107,7 @@ function renderDevice(info: DeviceInfo): void {
 	byId("device-name").textContent = info.id;
 	byId("back").hidden = false;
 	document.title = `${info.id} - Belabox Duo`;
-	if (wasOnline !== undefined && wasOnline !== info.online) {
-		log(`Device ${info.online ? "online" : "offline"}`, !info.online);
-		if (info.online) pipelinesLoaded = false;
-	}
+	if (wasOnline !== undefined && wasOnline !== info.online && info.online) pipelinesLoaded = false;
 	if (!info.online) setStats(null);
 	updateConnBadge();
 }
@@ -70,10 +121,16 @@ function connect(): void {
 	ws.onopen = () => {
 		setConnected(true);
 		pipelinesLoaded = false;
-		log("Connected");
+		if (connectionLost) log("info", "Connection", "Reconnected");
+		connectionLost = false;
 	};
 
 	ws.onclose = () => {
+		// Only once per outage, not on every reconnect attempt
+		if (socketOpen) {
+			connectionLost = true;
+			log("warn", "Connection", "Lost, reconnecting…");
+		}
 		setConnected(false);
 		setStats(null);
 		for (const p of pending.values()) p.reject(new Error("connection closed"));
@@ -89,12 +146,15 @@ function connect(): void {
 			setStats((msg.data as SrtlaStatsEvent).stats);
 		} else if (msg.type === "event" && msg.event === "device") {
 			renderDevice(msg.data as DeviceInfo);
+		} else if (msg.type === "event" && msg.event === "log") {
+			applyLog(msg.data as LogEvent);
 		} else if (msg.type === "response") {
 			const p = pending.get(msg.id);
 			if (!p) return;
 			pending.delete(msg.id);
 			if (msg.ok) p.resolve(msg.result);
-			else p.reject(new Error(msg.error));
+			// `logged`: the device already recorded the failure in its event log
+			else p.reject(Object.assign(new Error(msg.error), { logged: !!msg.logged }));
 		}
 	};
 }
@@ -146,7 +206,7 @@ function updateStateButtons(): void {
 	}
 }
 
-/** Run a method with the button disabled while in flight; logs the outcome. */
+/** Run a method with the button disabled while in flight; logs failures the device did not. */
 async function act<T = unknown>(
 	button: HTMLButtonElement | null,
 	method: string,
@@ -160,10 +220,12 @@ async function act<T = unknown>(
 	try {
 		const result = await call<T>(method, params);
 		ok = true;
-		log(`${method} ✓`);
 		return result;
 	} catch (err) {
-		log(`${method}: ${err instanceof Error ? err.message : String(err)}`, true);
+		if (!(err as { logged?: boolean }).logged) {
+			const { section, action } = methodLog(method);
+			log("error", section, `${action} failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
 		return undefined;
 	} finally {
 		if (button) {
@@ -413,7 +475,6 @@ function renderModems(modems: ModemInfo[]): void {
 let pipelinesLoaded = false;
 let role: Role = "relay";
 const pipelines = new Map<string, Pipeline>();
-let lastLoggedEncoderError: string | undefined;
 
 /** Show only the audio / overlay options the selected pipeline supports. */
 function updatePipelineFields(): void {
@@ -471,10 +532,6 @@ function renderEncoder(status: Status): void {
 	const e = status.state.encoder;
 	const cfg = e.config;
 	const srtla = status.state.srtla;
-	if (e.lastError !== lastLoggedEncoderError) {
-		lastLoggedEncoderError = e.lastError;
-		if (e.lastError) log(`Encoder: ${e.lastError}`, true);
-	}
 
 	byId("encoder-title").textContent = "Encoder";
 
@@ -503,7 +560,6 @@ function renderEncoder(status: Status): void {
 		],
 		["Started", e.running ? since(e.startedAt) : null],
 		["Restarts", e.running ? (e.restarts ?? 0) : null],
-		["Last error", e.lastError],
 	]);
 
 	const form = byId<HTMLFormElement>("encoder-form");
@@ -605,9 +661,6 @@ async function setSrtlaOption(el: HTMLInputElement | HTMLSelectElement, params: 
 	delete el.dataset.busy;
 	// The status push is debounced; do not flash the old value until it arrives
 	if (result && lastStatus) lastStatus.state.srtlaOptions = result.options;
-	if (result && !result.applied && lastStatus?.state.srtla.running) {
-		log("srtla_send has no control socket; the setting applies on the next start");
-	}
 	if (lastStatus) renderSrtlaOptions(lastStatus);
 }
 byId<HTMLSelectElement>("srtla-mode").onchange = (e) => {

@@ -28,10 +28,11 @@
         <h2 id="encoder-title">Encoder</h2>
         <dl id="encoder-info"></dl>
         <form id="encoder-form">
-          <label class="wide"
+          <label
             >Pipeline
             <select name="pipeline" id="pipeline" required></select
           ></label>
+
           <label id="asrc-field" hidden
             >Audio source
             <select name="audioSource" id="audio-source"></select
@@ -43,6 +44,15 @@
               <option value="opus">Opus</option>
             </select></label
           >
+          <label
+            >Audio delay (ms)
+            <input
+              name="delay"
+              type="number"
+              min="-2000"
+              max="2000"
+              placeholder="0"
+          /></label>
           <label id="overlay-field" class="check" hidden
             ><input
               type="checkbox"
@@ -78,15 +88,7 @@
               step="100"
               placeholder="2000"
           /></label>
-          <label
-            >Audio delay (ms)
-            <input
-              name="delay"
-              type="number"
-              min="-2000"
-              max="2000"
-              placeholder="0"
-          /></label>
+
           <label
             >Stream ID <input name="streamid" placeholder="optional"
           /></label>

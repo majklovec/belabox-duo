@@ -1,5 +1,5 @@
 import { hostname, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { arg, argFail, argv, enumArg, flag, intArg } from "./args";
 
@@ -8,6 +8,8 @@ export { argv };
 const TMP = tmpdir();
 export const CONFIG_FILE     = arg("--config", "modems.json");
 export const STATE_FILE      = arg("--state", join(TMP, "srtla_state.json"));
+// Event log shown in the web UI; next to the state file so it persists wherever state does
+export const LOG_FILE        = arg("--log-file", join(dirname(STATE_FILE), "srtla_log.json"));
 export const UPLINKS_FILE    = arg("--uplinks", join(TMP, "srtla_ips.txt"));
 export const DRY_RUN         = flag("--dry-run");
 export const API_MODE        = flag("--api");

@@ -21,6 +21,8 @@
  * device; the last status and link stats are cached and replayed to new viewers. Viewers also receive
  * `{type:"event", event:"device", data:{id, online, …}}` on connect and whenever
  * the device connects or disconnects.
+ * The device's event log (`log` events) is cached too, merged with this server's own
+ * "Device online / offline" entries (in memory only), and replayed to new viewers as a reset.
  *
  * Auth:
  *   devices  shared token (--device-token / SRTLA_DEVICE_TOKEN) and/or a JSON
@@ -36,6 +38,7 @@ import type { ServerWebSocket } from "bun";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { arg, argFail, flag, intArg } from "./src/args";
 import type { DeviceInfo, DeviceSummary, Role, SrtlaStats, SrtlaStatsEvent, Status } from "./public/types";
+import type { LogEntry, LogEvent, LogLevel } from "./src/logMessages";
 
 const PORT         = intArg("--port", 8090, 1, 65535);
 const HOST         = arg("--host", "0.0.0.0");
@@ -46,6 +49,7 @@ const UI_PASSWORD  = arg("--ui-password", process.env.SRTLA_UI_PASSWORD ?? "");
 const NO_AUTH      = flag("--no-auth");
 
 const REQUEST_TIMEOUT_MS = 60_000;
+const LOG_MAX = 200;
 const ID_RE = /^[\w.-]{1,64}$/;
 const ROLES: readonly Role[] = ["relay", "encoder", "combined"];
 const asRole = (v: unknown): Role | undefined => (ROLES as readonly unknown[]).includes(v) ? (v as Role) : undefined;
@@ -162,6 +166,8 @@ interface Device {
     stats?: SrtlaStats | null;
     status?: Status;
     statusAt?: number;
+    log: LogEntry[];          // the device's own event log, as last pushed
+    serverLog: LogEntry[];    // online / offline entries added here
 }
 
 interface Pending {
@@ -173,12 +179,14 @@ interface Pending {
 }
 
 const devices = new Map<string, Device>();
+const newDevice = (id: string): Device => ({ id, ws: null, log: [], serverLog: [] });
 const pending = new Map<number, Pending>();
 let nextRequestId = 1;
+let nextServerLogId = 1;
 
 const deviceFor = (id: string): Device => {
     let d = devices.get(id);
-    if (!d) devices.set(id, (d = { id, ws: null }));
+    if (!d) devices.set(id, (d = newDevice(id)));
     return d;
 };
 
@@ -192,6 +200,37 @@ const deviceInfo = (d: Device): DeviceInfo => ({
 });
 
 const deviceEvent = (d: Device) => JSON.stringify({ type: "event", event: "device", data: deviceInfo(d) });
+
+const logEvent = (data: LogEvent) => JSON.stringify({ type: "event", event: "log", data });
+
+const logHistory = (d: Device) =>
+    logEvent({
+        reset: true,
+        entries: [...d.log, ...d.serverLog].sort((a, b) => a.at - b.at).slice(-LOG_MAX),
+    });
+
+function addServerLog(d: Device, level: LogLevel, message: string): void {
+    const entry: LogEntry = { id: nextServerLogId++, origin: "server", at: Date.now(), level, section: "Device", message };
+    d.serverLog.push(entry);
+    if (d.serverLog.length > LOG_MAX) d.serverLog.splice(0, d.serverLog.length - LOG_MAX);
+    server.publish(viewersTopic(d.id), logEvent({ entries: [entry] }));
+}
+
+/** Apply a device `log` event to the cache; returns the message to forward to viewers. */
+function updateDeviceLog(d: Device, data: LogEvent | undefined, raw: string): string | null {
+    if (!data || !Array.isArray(data.entries)) return null;
+    if (data.reset) {
+        d.log = data.entries.slice(-LOG_MAX);
+        return logHistory(d);
+    }
+    for (const e of data.entries) {
+        const i = d.log.findIndex((x) => x.id === e.id);
+        if (i >= 0) d.log[i] = e;
+        else d.log.push(e);
+    }
+    if (d.log.length > LOG_MAX) d.log.splice(0, d.log.length - LOG_MAX);
+    return raw;
+}
 
 const errorResponse = (id: unknown, method: string, error: string, code: number) =>
     JSON.stringify({ type: "response", id, method, ok: false, error, code });
@@ -247,6 +286,11 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
         if (msg.event === "srtla.stats") {
             d.statsMsg = text;
             d.stats = (msg.data as SrtlaStatsEvent | undefined)?.stats ?? null;
+        }
+        if (msg.event === "log") {
+            const forward = updateDeviceLog(d, msg.data as LogEvent | undefined, text);
+            if (forward) server.publish(viewersTopic(d.id), forward);
+            return;
         }
         server.publish(viewersTopic(d.id), text);
         return;
@@ -374,12 +418,14 @@ const server = Bun.serve({
                 d.connectedAt = d.lastSeen = Date.now();
                 console.log(`[device ${d.id}] connected from ${data.address}`);
                 server.publish(viewersTopic(d.id), deviceEvent(d));
+                addServerLog(d, "info", `Online (${data.address})`);
                 return;
             }
             // Viewers of never-seen devices must not grow the registry
-            const d = devices.get(data.id) ?? { id: data.id, ws: null };
+            const d = devices.get(data.id) ?? newDevice(data.id);
             ws.subscribe(viewersTopic(d.id));
             ws.send(deviceEvent(d));
+            ws.send(logHistory(d));
             if (d.statusMsg) ws.send(d.statusMsg);
             if (d.statsMsg) ws.send(d.statsMsg);
         },
@@ -408,6 +454,7 @@ const server = Bun.serve({
             console.log(`[device ${d.id}] disconnected (${code}${reason ? `: ${reason}` : ""})`);
             failPending((p) => p.deviceId === d.id, "device disconnected", 503);
             server.publish(viewersTopic(d.id), deviceEvent(d));
+            addServerLog(d, "warn", `Offline (${code}${reason ? `: ${reason}` : ""})`);
         },
     },
 });

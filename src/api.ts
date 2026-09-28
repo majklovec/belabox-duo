@@ -13,11 +13,13 @@
  *
  * Server → client (push, sent on connect and whenever state changes):
  *   { "type": "event", "event": "status", "data": { ...same as `status` result... } }
+ *   { "type": "event", "event": "log", "data": { "reset"?: true, "entries": [LogEntry, ...] } }
+ *     (full history with `reset` on connect, then each new or updated entry; see logMessages.ts)
  *   { "type": "event", "event": "srtla.stats", "data": { "at": <ms>, "stats": {...} | null } }
  *     (~1 Hz while srtla_send runs with a control socket; `null` when it stops)
  *
  * Methods:
- *   status, interfaces.list, reconfigure
+ *   status, interfaces.list, reconfigure, log.list
  *   modems.list, modems.select {modems?|ips?}, modems.toggle {iface}
  *   modems.enable|disable|reset|connect|disconnect {index}
  *   srtla.status, srtla.start {listenPort, remoteHost, remotePort}, srtla.stop, srtla.reload
@@ -33,6 +35,8 @@
  *
  * Methods are limited by the device role (--role): relay → modems/srtla/reconfigure,
  * encoder → pipelines/encoder, combined → everything plus stream.*.
+ * Methods that change something are recorded in the event log (success or failure); their
+ * responses carry `"logged": true` so clients do not log them a second time.
  *
  * The same protocol is spoken over the outbound remote connection (see remote.ts).
  */
@@ -78,6 +82,8 @@ import {
 	resolveSelection,
 	setSelection,
 } from "./routing";
+import { logEntries, logEvent, onLogEntry } from "./eventlog";
+import { isLoggedMethod, type LogEvent, methodLog } from "./logMessages";
 import { reloadSrtla, setSrtlaOptions, srtlaStatus, startSrtla, stopSrtla } from "./srtla";
 import {
 	latestSrtlaStats,
@@ -350,11 +356,16 @@ const methods: Record<string, Method> = {
 			opts.quality = p.quality;
 		}
 		if (opts.mode === undefined && opts.quality === undefined) throw new ApiError("mode or quality is required");
+		let result: Awaited<ReturnType<typeof setSrtlaOptions>>;
 		try {
-			return await setSrtlaOptions(opts);
+			result = await setSrtlaOptions(opts);
 		} catch (e: unknown) {
 			throw new ApiError(errorMessage(e), 502);
 		}
+		if (!result.applied && srtlaStatus().running) {
+			logEvent("warn", "SRTLA", "No control socket; the setting applies on the next start");
+		}
+		return result;
 	},
 
 	"pipelines.list": async () => ({ dir: PIPELINES_DIR, pipelines: await listPipelines() }),
@@ -392,6 +403,8 @@ const methods: Record<string, Method> = {
 		await setAutostart(p.enabled);
 		return { autostart: !!state.autostart };
 	},
+
+	"log.list": () => ({ entries: logEntries() }),
 };
 
 function methodAllowed(name: string): boolean {
@@ -410,6 +423,7 @@ type Socket = ServerWebSocket<undefined>;
 export async function handleRequest(raw: string | Buffer | ArrayBuffer | Uint8Array): Promise<string> {
 	let id: unknown = null;
 	let method = "";
+	let logged = false;
 	try {
 		let msg: unknown;
 		try {
@@ -429,16 +443,27 @@ export async function handleRequest(raw: string | Buffer | ArrayBuffer | Uint8Ar
 		if (!handler) throw new ApiError(`Unknown method: ${method}`, 404);
 		if (!methodAllowed(method)) throw new ApiError(`${method} is not available on ${ROLE} devices`, 409);
 
-		const params =
+		const params: Params =
 			req.params && typeof req.params === "object" && !Array.isArray(req.params)
 				? (req.params as Params)
 				: {};
+		logged = isLoggedMethod(method);
 		const result = await handler(params);
-		return JSON.stringify({ type: "response", id, method, ok: true, result });
+		if (logged) {
+			const { section, done } = methodLog(method);
+			logEvent("info", section, done(params));
+		}
+		return JSON.stringify({ type: "response", id, method, ok: true, result, ...(logged ? { logged } : {}) });
 	} catch (err: unknown) {
 		const code = err instanceof ApiError ? err.code : 500;
 		if (code >= 500) console.error(`API error (${method || "?"}):`, err);
-		return JSON.stringify({ type: "response", id, method, ok: false, error: errorMessage(err), code });
+		if (logged) {
+			const { section, action } = methodLog(method);
+			logEvent("error", section, `${action} failed: ${errorMessage(err)}`);
+		}
+		return JSON.stringify({
+			type: "response", id, method, ok: false, error: errorMessage(err), code, ...(logged ? { logged } : {}),
+		});
 	}
 }
 
@@ -485,6 +510,12 @@ function scheduleBroadcast(): void {
 	}, BROADCAST_DEBOUNCE_MS);
 }
 
+const logPayload = (data: LogEvent): string =>
+	JSON.stringify({ type: "event", event: "log", data });
+
+/** Full event log, sent to every new connection. */
+export const logHistoryEvent = (): string => logPayload({ reset: true, entries: logEntries() });
+
 export const statsEvent = (ev: SrtlaStatsEvent = latestSrtlaStats()): string =>
 	JSON.stringify({ type: "event", event: "srtla.stats", data: ev });
 
@@ -508,10 +539,15 @@ export function addStatusSink(sink: StatusSink): () => void {
 		const offState = onStateChange(scheduleBroadcast);
 		const offControl = onSrtlaControlChange(scheduleBroadcast);
 		const offStats = onSrtlaStats(broadcastStats);
+		const offLog = onLogEntry((entry) => {
+			const msg = logPayload({ entries: [entry] });
+			for (const s of sinks) if (s.active()) s.send(msg);
+		});
 		unsubscribeState = () => {
 			offState();
 			offControl();
 			offStats();
+			offLog();
 		};
 	}
 	return () => {
@@ -561,6 +597,7 @@ export function startApiServer(): void {
 			async open(ws) {
 				ws.subscribe(STATUS_TOPIC);
 				try {
+					ws.send(logHistoryEvent());
 					ws.send(await statusEvent());
 					if (latestSrtlaStats().stats) ws.send(statsEvent());
 				} catch (err: unknown) {

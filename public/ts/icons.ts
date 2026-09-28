@@ -1,4 +1,4 @@
-/* Device type icons (inline SVG, stroked with the current text colour). */
+/* Device type and log level icons (inline SVG, stroked with the current text colour). */
 import type { Role } from "../types";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -19,20 +19,42 @@ const SHAPES = {
 
 export type Shape = keyof typeof SHAPES;
 
+// Log level markers, in the same 24×24 outline style
+const LEVEL_SHAPES = {
+	info: [
+		["circle", { cx: "12", cy: "12", r: "10" }],
+		["path", { d: "M12 16v-5M12 8h.01" }],
+	],
+	warn: [
+		["path", { d: "M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" }],
+		["path", { d: "M12 9v4M12 17h.01" }],
+	],
+	error: [
+		["circle", { cx: "12", cy: "12", r: "10" }],
+		["path", { d: "m15 9-6 6M9 9l6 6" }],
+	],
+} as const;
+
+export type Level = keyof typeof LEVEL_SHAPES;
+
 export const ROLE_LABEL: Record<Role, string> = { relay: "relay", encoder: "encoder", combined: "encoder + relay" };
 
-export function icon(shape: Shape): SVGSVGElement {
+function draw(parts: readonly (readonly [string, Record<string, string>])[], className: string): SVGSVGElement {
 	const svg = document.createElementNS(SVG_NS, "svg");
 	svg.setAttribute("viewBox", "0 0 24 24");
-	svg.setAttribute("class", `role-icon role-icon-${shape}`);
+	svg.setAttribute("class", className);
 	svg.setAttribute("aria-hidden", "true");
-	for (const [tag, attrs] of SHAPES[shape]) {
+	for (const [tag, attrs] of parts) {
 		const el = document.createElementNS(SVG_NS, tag);
 		for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
 		svg.append(el);
 	}
 	return svg;
 }
+
+export const icon = (shape: Shape): SVGSVGElement => draw(SHAPES[shape], `role-icon role-icon-${shape}`);
+
+export const levelIcon = (level: Level): SVGSVGElement => draw(LEVEL_SHAPES[level], "role-icon log-icon");
 
 /** Icon(s) for a role: combined devices get both the encoder and the relay icon. */
 export function roleIcons(role: Role): SVGSVGElement[] {

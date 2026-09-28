@@ -233,17 +233,69 @@ pre {
 
 #log {
   margin: 0;
-  padding-left: 1.25rem;
+  padding: 0;
+  list-style: none;
   font-size: 0.85rem;
-  max-height: 180px;
+  max-height: 240px;
   overflow: auto;
 }
-#log li.error {
-  color: var(--bad);
+#log li {
+  --level: var(--muted);
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-left: 3px solid var(--level);
+  border-radius: 3px;
+}
+#log li + li {
+  margin-top: 2px;
+}
+#log li.log-info {
+  --level: var(--accent);
+}
+#log li.log-warn {
+  --level: var(--warn);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+#log li.log-error {
+  --level: var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+#log .log-icon {
+  color: var(--level);
+  align-self: center;
 }
 #log time {
   color: var(--muted);
-  margin-right: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#log .log-level {
+  color: var(--level);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  min-width: 4.5rem;
+}
+#log .log-section {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 5.5rem;
+}
+#log .log-message {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+#log li.log-error .log-message {
+  color: color-mix(in srgb, var(--bad) 70%, var(--text));
+}
+#log .log-count:not(:empty) {
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 h1 a,
