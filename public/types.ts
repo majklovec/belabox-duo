@@ -49,6 +49,8 @@ export interface DeviceSummary extends DeviceInfo {
 	statusAt?: number;
 	srtla?: SrtlaState;
 	encoder?: EncoderState;
-	uplinks?: string[];
-	modems?: number;
+	/** Live srtla_send totals, while it pushes link stats. */
+	bitrate?: number;   // bytes/s across all links
+	activeLinks?: number;
+	totalLinks?: number;
 }

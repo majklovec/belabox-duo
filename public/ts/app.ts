@@ -1,4 +1,4 @@
-import { badge, byId, type Child, h, since } from "./dom";
+import { badge, byId, type Child, formatBitrate, h, since } from "./dom";
 import { roleTag } from "./icons";
 import type { ModemInfo } from "../../src/modems";
 import type { DeviceInfo, Pipeline, Role, SrtlaLinkStats, SrtlaStats, SrtlaStatsEvent, Status } from "../types";
@@ -124,22 +124,62 @@ function call<T = unknown>(method: string, params?: Params): Promise<T> {
 	});
 }
 
+/** Start / Stop style buttons, enabled only when the streaming state allows their action. */
+const STATE_BUTTONS: Record<string, (s: Status) => boolean> = {
+	"encoder-start": (s) => !s.state.encoder.running,
+	"encoder-stop": (s) => s.state.encoder.running || (s.role === "combined" && s.state.srtla.running),
+	"encoder-bitrate": (s) => s.state.encoder.running,
+	"srtla-start": (s) => !s.state.srtla.running,
+	"srtla-stop": (s) => s.state.srtla.running,
+	"srtla-reload": (s) => s.state.srtla.running,
+};
+// Status pushes are debounced; keep a finished action's button disabled until the new state
+// arrives (or this long, if the action changed nothing) so it does not flicker back on
+const AWAIT_STATUS_MS = 2_000;
+const inFlight = new Set<HTMLButtonElement>();
+const awaitingStatus = new Set<HTMLButtonElement>();
+
+function updateStateButtons(): void {
+	for (const [id, allowed] of Object.entries(STATE_BUTTONS)) {
+		const b = byId<HTMLButtonElement>(id);
+		b.disabled = inFlight.has(b) || awaitingStatus.has(b) || !lastStatus || !allowed(lastStatus);
+	}
+}
+
 /** Run a method with the button disabled while in flight; logs the outcome. */
 async function act<T = unknown>(
 	button: HTMLButtonElement | null,
 	method: string,
 	params?: Params,
 ): Promise<T | undefined> {
-	if (button) button.disabled = true;
+	if (button) {
+		inFlight.add(button);
+		button.disabled = true;
+	}
+	let ok = false;
 	try {
 		const result = await call<T>(method, params);
+		ok = true;
 		log(`${method} ✓`);
 		return result;
 	} catch (err) {
 		log(`${method}: ${err instanceof Error ? err.message : String(err)}`, true);
 		return undefined;
 	} finally {
-		if (button) button.disabled = false;
+		if (button) {
+			inFlight.delete(button);
+			if (!(button.id in STATE_BUTTONS)) button.disabled = false;
+			else {
+				if (ok) {
+					awaitingStatus.add(button);
+					setTimeout(() => {
+						awaitingStatus.delete(button);
+						updateStateButtons();
+					}, AWAIT_STATUS_MS);
+				}
+				updateStateButtons();
+			}
+		}
 	}
 }
 
@@ -150,7 +190,6 @@ function renderSrtla(status: Status): void {
 	const s = status.state.srtla;
 	definitionList(byId("srtla-info"), [
 		["State", s.running ? badge("running", "on") : badge("stopped", "off")],
-		["PID", s.pid],
 		// On combined devices the listen port is an internal belacoder → srtla_send detail
 		["Target", s.remoteHost ? `${s.remoteHost}:${s.remotePort}${role === "combined" ? "" : ` (listen ${s.listenPort})`}` : null],
 		["Started", s.running ? since(s.startedAt) : null],
@@ -202,13 +241,6 @@ function setStats(next: SrtlaStats | null): void {
 	statsAt = next ? Date.now() : 0;
 	renderStats();
 	if (lastStatus && role !== "encoder") renderSrtlaOptions(lastStatus);
-}
-
-const kbps = (bytesPerSec: number) => (bytesPerSec * 8) / 1000;
-
-function formatBitrate(bytesPerSec: number): string {
-	const k = kbps(bytesPerSec);
-	return k >= 1000 ? `${(k / 1000).toFixed(2)} Mbps` : `${Math.round(k)} kbps`;
 }
 
 function linkState(l: SrtlaLinkStats): Child {
@@ -265,6 +297,8 @@ function linkCells(l: SrtlaLinkStats | undefined, total: number): HTMLTableCellE
 /** Interfaces being toggled; kept across the ~1 Hz stats re-renders. */
 const togglingIfaces = new Set<string>();
 
+const formatSpeed = (mbps: number) => (mbps >= 1000 ? `${mbps / 1000} Gb/s` : `${mbps} Mb/s`);
+
 function renderInterfaces(status: Status): void {
 	const selected = new Set(status.selected.map((i) => i.iface));
 
@@ -289,7 +323,9 @@ function renderInterfaces(status: Status): void {
 			togglingIfaces.delete(i.iface);
 			box.disabled = false;
 		};
-		const sub = [i.cidr, i.modemIndex !== undefined ? `modem #${i.modemIndex}` : null].filter(Boolean).join(" · ");
+		const sub = [i.cidr, i.speed ? formatSpeed(i.speed) : null, i.modemIndex !== undefined ? `modem #${i.modemIndex}` : null]
+			.filter(Boolean)
+			.join(" · ");
 		const network = [i.operatorName, i.accessTech].filter(Boolean).join(" · ");
 		return h(
 			"tr",
@@ -476,7 +512,6 @@ function renderEncoder(status: Status): void {
 		delay: cfg?.delay,
 		streamid: cfg?.streamid,
 	});
-	byId<HTMLButtonElement>("encoder-bitrate").disabled = !e.running;
 
 	// Audio sources change as USB devices come and go; keep the current choice if still present
 	const asrc = byId<HTMLSelectElement>("audio-source");
@@ -534,6 +569,8 @@ function render(status: Status): void {
 		renderInterfaces(status);
 		renderModems(status.modems);
 	}
+	awaitingStatus.clear();
+	updateStateButtons();
 }
 
 // ----------------------------------------------------------------------
@@ -546,9 +583,11 @@ byId<HTMLFormElement>("srtla-form").onsubmit = (e) => {
 		byId<HTMLFormElement>("encoder-form").requestSubmit();
 		return;
 	}
+	const button = byId<HTMLButtonElement>("srtla-start");
+	if (button.disabled) return;
 	const form = e.currentTarget as HTMLFormElement;
 	const params = Object.fromEntries(new FormData(form));
-	void act(byId<HTMLButtonElement>("srtla-start"), "srtla.start", params);
+	void act(button, "srtla.start", params);
 };
 byId<HTMLButtonElement>("srtla-stop").onclick = (e) =>
 	void act(e.currentTarget as HTMLButtonElement, "srtla.stop");
@@ -582,6 +621,9 @@ const optionalNumber = (v: FormDataEntryValue | null) => (v === null || v === ""
 
 byId<HTMLFormElement>("encoder-form").onsubmit = (e) => {
 	e.preventDefault();
+	const button = byId<HTMLButtonElement>("encoder-start");
+	// Enter in a field (or the combined receiver form) still submits while Start is disabled
+	if (button.disabled) return;
 	const data = new FormData(e.currentTarget as HTMLFormElement);
 	const common = {
 		pipeline: data.get("pipeline"),
@@ -594,7 +636,6 @@ byId<HTMLFormElement>("encoder-form").onsubmit = (e) => {
 		audioCodec: byId("acodec-field").hidden ? undefined : data.get("audioCodec") || undefined,
 		bitrateOverlay: !byId("overlay-field").hidden && byId<HTMLInputElement>("bitrate-overlay").checked,
 	};
-	const button = byId<HTMLButtonElement>("encoder-start");
 	if (role === "combined") {
 		const receiver = byId<HTMLFormElement>("srtla-form");
 		if (!receiver.reportValidity()) return;

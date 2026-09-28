@@ -35,7 +35,7 @@
 import type { ServerWebSocket } from "bun";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { arg, argFail, flag, intArg } from "./src/args";
-import type { DeviceInfo, DeviceSummary, Role, Status } from "./public/types";
+import type { DeviceInfo, DeviceSummary, Role, SrtlaStats, SrtlaStatsEvent, Status } from "./public/types";
 
 const PORT         = intArg("--port", 8090, 1, 65535);
 const HOST         = arg("--host", "0.0.0.0");
@@ -159,6 +159,7 @@ interface Device {
     lastSeen?: number;
     statusMsg?: string;       // last serialized status event, replayed to new viewers
     statsMsg?: string;        // last srtla.stats event, likewise
+    stats?: SrtlaStats | null;
     status?: Status;
     statusAt?: number;
 }
@@ -243,7 +244,10 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
                 server.publish(viewersTopic(d.id), deviceEvent(d));
             }
         }
-        if (msg.event === "srtla.stats") d.statsMsg = text;
+        if (msg.event === "srtla.stats") {
+            d.statsMsg = text;
+            d.stats = (msg.data as SrtlaStatsEvent | undefined)?.stats ?? null;
+        }
         server.publish(viewersTopic(d.id), text);
         return;
     }
@@ -295,8 +299,13 @@ function summaries(): DeviceSummary[] {
             statusAt: d.statusAt,
             srtla: d.status?.state.srtla,
             encoder: d.status?.state.encoder,
-            uplinks: d.status?.selected.map((i) => i.ip),
-            modems: d.status?.modems.length,
+            ...(d.stats
+                ? {
+                      bitrate: d.stats.links.reduce((sum, l) => sum + (l.bitrate_bytes_per_sec || 0), 0),
+                      activeLinks: d.stats.active_links,
+                      totalLinks: d.stats.total_links,
+                  }
+                : {}),
         }))
         .sort((a, b) => Number(b.online) - Number(a.online) || a.id.localeCompare(b.id));
 }
@@ -395,6 +404,7 @@ const server = Bun.serve({
             if (!d || d.ws !== ws) return;   // an older, replaced connection
             d.ws = null;
             d.statsMsg = undefined;   // live telemetry; viewers clear it on the offline device event
+            d.stats = undefined;
             console.log(`[device ${d.id}] disconnected (${code}${reason ? `: ${reason}` : ""})`);
             failPending((p) => p.deviceId === d.id, "device disconnected", 503);
             server.publish(viewersTopic(d.id), deviceEvent(d));

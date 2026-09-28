@@ -1,8 +1,34 @@
-import { badge, byId, h, since } from "./dom";
+import { badge, byId, type Child, formatBitrate, h, since } from "./dom";
 import { icon, roleTag, type Shape } from "./icons";
 import type { DeviceSummary } from "../types";
 
 const REFRESH_MS = 3_000;
+const COLUMNS = 9;
+
+/** Live stream state, mirroring the device page's encoder / srtla_send badges. */
+function streamState(d: DeviceSummary): Child {
+	if (!d.online) return "—";
+	const s = d.srtla;
+	const e = d.encoder;
+	if (d.role === "encoder" || d.role === "combined") {
+		if (!e) return "—";
+		if (!e.running) return badge("stopped", "off");
+		if (d.role === "combined" && !s?.running) return badge("srtla_send down", "warn");
+		if (!e.pid && e.restarts) return badge("restarting", "warn");
+	} else if (!s?.running) {
+		return badge("stopped", "off");
+	}
+	if (d.activeLinks === 0) return badge("no links", "warn");
+	return badge("live", "on");
+}
+
+function bitrate(d: DeviceSummary): Child {
+	return d.online && d.bitrate !== undefined ? formatBitrate(d.bitrate) : "—";
+}
+
+function links(d: DeviceSummary): Child {
+	return d.online && d.totalLinks !== undefined ? `${d.activeLinks ?? 0}/${d.totalLinks}` : "—";
+}
 
 function row(d: DeviceSummary): HTMLTableRowElement {
 	const s = d.srtla;
@@ -19,8 +45,10 @@ function row(d: DeviceSummary): HTMLTableRowElement {
 		),
 		h("td", { className: "muted" }, d.role ? roleTag(d.role) : "—"),
 		h("td", {}, d.online ? badge("online", "on") : badge("offline", "off")),
-		h("td", {}, d.address || "—"),
 		h("td", {}, d.online ? since(d.connectedAt) : `last seen ${since(d.lastSeen)}`),
+		h("td", {}, streamState(d)),
+		h("td", {}, bitrate(d)),
+		h("td", {}, links(d)),
 		h(
 			"td",
 			{},
@@ -35,8 +63,6 @@ function row(d: DeviceSummary): HTMLTableRowElement {
 			{},
 			hasRelay && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : badge("stopped", "warn")) : "—",
 		),
-		h("td", {}, hasRelay && d.uplinks?.length ? d.uplinks.join(", ") : "—"),
-		h("td", {}, hasRelay ? (d.modems ?? "—") : "—"),
 	);
 }
 
@@ -52,7 +78,7 @@ async function refresh(): Promise<void> {
 		byId("device-rows").replaceChildren(
 			...(list.length
 				? list.map(row)
-				: [h("tr", {}, h("td", { colSpan: 9, className: "muted" }, "No devices have connected yet."))]),
+				: [h("tr", {}, h("td", { colSpan: COLUMNS, className: "muted" }, "No devices have connected yet."))]),
 		);
 	} catch (err) {
 		conn.textContent = err instanceof Error ? err.message : "error";

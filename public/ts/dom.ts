@@ -31,3 +31,8 @@ export const since = (ts?: number) => {
 	if (s < 3600) return `${Math.floor(s / 60)}m ago`;
 	return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m ago`;
 };
+
+export function formatBitrate(bytesPerSec: number): string {
+	const kbps = (bytesPerSec * 8) / 1000;
+	return kbps >= 1000 ? `${(kbps / 1000).toFixed(2)} Mbps` : `${Math.round(kbps)} kbps`;
+}

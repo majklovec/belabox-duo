@@ -2,6 +2,7 @@
  * Interface detection, bonding selection, source-based routing tables,
  * uplinks file management and the live netlink interface monitor.
  */
+import { readFile } from "node:fs/promises";
 import {
 	CONFIG_FILE,
 	DEBOUNCE_MS,
@@ -36,6 +37,7 @@ export interface Iface {
 	ip: string;
 	prefix: number;
 	cidr: string;
+	speed?: number; // link speed in Mb/s, when the driver reports one
 	modemIndex?: number;
 	modemPath?: string;
 	signalQuality?: number;
@@ -61,6 +63,16 @@ export interface ReconfigureResult {
 
 const isVirtual = (iface: string): boolean =>
 	VIRTUAL_PREFIXES.some((p) => iface.startsWith(p));
+
+/** Link speed from sysfs; -1 or EINVAL (no carrier, Wi-Fi, most modems) means unknown. */
+async function linkSpeed(iface: string): Promise<number | undefined> {
+	try {
+		const mbps = parseInt(await readFile(`/sys/class/net/${iface}/speed`, "utf8"), 10);
+		return mbps > 0 && mbps < 0xffffffff ? mbps : undefined;
+	} catch {
+		return undefined;
+	}
+}
 
 // ----------------------------------------------------------------------
 // Interface detection (IP-level, enriched with modem info)
@@ -89,6 +101,8 @@ export async function detectInterfaces(): Promise<Iface[]> {
 		if (iface === "lo" || isVirtual(iface)) continue;
 
 		const entry: Iface = { iface, ip: addr, prefix, cidr };
+		const speed = await linkSpeed(iface);
+		if (speed) entry.speed = speed;
 		const modem = modemByIface.get(iface);
 		if (modem) {
 			entry.modemIndex = modem.index;
