@@ -1,8 +1,16 @@
 /*
  * srtla_send process management: start / stop / reload (SIGHUP or restart).
  */
-import { DRY_RUN, RELOAD_MODE, UPLINKS_FILE } from "./config";
-import { saveState, state } from "./state";
+import { DRY_RUN, RELOAD_MODE, SRTLA_SOCKET, UPLINKS_FILE } from "./config";
+import { type SrtlaOptions, saveState, state } from "./state";
+import {
+    prepareSrtlaControl,
+    rpc,
+    srtlaCapabilities,
+    srtlaControlState,
+    startSrtlaControl,
+    stopSrtlaControl,
+} from "./srtlaControl";
 
 export interface SrtlaState {
     running: boolean;
@@ -83,16 +91,19 @@ export async function reloadSrtla(): Promise<void> {
 export async function startSrtla(
     listenPort: string, remoteHost: string, remotePort: string
 ): Promise<SrtlaState> {
+    const bin = process.env.SRTLA_SEND_BIN ?? "srtla_send";
+    // Only pass flags this srtla_send build understands (the BELABOX C version has none of them).
+    // Probed before the running check so check → spawn stays free of awaits.
+    const caps = DRY_RUN ? null : await srtlaCapabilities(bin);
     if (isRunning()) {
         throw new Error("srtla_send is already running");
     }
 
     srtlaArgs = [listenPort, remoteHost, remotePort];
     state.srtlaTarget = { listenPort, remoteHost, remotePort };
-    const bin = process.env.SRTLA_SEND_BIN ?? "srtla_send";
     console.log(`Starting ${bin} listen: ${listenPort} target: ${remoteHost}:${remotePort} ${UPLINKS_FILE}`);
 
-    if (DRY_RUN) {
+    if (!caps) {
         const s: SrtlaState = { running: true, listenPort, remoteHost, remotePort, startedAt: Date.now() };
         dryRunActive = true;
         state.srtla = s;
@@ -100,12 +111,21 @@ export async function startSrtla(
         return s;
     }
 
+    const opts = state.srtlaOptions ?? {};
+    const control = !!SRTLA_SOCKET && caps.controlSocket;
+    const flags: string[] = [];
+    if (control) flags.push("--control-socket", SRTLA_SOCKET);
+    if (caps.mode && opts.mode) flags.push("--mode", opts.mode);
+    if (caps.quality && opts.quality === false) flags.push("--no-quality");
+    prepareSrtlaControl(SRTLA_SOCKET, control);
+
     const proc = Bun.spawn(
-        [bin, listenPort, remoteHost, remotePort, UPLINKS_FILE],
+        [bin, ...flags, listenPort, remoteHost, remotePort, UPLINKS_FILE],
         { stdout: "inherit", stderr: "inherit", stdin: "inherit" }
     );
     srtlaProc = proc;
     wanted = true;
+    if (control) startSrtlaControl(SRTLA_SOCKET);
 
     const s: SrtlaState = {
         running: true,
@@ -120,6 +140,7 @@ export async function startSrtla(
     proc.exited.then((code) => {
         console.log(`srtla_send exited with code ${code}`);
         if (srtlaProc !== proc) return;   // already replaced by a restart
+        stopSrtlaControl();
         state.srtla = { running: false, reloadCount: state.srtla.reloadCount };
         srtlaProc = null;
         saveState().catch(() => {});
@@ -154,12 +175,29 @@ export async function stopSrtla(): Promise<void> {
         srtlaProc.kill("SIGTERM");
         await srtlaProc.exited;
     }
+    stopSrtlaControl();
     srtlaProc = null;
     dryRunActive = false;
     state.srtla = { ...state.srtla, running: false };
     await saveState();
 }
 
+/**
+ * Persist scheduler settings and apply them to a running srtla_send over its control
+ * socket. `applied` is false when they only take effect on the next start.
+ */
+export async function setSrtlaOptions(opts: SrtlaOptions): Promise<{ options: SrtlaOptions; applied: boolean }> {
+    state.srtlaOptions = { ...state.srtlaOptions, ...opts };
+    await saveState();
+    if (DRY_RUN) {
+        console.log(`[DRY-RUN] srtla_send options ${JSON.stringify(opts)}`);
+        return { options: state.srtlaOptions, applied: isRunning() };
+    }
+    if (!isRunning() || !srtlaControlState().connected) return { options: state.srtlaOptions, applied: false };
+    if (opts.mode) await rpc("set_mode", { mode: opts.mode });
+    if (opts.quality !== undefined) await rpc("set_quality", { enabled: opts.quality });
+    return { options: state.srtlaOptions, applied: true };
+}
 
 /** Honor `--start-srtla <listenPort> <remoteHost> <remotePort>` if present. */
 export async function maybeStartSrtla(argv: string[]): Promise<boolean> {

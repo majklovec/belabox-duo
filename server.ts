@@ -17,8 +17,8 @@
  *
  * Browser requests `{id, method, params}` are forwarded to the device with a
  * server-unique id; responses are routed back with the browser's id restored.
- * Device `event` frames (status, …) fan out to all viewers of that device; the
- * last status is cached and replayed to new viewers. Viewers also receive
+ * Device `event` frames (status, srtla.stats, …) fan out to all viewers of that
+ * device; the last status and link stats are cached and replayed to new viewers. Viewers also receive
  * `{type:"event", event:"device", data:{id, online, …}}` on connect and whenever
  * the device connects or disconnects.
  *
@@ -158,6 +158,7 @@ interface Device {
     connectedAt?: number;
     lastSeen?: number;
     statusMsg?: string;       // last serialized status event, replayed to new viewers
+    statsMsg?: string;        // last srtla.stats event, likewise
     status?: Status;
     statusAt?: number;
 }
@@ -242,6 +243,7 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
                 server.publish(viewersTopic(d.id), deviceEvent(d));
             }
         }
+        if (msg.event === "srtla.stats") d.statsMsg = text;
         server.publish(viewersTopic(d.id), text);
         return;
     }
@@ -370,6 +372,7 @@ const server = Bun.serve({
             ws.subscribe(viewersTopic(d.id));
             ws.send(deviceEvent(d));
             if (d.statusMsg) ws.send(d.statusMsg);
+            if (d.statsMsg) ws.send(d.statsMsg);
         },
 
         message(ws, raw) {
@@ -391,6 +394,7 @@ const server = Bun.serve({
             const d = devices.get(data.id);
             if (!d || d.ws !== ws) return;   // an older, replaced connection
             d.ws = null;
+            d.statsMsg = undefined;   // live telemetry; viewers clear it on the offline device event
             console.log(`[device ${d.id}] disconnected (${code}${reason ? `: ${reason}` : ""})`);
             failPending((p) => p.deviceId === d.id, "device disconnected", 503);
             server.publish(viewersTopic(d.id), deviceEvent(d));

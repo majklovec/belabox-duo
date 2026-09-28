@@ -308,3 +308,27 @@ a.device {
 th .role-icon {
   vertical-align: -0.2em;
 }
+
+/* srtla_send link telemetry */
+form.options {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.card-head .actions {
+  align-items: center;
+}
+.iface-sub {
+  display: block;
+  font-size: 0.8rem;
+}
+.no-stats .link-col {
+  display: none;
+}
+td meter.share {
+  width: 50px;
+  margin-right: 0.35rem;
+}
+td.num {
+  font-variant-numeric: tabular-nums;
+}

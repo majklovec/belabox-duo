@@ -2,6 +2,10 @@ import { DRY_RUN, STATE_FILE } from "./config";
 import type { ModemConfig } from "./routing";
 import type { EncoderState } from "./encoder";
 import type { SrtlaState } from "./srtla";
+import type { SrtlaMode } from "./srtlaControl";
+
+/** srtla_send scheduler settings; applied live over the control socket and on every start. */
+export interface SrtlaOptions { mode?: SrtlaMode; quality?: boolean; }
 
 /** Last target of a combined-device stream (`stream.start`), kept for the UI to prefill. */
 export interface StreamTarget { remoteHost: string; remotePort: string; listenPort: string; }
@@ -13,6 +17,7 @@ export interface PersistentState {
     selection: ModemConfig;
     srtla: SrtlaState;
     srtlaTarget?: SrtlaTarget;
+    srtlaOptions?: SrtlaOptions;
     encoder: EncoderState;
     stream?: StreamTarget;
     autostart?: boolean;      // resume the last stream when the service starts

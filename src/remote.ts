@@ -5,6 +5,7 @@
  * transport reversed: this device dials out, then
  *   - pushes `{ "type": "event", "event": "status", ... }` on connect, on
  *     every state change and every REMOTE_INTERVAL seconds;
+ *   - pushes `srtla.stats` link telemetry at most every REMOTE_STATS_INTERVAL seconds;
  *   - answers requests `{ "id", "method", "params" }` sent by the server
  *     with `{ "type": "response", ... }`.
  *
@@ -14,8 +15,9 @@
  *
  * Reconnects with exponential backoff; dead links are detected via ping/pong.
  */
-import { REMOTE_ID, REMOTE_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
-import { addStatusSink, handleRequest, statusEvent } from "./api";
+import { REMOTE_ID, REMOTE_INTERVAL, REMOTE_STATS_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
+import { addStatusSink, handleRequest, statsEvent, statusEvent } from "./api";
+import { latestSrtlaStats } from "./srtlaControl";
 
 const BACKOFF_MIN_MS = 1_000;
 const BACKOFF_MAX_MS = 30_000;
@@ -94,6 +96,7 @@ function connect(): void {
         touch();
         send(JSON.stringify({ type: "hello", id: REMOTE_ID, role: ROLE, ...(REMOTE_TOKEN ? { token: REMOTE_TOKEN } : {}) }));
         void sendStatus();
+        if (REMOTE_STATS_INTERVAL > 0 && latestSrtlaStats().stats) send(statsEvent());
 
         pingTimer = setInterval(() => {
             if (Date.now() - lastSeen > LIVENESS_TIMEOUT_MS) {
@@ -139,7 +142,11 @@ export function startRemote(): void {
         console.warn("[remote] sending token over unencrypted ws:// — prefer wss://");
     }
     stopped = false;
-    removeSink = addStatusSink({ active: isOpen, send });
+    removeSink = addStatusSink({
+        active: isOpen,
+        send,
+        statsIntervalMs: REMOTE_STATS_INTERVAL > 0 ? REMOTE_STATS_INTERVAL * 1000 : -1,
+    });
     connect();
 }
 

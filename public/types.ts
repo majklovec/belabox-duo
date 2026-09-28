@@ -3,10 +3,12 @@ import type { ModemInfo } from "../src/modems";
 import type { Iface, ModemConfig } from "../src/routing";
 import type { SrtlaState } from "../src/srtla";
 import type { EncoderState } from "../src/encoder";
-import type { SrtlaTarget, StreamTarget } from "../src/state";
+import type { SrtlaOptions, SrtlaTarget, StreamTarget } from "../src/state";
+import type { SrtlaControlState } from "../src/srtlaControl";
 
 export type { EncoderState, StreamTarget };
 export type { AudioSource, Pipeline } from "../src/encoder";
+export type { SrtlaLinkStats, SrtlaMode, SrtlaStats, SrtlaStatsEvent } from "../src/srtlaControl";
 import type { AudioSource } from "../src/encoder";
 
 export type { Role } from "../src/config";
@@ -18,6 +20,7 @@ export interface Status {
 		selection: ModemConfig;
 		srtla: SrtlaState;
 		srtlaTarget?: SrtlaTarget;
+		srtlaOptions: SrtlaOptions;
 		encoder: EncoderState;
 		stream?: StreamTarget;
 		autostart: boolean;
@@ -27,6 +30,7 @@ export interface Status {
 	modems: ModemInfo[];
 	audioSources: AudioSource[];
 	uplinksFile: string;
+	srtlaControl: SrtlaControlState;
 	monitor: { running: boolean; reloadMode: string };
 }
 

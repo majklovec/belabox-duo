@@ -1,12 +1,13 @@
 import { badge, byId, type Child, h, since } from "./dom";
 import { roleTag } from "./icons";
 import type { ModemInfo } from "../../src/modems";
-import type { DeviceInfo, Pipeline, Role, Status } from "../types";
+import type { DeviceInfo, Pipeline, Role, SrtlaLinkStats, SrtlaStats, SrtlaStatsEvent, Status } from "../types";
 
 type Params = Record<string, unknown>;
 
 const CALL_TIMEOUT_MS = 30_000;
 const RECONNECT_MS = 2_000;
+const STATS_STALE_MS = 5_000;
 
 function definitionList(target: HTMLElement, rows: [string, Child][]): void {
 	target.replaceChildren(...rows.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v ?? "—")]));
@@ -51,11 +52,12 @@ function renderDevice(info: DeviceInfo): void {
 	device = info;
 	byId("device-name").textContent = info.id;
 	byId("back").hidden = false;
-	document.title = `${info.id} — SRTLA Relay`;
+	document.title = `${info.id} - Belabox Duo`;
 	if (wasOnline !== undefined && wasOnline !== info.online) {
 		log(`Device ${info.online ? "online" : "offline"}`, !info.online);
 		if (info.online) pipelinesLoaded = false;
 	}
+	if (!info.online) setStats(null);
 	updateConnBadge();
 }
 
@@ -73,6 +75,7 @@ function connect(): void {
 
 	ws.onclose = () => {
 		setConnected(false);
+		setStats(null);
 		for (const p of pending.values()) p.reject(new Error("connection closed"));
 		pending.clear();
 		setTimeout(connect, RECONNECT_MS);
@@ -82,6 +85,8 @@ function connect(): void {
 		const msg = JSON.parse(String(e.data));
 		if (msg.type === "event" && msg.event === "status") {
 			render(msg.data as Status);
+		} else if (msg.type === "event" && msg.event === "srtla.stats") {
+			setStats((msg.data as SrtlaStatsEvent).stats);
 		} else if (msg.type === "event" && msg.event === "device") {
 			renderDevice(msg.data as DeviceInfo);
 		} else if (msg.type === "response") {
@@ -151,8 +156,10 @@ function renderSrtla(status: Status): void {
 		["Started", s.running ? since(s.startedAt) : null],
 		["Reloads", `${s.reloadCount ?? 0} (last ${since(s.lastReloadAt)}, mode ${status.monitor.reloadMode})`],
 		["Monitor", status.monitor.running ? badge("watching", "on") : badge("off", "warn")],
+		["Control", s.running ? controlBadge(status) : null],
 		["Uplinks file", status.uplinksFile],
 	]);
+	renderSrtlaOptions(status);
 
 	// Prefill the form from the last known target without clobbering user input
 	const form = byId<HTMLFormElement>("srtla-form");
@@ -163,6 +170,101 @@ function renderSrtla(status: Status): void {
 	}
 }
 
+function controlBadge(status: Status): Child {
+	const c = status.srtlaControl;
+	if (c?.connected) return badge("connected", "on");
+	if (c?.supported) return badge("connecting", "warn");
+	return h("span", { className: "muted", title: "srtla_send without --control-socket: no link stats" }, "unavailable");
+}
+
+/** Scheduler controls: the saved settings, else what the running srtla_send reports, else its defaults. */
+function renderSrtlaOptions(status: Status): void {
+	const opts = status.state.srtlaOptions ?? {};
+	const live = status.state.srtla.running ? stats : null;
+	const mode = opts.mode ?? live?.mode ?? "enhanced";
+	const modeSelect = byId<HTMLSelectElement>("srtla-mode");
+	const quality = byId<HTMLInputElement>("srtla-quality");
+	if (!modeSelect.disabled && document.activeElement !== modeSelect) modeSelect.value = mode;
+	if (!quality.dataset.busy) {
+		quality.checked = opts.quality ?? live?.quality_enabled ?? true;
+		quality.disabled = mode === "classic";
+	}
+}
+
+// ----------------------------------------------------------------------
+// srtla_send link stats (pushed ~1 Hz over the control socket)
+// ----------------------------------------------------------------------
+let stats: SrtlaStats | null = null;
+let statsAt = 0;
+
+function setStats(next: SrtlaStats | null): void {
+	stats = next;
+	statsAt = next ? Date.now() : 0;
+	renderStats();
+	if (lastStatus && role !== "encoder") renderSrtlaOptions(lastStatus);
+}
+
+const kbps = (bytesPerSec: number) => (bytesPerSec * 8) / 1000;
+
+function formatBitrate(bytesPerSec: number): string {
+	const k = kbps(bytesPerSec);
+	return k >= 1000 ? `${(k / 1000).toFixed(2)} Mbps` : `${Math.round(k)} kbps`;
+}
+
+function linkState(l: SrtlaLinkStats): Child {
+	if (l.timed_out) return badge("timed out", "off");
+	if (!l.connected) return badge("connecting", "warn");
+	if (l.stall_gated) return badge("stalled", "warn");
+	if (l.weak) return h("span", { title: l.weak_reason ?? "" }, badge("weak", "warn"));
+	return badge(l.sole_carrier ? "sole carrier" : "up", "on");
+}
+
+/** Re-render the interfaces card when fresh link stats arrive. */
+function renderStats(): void {
+	if (lastStatus && role !== "encoder") renderInterfaces(lastStatus);
+}
+
+function renderStatsAge(): void {
+	const age = byId("links-age");
+	age.hidden = !stats;
+	const stale = !!statsAt && Date.now() - statsAt > STATS_STALE_MS;
+	age.replaceChildren(stale ? badge(`stale, ${since(statsAt)}`, "warn") : "live");
+}
+
+/** Link columns for an interface; srtla_send links are matched to interfaces by source IP. */
+function linkCells(l: SrtlaLinkStats | undefined, total: number): HTMLTableCellElement[] {
+	const cell = (child: Child, props: Partial<HTMLTableCellElement> = {}) =>
+		h("td", { ...props, className: `link-col ${props.className ?? ""}`.trim() }, child);
+	if (!l) return Array.from({ length: 7 }, () => cell("—", { className: "muted" }));
+	const share = total ? l.bitrate_bytes_per_sec / total : 0;
+	return [
+		cell(linkState(l), { title: l.label ?? "" }),
+		cell(
+			h(
+				"span",
+				{},
+				h("meter", { className: "share", min: 0, max: 1, value: share, title: `${Math.round(share * 100)}% of total` }),
+				formatBitrate(l.bitrate_bytes_per_sec),
+			),
+			{ className: "num" },
+		),
+		cell(l.connected ? `${Math.round(l.rtt_ms)} ms` : "—", {
+			className: "num",
+			title: `min ${Math.round(l.rtt_min_ms)} ms`,
+		}),
+		cell(`${l.in_flight} / ${l.window}`, { className: "num" }),
+		cell(l.nak_count, { className: "num" }),
+		cell(`${((l.cc_loss_permille ?? 0) / 10).toFixed(1)}%`, { className: "num" }),
+		cell(l.quality_multiplier !== undefined ? `×${l.quality_multiplier.toFixed(2)}` : "—", {
+			className: "num",
+			title: l.base_score !== undefined ? `score ${l.base_score}` : "",
+		}),
+	];
+}
+
+/** Interfaces being toggled; kept across the ~1 Hz stats re-renders. */
+const togglingIfaces = new Set<string>();
+
 function renderInterfaces(status: Status): void {
 	const { selection } = status.state;
 	const selected = new Set(status.selected.map((i) => i.iface));
@@ -172,27 +274,55 @@ function renderInterfaces(status: Status): void {
 		? `Bonding ${selected.size} selected interface(s).`
 		: "No explicit selection — bonding all detected interfaces (or modems.json).";
 
+	const live = stats;
+	byId("iface-table").classList.toggle("no-stats", !live);
+	const summary = byId("links-summary");
+	summary.hidden = !live;
+	renderStatsAge();
+
+	const links = new Map((live?.links ?? []).map((l) => [l.ip, l]));
+	const total = live ? live.links.reduce((sum, l) => sum + (l.bitrate_bytes_per_sec || 0), 0) : 0;
+	if (live) {
+		summary.textContent = [
+			`${live.active_links}/${live.total_links} links active`,
+			formatBitrate(total),
+			live.mode &&
+				`${live.mode}${live.mode === "enhanced" ? (live.quality_enabled ? " + quality" : ", no quality") : ""}`,
+			live.negotiated_latency_ms ? `SRT latency ${live.negotiated_latency_ms} ms` : null,
+			`in flight ${live.total_in_flight}`,
+		]
+			.filter(Boolean)
+			.join(" · ");
+	}
+
 	const rows = status.interfaces.map((i) => {
-		const box = h("input", { type: "checkbox", checked: selected.has(i.iface), title: "Include in bond" });
+		const box = h("input", {
+			type: "checkbox",
+			checked: selected.has(i.iface),
+			disabled: togglingIfaces.has(i.iface),
+			title: "Include in bond",
+		});
 		box.onchange = async () => {
+			togglingIfaces.add(i.iface);
 			box.disabled = true;
 			await act(null, "modems.toggle", { iface: i.iface });
+			togglingIfaces.delete(i.iface);
 			box.disabled = false;
 		};
+		const sub = [i.cidr, i.modemIndex !== undefined ? `modem #${i.modemIndex}` : null].filter(Boolean).join(" · ");
+		const network = [i.operatorName, i.accessTech].filter(Boolean).join(" · ");
 		return h(
 			"tr",
 			{ className: selected.has(i.iface) ? "selected" : "" },
 			h("td", {}, box),
-			h("td", {}, i.iface),
-			h("td", {}, i.cidr),
-			h("td", {}, i.modemIndex !== undefined ? `#${i.modemIndex}` : "—"),
+			h("td", {}, i.iface, sub ? h("span", { className: "iface-sub muted" }, sub) : null),
 			h("td", {}, signal(i.signalQuality)),
-			h("td", {}, i.operatorName ?? "—"),
-			h("td", {}, i.accessTech ?? "—"),
+			h("td", {}, network || "—"),
+			...linkCells(links.get(i.ip), total),
 		);
 	});
 	byId("iface-rows").replaceChildren(
-		...(rows.length ? rows : [h("tr", {}, h("td", { colSpan: 7, className: "muted" }, "No interfaces detected"))]),
+		...(rows.length ? rows : [h("tr", {}, h("td", { colSpan: 11, className: "muted" }, "No interfaces detected"))]),
 	);
 }
 
@@ -444,6 +574,27 @@ byId<HTMLButtonElement>("srtla-stop").onclick = (e) =>
 	void act(e.currentTarget as HTMLButtonElement, "srtla.stop");
 byId<HTMLButtonElement>("srtla-reload").onclick = (e) =>
 	void act(e.currentTarget as HTMLButtonElement, "srtla.reload");
+async function setSrtlaOption(el: HTMLInputElement | HTMLSelectElement, params: Params): Promise<void> {
+	el.disabled = true;
+	el.dataset.busy = "1";
+	const result = await act<{ options: Status["state"]["srtlaOptions"]; applied: boolean }>(null, "srtla.options", params);
+	el.disabled = false;
+	delete el.dataset.busy;
+	// The status push is debounced; do not flash the old value until it arrives
+	if (result && lastStatus) lastStatus.state.srtlaOptions = result.options;
+	if (result && !result.applied && lastStatus?.state.srtla.running) {
+		log("srtla_send has no control socket; the setting applies on the next start");
+	}
+	if (lastStatus) renderSrtlaOptions(lastStatus);
+}
+byId<HTMLSelectElement>("srtla-mode").onchange = (e) => {
+	const select = e.currentTarget as HTMLSelectElement;
+	void setSrtlaOption(select, { mode: select.value });
+};
+byId<HTMLInputElement>("srtla-quality").onchange = (e) => {
+	const box = e.currentTarget as HTMLInputElement;
+	void setSrtlaOption(box, { quality: box.checked });
+};
 byId<HTMLButtonElement>("reconfigure").onclick = (e) =>
 	void act(e.currentTarget as HTMLButtonElement, "reconfigure");
 
@@ -500,6 +651,7 @@ setInterval(() => {
 	if (!lastStatus) return;
 	if (role !== "relay") renderEncoder(lastStatus);
 	if (role !== "encoder") renderSrtla(lastStatus);
+	if (stats) renderStatsAge();
 }, 5_000);
 
 connect();

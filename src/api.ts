@@ -13,12 +13,16 @@
  *
  * Server → client (push, sent on connect and whenever state changes):
  *   { "type": "event", "event": "status", "data": { ...same as `status` result... } }
+ *   { "type": "event", "event": "srtla.stats", "data": { "at": <ms>, "stats": {...} | null } }
+ *     (~1 Hz while srtla_send runs with a control socket; `null` when it stops)
  *
  * Methods:
  *   status, interfaces.list, reconfigure
  *   modems.list, modems.select {modems?|ips?}, modems.toggle {iface}
  *   modems.enable|disable|reset|connect|disconnect {index}
  *   srtla.status, srtla.start {listenPort, remoteHost, remotePort}, srtla.stop, srtla.reload
+ *   srtla.stats   latest per-link telemetry from srtla_send's control socket
+ *   srtla.options {mode? ("classic"|"enhanced"), quality? (bool)}   applied live when possible
  *   pipelines.list
  *   encoder.status, encoder.start {pipeline, host, port, maxBitrate?, latency?, delay?, streamid?,
  *                                  audioSource?, audioCodec? ("aac"|"opus"), bitrateOverlay?},
@@ -74,7 +78,17 @@ import {
 	resolveSelection,
 	setSelection,
 } from "./routing";
-import { reloadSrtla, srtlaStatus, startSrtla, stopSrtla } from "./srtla";
+import { reloadSrtla, setSrtlaOptions, srtlaStatus, startSrtla, stopSrtla } from "./srtla";
+import {
+	latestSrtlaStats,
+	onSrtlaControlChange,
+	onSrtlaStats,
+	SRTLA_MODES,
+	type SrtlaMode,
+	type SrtlaStatsEvent,
+	srtlaControlState,
+} from "./srtlaControl";
+import type { SrtlaOptions } from "./state";
 import { onStateChange, state } from "./state";
 import { cancelAutostart, setAutostart, startCombined, stopCombined } from "./stream";
 
@@ -156,6 +170,7 @@ async function buildStatus() {
 			encoder: encoderStatus(),
 			stream: state.stream,
 			srtlaTarget: state.srtlaTarget,
+			srtlaOptions: state.srtlaOptions ?? {},
 			autostart: !!state.autostart,
 		},
 		interfaces: all,
@@ -164,6 +179,7 @@ async function buildStatus() {
 		modems: HAS_RELAY ? await detectModems() : [],
 		audioSources: HAS_ENCODER ? await listAudioSources() : [],
 		uplinksFile: UPLINKS_FILE,
+		srtlaControl: srtlaControlState(),
 		monitor: { running: isMonitorRunning(), reloadMode: RELOAD_MODE },
 	};
 }
@@ -319,6 +335,28 @@ const methods: Record<string, Method> = {
 		return { srtla: srtlaStatus() };
 	},
 
+	"srtla.stats": () => latestSrtlaStats(),
+
+	"srtla.options": async (p) => {
+		const opts: SrtlaOptions = {};
+		if (p.mode !== undefined) {
+			if (!(SRTLA_MODES as readonly unknown[]).includes(p.mode)) {
+				throw new ApiError(`mode must be one of ${SRTLA_MODES.join(", ")}`);
+			}
+			opts.mode = p.mode as SrtlaMode;
+		}
+		if (p.quality !== undefined) {
+			if (typeof p.quality !== "boolean") throw new ApiError("quality must be a boolean");
+			opts.quality = p.quality;
+		}
+		if (opts.mode === undefined && opts.quality === undefined) throw new ApiError("mode or quality is required");
+		try {
+			return await setSrtlaOptions(opts);
+		} catch (e: unknown) {
+			throw new ApiError(errorMessage(e), 502);
+		}
+	},
+
 	"pipelines.list": async () => ({ dir: PIPELINES_DIR, pipelines: await listPipelines() }),
 
 	"encoder.status": () => ({ encoder: encoderStatus() }),
@@ -416,6 +454,8 @@ export interface StatusSink {
 	/** Whether anyone is listening right now (skip building status otherwise). */
 	active(): boolean;
 	send(msg: string): void;
+	/** Minimum spacing of `srtla.stats` pushes (0 = every update, negative = never). */
+	statsIntervalMs?: number;
 }
 
 const sinks = new Set<StatusSink>();
@@ -423,6 +463,9 @@ let server: Server<undefined> | null = null;
 let broadcastTimer: ReturnType<typeof setTimeout> | null = null;
 let lastBroadcast = "";
 let unsubscribeState: (() => void) | null = null;
+const lastStatsSent = new Map<StatusSink, number>();
+// srtla_send pushes about once a second; allow for jitter so a 2 s interval is not every 3 s
+const STATS_JITTER_MS = 250;
 
 export const statusEvent = async (): Promise<string> =>
 	JSON.stringify({ type: "event", event: "status", data: await buildStatus() });
@@ -442,11 +485,39 @@ function scheduleBroadcast(): void {
 	}, BROADCAST_DEBOUNCE_MS);
 }
 
+export const statsEvent = (ev: SrtlaStatsEvent = latestSrtlaStats()): string =>
+	JSON.stringify({ type: "event", event: "srtla.stats", data: ev });
+
+function broadcastStats(ev: SrtlaStatsEvent): void {
+	let msg: string | null = null;
+	for (const sink of sinks) {
+		const interval = sink.statsIntervalMs ?? 0;
+		if (interval < 0 || !sink.active()) continue;
+		// A stop (`stats: null`) always goes out so viewers do not keep stale numbers
+		if (ev.stats && interval > 0 && ev.at - (lastStatsSent.get(sink) ?? 0) < interval - STATS_JITTER_MS) continue;
+		lastStatsSent.set(sink, ev.at);
+		msg ??= statsEvent(ev);
+		sink.send(msg);
+	}
+}
+
 /** Register a status push target; returns an unregister function. */
 export function addStatusSink(sink: StatusSink): () => void {
 	sinks.add(sink);
-	unsubscribeState ??= onStateChange(scheduleBroadcast);
-	return () => sinks.delete(sink);
+	if (!unsubscribeState) {
+		const offState = onStateChange(scheduleBroadcast);
+		const offControl = onSrtlaControlChange(scheduleBroadcast);
+		const offStats = onSrtlaStats(broadcastStats);
+		unsubscribeState = () => {
+			offState();
+			offControl();
+			offStats();
+		};
+	}
+	return () => {
+		sinks.delete(sink);
+		lastStatsSent.delete(sink);
+	};
 }
 
 // ----------------------------------------------------------------------
@@ -491,6 +562,7 @@ export function startApiServer(): void {
 				ws.subscribe(STATUS_TOPIC);
 				try {
 					ws.send(await statusEvent());
+					if (latestSrtlaStats().stats) ws.send(statsEvent());
 				} catch (err: unknown) {
 					console.error("Initial status failed:", errorMessage(err));
 				}

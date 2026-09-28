@@ -67,6 +67,7 @@ passes them to the command without requiring a persistent shell environment.
 | `--uplinks`                 |                       | `$TMPDIR/srtla_ips.txt`          | Uplinks file for `srtla_send`                                                          |
 | `--monitor`                 |                       | on with `--api`/`--remote`       | Watch interfaces and reconfigure on change (relay/combined)                            |
 | `--srtla-reload`            |                       | `signal`                         | `signal` (SIGHUP) or `restart`                                                         |
+| `--srtla-socket`            | `SRTLA_CONTROL_SOCKET`| `$TMPDIR/srtla_send.sock`        | srtla_send control socket (link stats, mode/quality); `""` disables it                 |
 | `--debounce-ms`             |                       | `1500`                           | Interface event debounce                                                               |
 | `--pipelines`               | `BELACODER_PIPELINES` | `/usr/share/belacoder/pipelines` | Pipeline files, including subdirectories                                               |
 | `--belacoder`               | `BELACODER_BIN`       | `belacoder`                      |                                                                                        |
@@ -76,6 +77,7 @@ passes them to the command without requiring a persistent shell environment.
 | `--remote-token`            | `SRTLA_REMOTE_TOKEN`  |                                  | Prefer the env var (keeps it out of `ps`)                                              |
 | `--remote-id`               | `SRTLA_REMOTE_ID`     | hostname                         | Device id shown on the server                                                          |
 | `--remote-interval`         |                       | `30`                             | Periodic status push in seconds (`0` = only on change)                                 |
+| `--remote-stats-interval`   |                       | `2`                              | srtla_send link stats push to the control server in seconds (`0` = off)                |
 | `--dry-run`                 |                       |                                  | Print `ip` / process actions instead of running them                                   |
 
 ### Encoder pipelines

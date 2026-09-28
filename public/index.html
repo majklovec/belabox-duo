@@ -130,24 +130,46 @@
             <button type="button" id="srtla-reload">Reload</button>
           </div>
         </form>
+        <form id="srtla-options" class="inline options">
+          <label
+            >Scheduler
+            <select id="srtla-mode">
+              <option value="enhanced">Enhanced</option>
+              <option value="classic">Classic</option>
+            </select></label
+          >
+          <label
+            class="check"
+            title="Score links by RTT, loss and NAKs (enhanced scheduler only)"
+            ><input type="checkbox" id="srtla-quality" /> Quality scoring</label
+          >
+        </form>
       </section>
 
       <section class="card" id="interfaces">
         <div class="card-head">
           <h2>Interfaces</h2>
-          <button type="button" id="reconfigure">Reconfigure</button>
+          <div class="actions">
+            <span id="links-age" class="muted" hidden></span>
+            <button type="button" id="reconfigure">Reconfigure</button>
+          </div>
         </div>
         <p id="selection-mode" class="muted"></p>
-        <table>
+        <p id="links-summary" class="muted" hidden></p>
+        <table id="iface-table" class="no-stats">
           <thead>
             <tr>
               <th>Bond</th>
               <th>Interface</th>
-              <th>Address</th>
-              <th>Modem</th>
               <th>Signal</th>
-              <th>Operator</th>
-              <th>Tech</th>
+              <th>Network</th>
+              <th class="link-col">Link</th>
+              <th class="link-col">Bitrate</th>
+              <th class="link-col">RTT</th>
+              <th class="link-col" title="Packets in flight / congestion window">In flight</th>
+              <th class="link-col">NAKs</th>
+              <th class="link-col">Loss</th>
+              <th class="link-col">Quality</th>
             </tr>
           </thead>
           <tbody id="iface-rows"></tbody>

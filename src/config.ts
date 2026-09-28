@@ -21,6 +21,7 @@ export const REMOTE_URL      = arg("--remote", process.env.SRTLA_REMOTE_URL ?? "
 export const REMOTE_TOKEN    = arg("--remote-token", process.env.SRTLA_REMOTE_TOKEN ?? "");
 export const REMOTE_ID       = arg("--remote-id", process.env.SRTLA_REMOTE_ID ?? hostname());
 export const REMOTE_INTERVAL = intArg("--remote-interval", 30);   // periodic status push, seconds (0 = off)
+export const REMOTE_STATS_INTERVAL = intArg("--remote-stats-interval", 2);   // srtla_send link stats push, seconds (0 = off)
 if (REMOTE_URL && !/^wss?:\/\//.test(REMOTE_URL)) argFail("--remote", REMOTE_URL, "ws:// or wss:// URL");
 
 // relay: receives SRT and bonds it out via srtla_send
@@ -40,4 +41,6 @@ export const BITRATE_FILE    = arg("--bitrate-file", join(TMP, "belacoder_br"));
 // Daemon modes imply monitor; encoder-only devices do no bonding so have nothing to watch
 export const MONITOR         = HAS_RELAY && (flag("--monitor") || API_MODE || !!REMOTE_URL);
 export const RELOAD_MODE     = enumArg("--srtla-reload", ["signal", "restart"] as const, "signal");
+// srtla_send JSON-RPC control socket (link stats, mode / quality switching); "" disables it
+export const SRTLA_SOCKET    = arg("--srtla-socket", process.env.SRTLA_CONTROL_SOCKET ?? join(TMP, "srtla_send.sock"));
 export const DEBOUNCE_MS     = intArg("--debounce-ms", 1500);
