@@ -6,6 +6,7 @@
     <title>Belabox Duo</title>
     <link rel="stylesheet" href="css/style.css" />
   </head>
+
   <body>
     <header>
       <h1>
@@ -16,8 +17,8 @@
         <label
           class="check"
           title="Resume the last stream when the service starts"
-          ><input type="checkbox" id="autostart" /> Autostart</label
-        >
+          ><input type="checkbox" id="autostart" /> Autostart
+        </label>
         <span id="role" class="badge" hidden></span>
         <span id="conn" class="badge off">disconnected</span>
       </span>
@@ -28,46 +29,10 @@
         <h2 id="encoder-title">Encoder</h2>
         <dl id="encoder-info"></dl>
         <form id="encoder-form">
-          <label
-            >Pipeline
-            <select name="pipeline" id="pipeline" required></select
-          ></label>
-
-          <label id="asrc-field" hidden
-            >Audio source
-            <select name="audioSource" id="audio-source"></select
-          ></label>
-          <label id="acodec-field" hidden
-            >Audio codec
-            <select name="audioCodec" id="audio-codec">
-              <option value="aac">AAC</option>
-              <option value="opus">Opus</option>
-            </select></label
-          >
-          <label
-            >Audio delay (ms)
-            <input
-              name="delay"
-              type="number"
-              min="-2000"
-              max="2000"
-              placeholder="0"
-          /></label>
-          <label id="overlay-field" class="check" hidden
-            ><input
-              type="checkbox"
-              name="bitrateOverlay"
-              id="bitrate-overlay"
-            />
-            Bitrate overlay</label
-          >
-          <label id="encoder-host-field"
-            >Relay host <input name="host" placeholder="192.168.1.10" required
-          /></label>
-          <label id="encoder-port-field"
-            >Relay SRT port
-            <input name="port" inputmode="numeric" placeholder="6000" required
-          /></label>
+          <label>
+            Pipeline
+            <select name="pipeline" id="pipeline" required></select>
+          </label>
           <label
             >Max bitrate (kbps)
             <input
@@ -77,7 +42,50 @@
               max="30000"
               step="100"
               placeholder="5000"
-          /></label>
+            />
+          </label>
+          <label id="asrc-field" hidden
+            >Audio source
+            <select name="audioSource" id="audio-source"></select>
+          </label>
+          <label id="acodec-field" hidden
+            >Audio codec
+            <select name="audioCodec" id="audio-codec">
+              <option value="aac">AAC</option>
+              <option value="opus">Opus</option>
+            </select>
+          </label>
+          <label
+            >Audio delay (ms)
+            <input
+              name="delay"
+              type="number"
+              min="-2000"
+              max="2000"
+              placeholder="0"
+            />
+          </label>
+
+          <label id="overlay-field" class="check" hidden>
+            <input type="checkbox" name="bitrateOverlay" id="bitrate-overlay" />
+            Bitrate overlay
+          </label>
+
+          <div class="break" id="encoder-relay-break"></div>
+          <label id="encoder-host-field"
+            >Relay host
+            <input name="host" placeholder="192.168.1.10" required />
+          </label>
+          <label id="encoder-port-field"
+            >Relay SRT port
+            <input
+              name="port"
+              inputmode="numeric"
+              placeholder="6000"
+              required
+            />
+          </label>
+
           <label
             >SRT latency (ms)
             <input
@@ -87,11 +95,12 @@
               max="10000"
               step="100"
               placeholder="2000"
-          /></label>
+            />
+          </label>
 
           <label
-            >Stream ID <input name="streamid" placeholder="optional"
-          /></label>
+            >Stream ID <input name="streamid" placeholder="optional" />
+          </label>
           <div class="actions">
             <button type="submit" id="encoder-start">Start</button>
             <button type="button" id="encoder-stop" class="danger">Stop</button>
@@ -107,25 +116,29 @@
         <dl id="srtla-info"></dl>
         <form id="srtla-form">
           <label id="srtla-listen-field"
-            >Listen port
+            >SRT Listen port
             <input
               name="listenPort"
               inputmode="numeric"
               placeholder="6000"
               required
-          /></label>
+            />
+          </label>
+          ⇨
           <label
-            ><span id="srtla-host-label">Remote host</span>
-            <input name="remoteHost" placeholder="rec.example.com" required
-          /></label>
-          <label
-            ><span id="srtla-port-label">Remote port</span>
+            ><span id="srtla-host-label">SRTLA Remote host</span>
+            <input name="remoteHost" placeholder="rec.example.com" required />
+          </label>
+
+          <label>
+            <span id="srtla-port-label">SRTLA Remote port</span>
             <input
               name="remotePort"
               inputmode="numeric"
               placeholder="5000"
               required
-          /></label>
+            />
+          </label>
           <div class="actions" id="srtla-actions">
             <button type="submit" id="srtla-start">Start</button>
             <button type="button" id="srtla-stop" class="danger">Stop</button>
@@ -138,13 +151,14 @@
             <select id="srtla-mode">
               <option value="enhanced">Enhanced</option>
               <option value="classic">Classic</option>
-            </select></label
-          >
+            </select>
+          </label>
           <label
             class="check"
             title="Score links by RTT, loss and NAKs (enhanced scheduler only)"
-            ><input type="checkbox" id="srtla-quality" /> Quality scoring</label
           >
+            <input type="checkbox" id="srtla-quality" /> Quality scoring
+          </label>
         </form>
       </section>
 

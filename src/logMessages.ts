@@ -59,8 +59,13 @@ const METHOD_LOG: Record<string, MethodLog> = {
 };
 
 const SECTIONS: Record<string, string> = {
-    encoder: "Encoder", stream: "Stream", srtla: "SRTLA", modems: "Modems",
-    interfaces: "Interfaces", pipelines: "Pipelines", autostart: "Autostart",
+    encoder: "Encoder", 
+    stream: "Stream", 
+    srtla: "SRTLA", 
+    modems: "Modems",
+    interfaces: "Interfaces", 
+    pipelines: "Pipelines", 
+    autostart: "Autostart",
 };
 
 /** Whether the device records this method in its event log. */

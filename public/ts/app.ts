@@ -258,7 +258,7 @@ function renderSrtla(status: Status): void {
 		["Reloads", `${s.reloadCount ?? 0} (last ${since(s.lastReloadAt)}, mode ${status.monitor.reloadMode})`],
 		["Monitor", status.monitor.running ? badge("watching", "on") : badge("off", "warn")],
 		["Control", s.running ? controlBadge(status) : null],
-		["Uplinks file", status.uplinksFile],
+		// ["Uplinks file", status.uplinksFile],
 	]);
 	renderSrtlaOptions(status);
 
@@ -322,7 +322,7 @@ function renderStatsAge(): void {
 	const age = byId("links-age");
 	age.hidden = !stats;
 	const stale = !!statsAt && Date.now() - statsAt > STATS_STALE_MS;
-	age.replaceChildren(stale ? badge(`stale, ${since(statsAt)}`, "warn") : "live");
+	age.replaceChildren(stale ? badge(`stale, ${since(statsAt)}`, "warn") : "");
 }
 
 /** Link columns for an interface; srtla_send links are matched to interfaces by source IP. */
@@ -605,8 +605,9 @@ function applyRole(next: Role): void {
 	const combined = role === "combined";
 	byId("srtla-listen-field").hidden = combined;
 	byId("srtla-actions").hidden = combined;
-	byId("srtla-host-label").textContent = combined ? "SRTLA receiver host" : "Remote host";
-	byId("srtla-port-label").textContent = combined ? "SRTLA receiver port" : "Remote port";
+	// byId("srtla-host-label").textContent = combined ? "SRTLA receiver host" : "Remote host";
+	// byId("srtla-port-label").textContent = combined ? "SRTLA receiver port" : "Remote port";
+	byId("encoder-relay-break").hidden = combined;
 	byId("encoder-host-field").hidden = combined;
 	byId("encoder-port-field").hidden = combined;
 	// Hidden required inputs would block form submission

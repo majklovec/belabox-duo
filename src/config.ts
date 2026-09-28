@@ -6,11 +6,12 @@ import { arg, argFail, argv, enumArg, flag, intArg } from "./args";
 export { argv };
 
 const TMP = tmpdir();
+export const REMOTE_ID       = arg("--remote-id", process.env.SRTLA_REMOTE_ID ?? hostname());
 export const CONFIG_FILE     = arg("--config", "modems.json");
-export const STATE_FILE      = arg("--state", join(TMP, "srtla_state.json"));
+export const STATE_FILE      = arg("--state", join(TMP, `${REMOTE_ID}_state.json`));
 // Event log shown in the web UI; next to the state file so it persists wherever state does
-export const LOG_FILE        = arg("--log-file", join(dirname(STATE_FILE), "srtla_log.json"));
-export const UPLINKS_FILE    = arg("--uplinks", join(TMP, "srtla_ips.txt"));
+export const LOG_FILE        = arg("--log-file", join(dirname(STATE_FILE), `${REMOTE_ID}_log.json`));
+export const UPLINKS_FILE    = arg("--uplinks", join(TMP, `${REMOTE_ID}_srtla_ips.txt`));
 export const DRY_RUN         = flag("--dry-run");
 export const API_MODE        = flag("--api");
 export const API_PORT        = intArg("--port", 8085, 1, 65535);
@@ -21,7 +22,6 @@ export const ALLOWED_ORIGINS = arg("--allow-origin", "").split(",").map((o) => o
 // Token/URL may come from env to keep secrets out of the process list.
 export const REMOTE_URL      = arg("--remote", process.env.SRTLA_REMOTE_URL ?? "");
 export const REMOTE_TOKEN    = arg("--remote-token", process.env.SRTLA_REMOTE_TOKEN ?? "");
-export const REMOTE_ID       = arg("--remote-id", process.env.SRTLA_REMOTE_ID ?? hostname());
 export const REMOTE_INTERVAL = intArg("--remote-interval", 30);   // periodic status push, seconds (0 = off)
 export const REMOTE_STATS_INTERVAL = intArg("--remote-stats-interval", 2);   // srtla_send link stats push, seconds (0 = off)
 if (REMOTE_URL && !/^wss?:\/\//.test(REMOTE_URL)) argFail("--remote", REMOTE_URL, "ws:// or wss:// URL");
