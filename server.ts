@@ -386,7 +386,7 @@ const server = Bun.serve({
         },
 
         close(ws, code, reason) {
-            const { data } = ws;
+            const { data } = ws; 
             if (data.kind === "viewer") {
                 failPending((p) => p.viewer === ws, "", 0, false);
                 return;

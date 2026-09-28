@@ -266,34 +266,14 @@ function linkCells(l: SrtlaLinkStats | undefined, total: number): HTMLTableCellE
 const togglingIfaces = new Set<string>();
 
 function renderInterfaces(status: Status): void {
-	const { selection } = status.state;
 	const selected = new Set(status.selected.map((i) => i.iface));
-	const explicit = !!(selection.modems?.length || selection.ips?.length);
-
-	byId("selection-mode").textContent = explicit
-		? `Bonding ${selected.size} selected interface(s).`
-		: "No explicit selection — bonding all detected interfaces (or modems.json).";
 
 	const live = stats;
 	byId("iface-table").classList.toggle("no-stats", !live);
-	const summary = byId("links-summary");
-	summary.hidden = !live;
 	renderStatsAge();
 
 	const links = new Map((live?.links ?? []).map((l) => [l.ip, l]));
 	const total = live ? live.links.reduce((sum, l) => sum + (l.bitrate_bytes_per_sec || 0), 0) : 0;
-	if (live) {
-		summary.textContent = [
-			`${live.active_links}/${live.total_links} links active`,
-			formatBitrate(total),
-			live.mode &&
-				`${live.mode}${live.mode === "enhanced" ? (live.quality_enabled ? " + quality" : ", no quality") : ""}`,
-			live.negotiated_latency_ms ? `SRT latency ${live.negotiated_latency_ms} ms` : null,
-			`in flight ${live.total_in_flight}`,
-		]
-			.filter(Boolean)
-			.join(" · ");
-	}
 
 	const rows = status.interfaces.map((i) => {
 		const box = h("input", {
@@ -456,7 +436,7 @@ function renderEncoder(status: Status): void {
 		if (e.lastError) log(`Encoder: ${e.lastError}`, true);
 	}
 
-	byId("encoder-title").textContent = combined ? "Stream (belacoder → srtla_send)" : "Encoder (belacoder)";
+	byId("encoder-title").textContent = "Encoder";
 
 	const state = !e.running
 		? badge("stopped", "off")
