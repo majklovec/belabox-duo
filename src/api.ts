@@ -100,7 +100,7 @@ import {
 	srtlaControlState,
 } from "./srtlaControl";
 import type { SrtlaOptions } from "./state";
-import { onStateChange, saveState, state } from "./state";
+import { completeSetup, onStateChange, saveState, setupRequired, state } from "./state";
 import { cancelAutostart, setAutostart, startCombined, stopCombined } from "./stream";
 
 const WS_PATH = "/ws";
@@ -182,6 +182,7 @@ async function buildStatus() {
 	const all = await detectInterfaces();
 	return {
 		role: ROLE,
+		setupRequired,
 		state: {
 			selection: state.selection,
 			srtla: srtlaStatus(),
@@ -281,6 +282,75 @@ const modemAction =
 
 const methods: Record<string, Method> = {
 	status: buildStatus,
+
+	"setup.get": async () => ({
+		required: setupRequired,
+		hostname: state.settings?.hostname ?? "",
+		color: state.settings?.color ?? "#0f1115",
+		pipelines: await listPipelines(),
+		audioSources: await listAudioSources(),
+	}),
+
+	"setup.complete": async (p) => {
+		if (!setupRequired) throw new ApiError("Setup has already been completed", 409);
+		const role = requireString(p, "role");
+		if (!(ROLES as readonly string[]).includes(role)) {
+			throw new ApiError(`role must be one of ${ROLES.join(", ")}`);
+		}
+		const hostname = requireString(p, "hostname").trim();
+		if (!/^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(hostname)) {
+			throw new ApiError("hostname must contain only letters, numbers, dots and hyphens");
+		}
+		const color = requireString(p, "color");
+		if (!/^#[0-9a-fA-F]{6}$/.test(color)) {
+			throw new ApiError("color must be a six-digit hexadecimal color");
+		}
+		const remoteUrl = optionalSettingString(p, "remoteUrl", undefined);
+		if (remoteUrl !== undefined && !/^wss?:\/\/.+/.test(remoteUrl)) {
+			throw new ApiError("remoteUrl must be a ws:// or wss:// URL");
+		}
+		const remoteToken = optionalSettingString(p, "remoteToken", undefined);
+
+		const hasEncoder = role !== "relay";
+		const hasRelay = role !== "encoder";
+		let relayTarget: { listenPort: string; remoteHost: string; remotePort: string } | undefined;
+		if (hasRelay) {
+			relayTarget = {
+				listenPort: requirePort(p, "listenPort"),
+				remoteHost: requireHost(p, "srtlaRemoteHost"),
+				remotePort: requirePort(p, "srtlaRemotePort"),
+			};
+			const mode = requireString(p, "srtlaMode");
+			if (!(SRTLA_MODES as readonly string[]).includes(mode)) {
+				throw new ApiError(`srtlaMode must be one of ${SRTLA_MODES.join(", ")}`);
+			}
+			if (typeof p.srtlaQuality !== "boolean") throw new ApiError("srtlaQuality must be a boolean");
+			state.srtlaOptions = { mode: mode as SrtlaMode, quality: p.srtlaQuality };
+			state.srtlaTarget = relayTarget;
+		}
+
+		if (hasEncoder) {
+			const encoderPort = role === "combined"
+				? relayTarget!.listenPort
+				: requirePort(p, "encoderPort");
+			const encoderHost = role === "combined"
+				? "127.0.0.1"
+				: requireHost(p, "encoderHost");
+			state.encoder = { running: false, config: parseEncoderConfig(p, encoderHost, encoderPort) };
+		}
+		if (role === "combined") state.stream = relayTarget;
+		state.autostart = p.autostart === true;
+		state.settings = {
+			...state.settings,
+			hostname,
+			role,
+			color,
+			remoteUrl,
+			remoteToken,
+		};
+		await completeSetup();
+		return { completed: true, restartRequired: true };
+	},
 
 	"interfaces.list": async () => ({ interfaces: await detectInterfaces() }),
 

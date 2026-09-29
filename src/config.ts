@@ -6,9 +6,14 @@ import { arg, argFail, argv, enumArg, flag, intArg } from "./args";
 export { argv };
 
 const TMP = tmpdir();
-export const REMOTE_ID       = arg("--remote-id", process.env.SRTLA_REMOTE_ID ?? hostname());
+const BOOTSTRAP_ID           = arg("--remote-id", process.env.SRTLA_REMOTE_ID ?? hostname());
 export const CONFIG_FILE     = arg("--config", "modems.json");
-export const STATE_FILE      = arg("--state", join(TMP, `${REMOTE_ID}_state.json`));
+export const STATE_FILE      = arg("--state", join(TMP, `${BOOTSTRAP_ID}_state.json`));
+interface PersistedStartup {
+    settings?: { hostname?: string; role?: string; remoteUrl?: string; remoteToken?: string };
+}
+const persistedStartup = await Bun.file(STATE_FILE).json().catch(() => ({} as PersistedStartup)) as PersistedStartup;
+export const REMOTE_ID       = arg("--remote-id", process.env.SRTLA_REMOTE_ID ?? persistedStartup.settings?.hostname ?? BOOTSTRAP_ID);
 // Event log shown in the web UI; next to the state file so it persists wherever state does
 export const LOG_FILE        = arg("--log-file", join(dirname(STATE_FILE), `${REMOTE_ID}_log.json`));
 export const UPLINKS_FILE    = arg("--uplinks", join(TMP, `${REMOTE_ID}_srtla_ips.txt`));
@@ -20,8 +25,8 @@ export const API_HOST        = arg("--host", "127.0.0.1");
 export const ALLOWED_ORIGINS = arg("--allow-origin", "").split(",").map((o) => o.trim()).filter(Boolean);
 // Outbound control connection: status is pushed to and requests accepted from this server.
 // Token/URL may come from env to keep secrets out of the process list.
-export const REMOTE_URL      = arg("--remote", process.env.SRTLA_REMOTE_URL ?? "");
-export const REMOTE_TOKEN    = arg("--remote-token", process.env.SRTLA_REMOTE_TOKEN ?? "");
+export const REMOTE_URL      = arg("--remote", process.env.SRTLA_REMOTE_URL ?? persistedStartup.settings?.remoteUrl ?? "");
+export const REMOTE_TOKEN    = arg("--remote-token", process.env.SRTLA_REMOTE_TOKEN ?? persistedStartup.settings?.remoteToken ?? "");
 export const REMOTE_INTERVAL = intArg("--remote-interval", 30);   // periodic status push, seconds (0 = off)
 export const REMOTE_STATS_INTERVAL = intArg("--remote-stats-interval", 2);   // srtla_send link stats push, seconds (0 = off)
 if (REMOTE_URL && !/^wss?:\/\//.test(REMOTE_URL)) argFail("--remote", REMOTE_URL, "ws:// or wss:// URL");
@@ -31,7 +36,11 @@ if (REMOTE_URL && !/^wss?:\/\//.test(REMOTE_URL)) argFail("--remote", REMOTE_URL
 // combined: belacoder → local srtla_send → bonded uplinks
 export const ROLES           = ["relay", "encoder", "combined"] as const;
 export type Role             = (typeof ROLES)[number];
-export const ROLE: Role      = enumArg("--role", ROLES, (process.env.SRTLA_ROLE as Role | undefined) ?? "relay");
+export const ROLE: Role      = enumArg(
+    "--role",
+    ROLES,
+    (process.env.SRTLA_ROLE as Role | undefined) ?? (persistedStartup.settings?.role as Role | undefined) ?? "relay",
+);
 if (!(ROLES as readonly string[]).includes(ROLE)) argFail("SRTLA_ROLE", ROLE, ROLES.join(" | "));
 export const HAS_RELAY       = ROLE !== "encoder";
 export const HAS_ENCODER     = ROLE !== "relay";

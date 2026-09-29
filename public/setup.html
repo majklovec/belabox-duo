@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Setup - Belabox Duo</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Belabox Duo setup</h1>
+      <span id="conn" class="badge off">disconnected</span>
+    </header>
+    <main>
+      <section class="card">
+        <p id="progress" class="muted"></p>
+        <form id="setup-form">
+          <fieldset class="wizard-step" data-step="role">
+            <legend>1. Device role</legend>
+            <label><input type="radio" name="role" value="relay" required /> Relay</label>
+            <label><input type="radio" name="role" value="encoder" required /> Encoder</label>
+            <label><input type="radio" name="role" value="combined" required /> Combined</label>
+          </fieldset>
+
+          <fieldset class="wizard-step" data-step="identity" hidden>
+            <legend>2. Identity and appearance</legend>
+            <label>Hostname
+              <input name="hostname" required pattern="[A-Za-z0-9][A-Za-z0-9.-]{0,62}" />
+            </label>
+            <label>Header color <input name="color" type="color" value="#0f1115" /></label>
+          </fieldset>
+
+          <fieldset class="wizard-step" data-step="control" hidden>
+            <legend>3. Control server</legend>
+            <label>Control server URL
+              <input name="remoteUrl" placeholder="wss://control.example/device" />
+            </label>
+            <label>Remote token
+              <input name="remoteToken" type="password" autocomplete="off" />
+            </label>
+          </fieldset>
+
+          <fieldset class="wizard-step" data-step="encoder" hidden>
+            <legend>4. Encoder</legend>
+            <label>Pipeline <select name="pipeline"></select></label>
+            <label>Max bitrate (kbps)
+              <input name="maxBitrate" type="number" min="300" max="30000" step="100" value="5000" />
+            </label>
+            <label>Audio source <select name="audioSource"></select></label>
+            <label>Audio codec
+              <select name="audioCodec"><option value="aac">AAC</option><option value="opus">Opus</option></select>
+            </label>
+            <label>Audio delay (ms)
+              <input name="delay" type="number" min="-2000" max="2000" value="0" />
+            </label>
+            <label class="encoder-target">Relay host
+              <input name="encoderHost" placeholder="192.168.1.10" />
+            </label>
+            <label class="encoder-target">Relay SRT port
+              <input name="encoderPort" type="number" min="1" max="65535" value="6000" />
+            </label>
+            <label>SRT latency (ms)
+              <input name="latency" type="number" min="100" max="10000" step="100" value="2000" />
+            </label>
+            <label>Stream ID <input name="streamid" placeholder="optional" /></label>
+            <label class="check"><input type="checkbox" name="bitrateOverlay" /> Bitrate overlay</label>
+          </fieldset>
+
+          <fieldset class="wizard-step" data-step="relay" hidden>
+            <legend>5. SRTLA relay</legend>
+            <label>SRT listen port
+              <input name="listenPort" type="number" min="1" max="65535" value="6000" />
+            </label>
+            <label>SRTLA remote host
+              <input name="srtlaRemoteHost" placeholder="rec.example.com" />
+            </label>
+            <label>SRTLA remote port
+              <input name="srtlaRemotePort" type="number" min="1" max="65535" value="5000" />
+            </label>
+            <label>Scheduler
+              <select name="srtlaMode"><option value="enhanced">Enhanced</option><option value="classic">Classic</option></select>
+            </label>
+            <label class="check"><input type="checkbox" name="srtlaQuality" checked /> Quality scoring</label>
+          </fieldset>
+
+          <fieldset class="wizard-step" data-step="finish" hidden>
+            <legend>Finish</legend>
+            <label class="check">
+              <input type="checkbox" name="autostart" /> Start the saved stream automatically after restart
+            </label>
+            <p>Review your choices with Back, then save the configuration.</p>
+          </fieldset>
+
+          <div class="break"></div>
+          <div class="actions">
+            <button type="button" id="previous" class="secondary" hidden>Back</button>
+            <button type="button" id="next">Next</button>
+            <button type="submit" id="complete" hidden>Save configuration</button>
+          </div>
+        </form>
+        <p id="result" class="muted" role="status"></p>
+      </section>
+    </main>
+    <script type="module" src="ts/setup.ts"></script>
+  </body>
+</html>

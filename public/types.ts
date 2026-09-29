@@ -16,6 +16,7 @@ import type { Role } from "../src/config";
 
 export interface Status {
 	role: Role;
+	setupRequired: boolean;
 	state: {
 		selection: ModemConfig;
 		srtla: SrtlaState;

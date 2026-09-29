@@ -41,11 +41,13 @@ const defaults = (): PersistentState => ({
     encoder: { running: false },
 });
 
+const stateFile = Bun.file(STATE_FILE);
+export let setupRequired = !(await stateFile.exists());
+
 async function loadState(): Promise<PersistentState> {
-    const file = Bun.file(STATE_FILE);
-    if (await file.exists()) {
+    if (!setupRequired) {
         // Merge so state files from older versions gain new sections
-        try { return { ...defaults(), ...((await file.json()) as Partial<PersistentState>) }; } catch {}
+        try { return { ...defaults(), ...((await stateFile.json()) as Partial<PersistentState>) }; } catch {}
     }
     return defaults();
 }
@@ -67,6 +69,11 @@ export async function saveState(): Promise<void> {
     notifyStateChange();
     if (DRY_RUN) return;
     await Bun.write(STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+export async function completeSetup(): Promise<void> {
+    setupRequired = false;
+    await saveState();
 }
 
 /** Shared mutable state; modules mutate its fields and call `saveState()`. */
