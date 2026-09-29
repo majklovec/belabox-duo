@@ -26,6 +26,8 @@
  *   srtla.stats   latest per-link telemetry from srtla_send's control socket
  *   srtla.options {mode? ("classic"|"enhanced"), quality? (bool)}   applied live when possible
  *   pipelines.list
+ *   pipelines.repositories.add {repository}, pipelines.repositories.remove {repository}
+ *   pipelines.repositories.updateAll
  *   encoder.status, encoder.start {pipeline, host, port, maxBitrate?, latency?, delay?, streamid?,
  *                                  audioSource?, audioCodec? ("aac"|"opus"), bitrateOverlay?},
  *   encoder.stop, encoder.bitrate {maxBitrate}
@@ -69,6 +71,7 @@ import {
 	startEncoder,
 	stopEncoder,
 } from "./encoder";
+import { removePipelineRepository, syncPipelineRepository } from "./git";
 import {
 	connectModem,
 	detectModems,
@@ -420,6 +423,7 @@ const methods: Record<string, Method> = {
 			remoteUrl: state.settings?.remoteUrl ?? "",
 			hasRemoteToken: !!state.settings?.remoteToken,
 			color: state.settings?.color ?? "#0f1115",
+			pipelineRepositories: state.settings?.pipelineRepositories ?? [],
 		},
 		restartRequired: true,
 	}),
@@ -446,7 +450,7 @@ const methods: Record<string, Method> = {
 		if (color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(color)) {
 			throw new ApiError("color must be a six-digit hexadecimal color");
 		}
-		state.settings = { hostname, role, remoteUrl, remoteToken, color };
+		state.settings = { ...current, hostname, role, remoteUrl, remoteToken, color };
 		await saveState();
 		return {
 			settings: {
@@ -455,9 +459,40 @@ const methods: Record<string, Method> = {
 				remoteUrl: remoteUrl ?? "",
 				hasRemoteToken: !!remoteToken,
 				color: color ?? "#0f1115",
+				pipelineRepositories: state.settings.pipelineRepositories ?? [],
 			},
 			restartRequired: true,
 		};
+	},
+
+	"pipelines.repositories.add": async (p) => {
+		const repository = requireString(p, "repository").trim();
+		const result = await syncPipelineRepository(repository, PIPELINES_DIR);
+		const repositories = new Set(state.settings?.pipelineRepositories ?? []);
+		repositories.add(repository);
+		state.settings = { ...state.settings, pipelineRepositories: [...repositories].sort() };
+		await saveState();
+		return { repositories: state.settings.pipelineRepositories, result };
+	},
+
+	"pipelines.repositories.remove": async (p) => {
+		const repository = requireString(p, "repository").trim();
+		await removePipelineRepository(repository, PIPELINES_DIR);
+		state.settings = {
+			...state.settings,
+			pipelineRepositories: (state.settings?.pipelineRepositories ?? []).filter((item) => item !== repository),
+		};
+		await saveState();
+		return { repositories: state.settings.pipelineRepositories };
+	},
+
+	"pipelines.repositories.updateAll": async () => {
+		const repositories = state.settings?.pipelineRepositories ?? [];
+		const results = [];
+		for (const repository of repositories) {
+			results.push(await syncPipelineRepository(repository, PIPELINES_DIR));
+		}
+		return { repositories, results };
 	},
 
 	"log.list": () => ({ entries: logEntries() }),

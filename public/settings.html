@@ -44,6 +44,31 @@
       </form>
       <p id="result" class="muted" role="status"></p>
     </section>
+    <section class="card">
+      <h2>Pipeline repositories</h2>
+      <p class="muted">
+        Pipelines are imported recursively from each repository's
+        <code>pipeline</code> directory.
+      </p>
+      <form id="repository-form">
+        <label>GitHub repository
+          <input
+            name="repository"
+            required
+            pattern="[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
+            placeholder="author/repository"
+          />
+        </label>
+        <div class="actions">
+          <button type="submit" id="repository-add">Add repository</button>
+          <button type="button" id="repositories-update" class="secondary">
+            Update all
+          </button>
+        </div>
+      </form>
+      <div id="repository-list"></div>
+      <p id="repository-result" class="muted" role="status"></p>
+    </section>
   </main>
   <script type="module" src="ts/settings.ts"></script>
 </body>

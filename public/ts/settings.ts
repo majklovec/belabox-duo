@@ -1,4 +1,4 @@
-import { byId } from "./dom";
+import { byId, h } from "./dom";
 
 type Params = Record<string, unknown>;
 interface Settings {
@@ -7,6 +7,7 @@ interface Settings {
 	remoteUrl: string;
 	hasRemoteToken: boolean;
 	color: string;
+	pipelineRepositories: string[];
 }
 
 let ws: WebSocket | null = null;
@@ -38,6 +39,39 @@ function fill(settings: Settings): void {
 	const token = form.elements.namedItem("remoteToken") as HTMLInputElement;
 	token.placeholder = settings.hasRemoteToken ? "configured (leave blank to keep)" : "not configured";
 	applyColor(settings.color);
+	renderRepositories(settings.pipelineRepositories);
+}
+
+function renderRepositories(repositories: string[]): void {
+	const list = byId("repository-list");
+	list.replaceChildren(
+		...(repositories.length
+			? repositories.map((repository) =>
+				h(
+					"div",
+					{ className: "card-head" },
+					h("code", {}, repository),
+					h("button", {
+						type: "button",
+						className: "danger",
+						textContent: "Remove",
+						onclick: () => void removeRepository(repository),
+					}),
+				))
+			: [h("p", { className: "muted" }, "No pipeline repositories configured.")]),
+	);
+}
+
+async function removeRepository(repository: string): Promise<void> {
+	const output = byId("repository-result");
+	output.textContent = `Removing ${repository}...`;
+	try {
+		const result = await call<{ repositories: string[] }>("pipelines.repositories.remove", { repository });
+		renderRepositories(result.repositories);
+		output.textContent = `${repository} removed.`;
+	} catch (error: unknown) {
+		output.textContent = error instanceof Error ? error.message : String(error);
+	}
 }
 
 function connect(): void {
@@ -94,6 +128,47 @@ byId<HTMLFormElement>("settings-form").onsubmit = async (event) => {
 		byId("result").textContent = "Settings saved.";
 	} catch (error: unknown) {
 		byId("result").textContent = error instanceof Error ? error.message : String(error);
+	} finally {
+		button.disabled = false;
+	}
+};
+
+byId<HTMLFormElement>("repository-form").onsubmit = async (event) => {
+	event.preventDefault();
+	const form = event.currentTarget as HTMLFormElement;
+	const button = byId<HTMLButtonElement>("repository-add");
+	const repository = String(new FormData(form).get("repository") ?? "").trim();
+	const output = byId("repository-result");
+	button.disabled = true;
+	output.textContent = `Importing ${repository}...`;
+	try {
+		const response = await call<{
+			repositories: string[];
+			result: { files: number; bytes: number };
+		}>("pipelines.repositories.add", { repository });
+		renderRepositories(response.repositories);
+		form.reset();
+		output.textContent = `Imported ${response.result.files} file(s) from ${repository}.`;
+	} catch (error: unknown) {
+		output.textContent = error instanceof Error ? error.message : String(error);
+	} finally {
+		button.disabled = false;
+	}
+};
+
+byId<HTMLButtonElement>("repositories-update").onclick = async (event) => {
+	const button = event.currentTarget as HTMLButtonElement;
+	const output = byId("repository-result");
+	button.disabled = true;
+	output.textContent = "Updating all pipeline repositories...";
+	try {
+		const response = await call<{
+			results: Array<{ repository: string; files: number }>;
+		}>("pipelines.repositories.updateAll");
+		const files = response.results.reduce((total, result) => total + result.files, 0);
+		output.textContent = `Updated ${response.results.length} repository/repositories (${files} files).`;
+	} catch (error: unknown) {
+		output.textContent = error instanceof Error ? error.message : String(error);
 	} finally {
 		button.disabled = false;
 	}

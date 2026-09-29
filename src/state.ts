@@ -11,6 +11,7 @@ export interface DeviceSettings {
     remoteUrl?: string;
     remoteToken?: string;
     color?: string;
+    pipelineRepositories?: string[];
 }
 
 /** srtla_send scheduler settings; applied live over the control socket and on every start. */

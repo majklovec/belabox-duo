@@ -1,5 +1,5 @@
-import { join, basename } from "node:path";
-import { mkdir } from "node:fs/promises";
+import { join, basename, dirname, relative, resolve, sep } from "node:path";
+import { mkdir, mkdtemp, rename, rm } from "node:fs/promises";
 
 const GITHUB_API = "https://api.github.com";
 const RAW_BASE = "https://raw.githubusercontent.com";
@@ -9,12 +9,19 @@ const DEFAULT_BRANCH_FALLBACK = "main";
 //  Types
 // ------------------------------------------------------------
 
-interface PipelineFile {
+export interface PipelineFile {
   name: string;
   path: string;
   size: number;
   sha: string;
   download_url: string;
+}
+
+export interface PipelineSyncResult {
+  repository: string;
+  directory: string;
+  files: number;
+  bytes: number;
 }
 
 interface ListOptions {
@@ -43,6 +50,13 @@ function authHeaders(token?: string): Record<string, string> {
   return headers;
 }
 
+function parseRepository(authorRepo: string): [string, string] {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(authorRepo)) {
+    throw new Error('Repository must be in "author/repository" format');
+  }
+  return authorRepo.split("/") as [string, string];
+}
+
 async function getDefaultBranch(
   owner: string,
   repo: string,
@@ -68,10 +82,7 @@ export async function listPipelines(
 ): Promise<PipelineFile[]> {
   const { path = "pipeline", branch, fullPath = true, token } = options;
 
-  const [owner, repo] = authorRepo.split("/");
-  if (!owner || !repo) {
-    throw new Error('Parameter must be in "author/repo" format');
-  }
+  const [owner, repo] = parseRepository(authorRepo);
 
   const ref = branch || (await getDefaultBranch(owner, repo, token));
 
@@ -85,7 +96,9 @@ export async function listPipelines(
 
   const data = (await res.json()) as {
     tree: Array<{ path: string; type: string; sha: string; size?: number }>;
+    truncated?: boolean;
   };
+  if (data.truncated) throw new Error(`Repository tree is too large to read recursively: ${authorRepo}`);
 
   const base = path.replace(/^\/+|\/+$/g, "");
 
@@ -113,10 +126,7 @@ export async function downloadPipeline(
 ): Promise<string> {
   const { branch, token, outDir = "." } = options;
 
-  const [owner, repo] = authorRepo.split("/");
-  if (!owner || !repo) {
-    throw new Error('Parameter must be in "author/repo" format');
-  }
+  const [owner, repo] = parseRepository(authorRepo);
 
   const ref = branch || (await getDefaultBranch(owner, repo, token));
 
@@ -135,4 +145,58 @@ export async function downloadPipeline(
 
   console.log(`✔ Saved ${dest} (${bytesWritten} bytes)`);
   return dest;
+}
+
+// ------------------------------------------------------------
+//  Synchronize a repository's pipeline directory
+// ------------------------------------------------------------
+
+export async function syncPipelineRepository(
+  authorRepo: string,
+  pipelinesDir: string,
+  token?: string,
+): Promise<PipelineSyncResult> {
+  const [owner, repo] = parseRepository(authorRepo);
+  const files = await listPipelines(authorRepo, { path: "pipeline", token });
+  if (!files.length) throw new Error(`${authorRepo} does not contain any files in "pipeline"`);
+
+  const root = resolve(pipelinesDir);
+  await mkdir(root, { recursive: true });
+  const staging = await mkdtemp(join(root, ".pipeline-sync-"));
+  const target = resolve(root, owner, repo);
+  if (!target.startsWith(root + sep)) throw new Error(`Invalid pipeline destination for ${authorRepo}`);
+
+  let bytes = 0;
+  try {
+    for (const file of files) {
+      const outputPath = file.path.slice("pipeline/".length);
+      const destination = resolve(staging, outputPath);
+      if (!destination.startsWith(staging + sep) || relative(staging, destination).startsWith("..")) {
+        throw new Error(`Invalid pipeline path from ${authorRepo}: ${file.path}`);
+      }
+      const response = await fetch(file.download_url, { headers: authHeaders(token) });
+      if (!response.ok) {
+        throw new Error(`Failed to download "${file.path}": ${response.status} ${response.statusText}`);
+      }
+      await mkdir(dirname(destination), { recursive: true });
+      bytes += await Bun.write(destination, response);
+    }
+
+    await mkdir(dirname(target), { recursive: true });
+    await rm(target, { recursive: true, force: true });
+    await rename(staging, target);
+  } catch (error: unknown) {
+    await rm(staging, { recursive: true, force: true });
+    throw error;
+  }
+
+  return { repository: authorRepo, directory: target, files: files.length, bytes };
+}
+
+export async function removePipelineRepository(authorRepo: string, pipelinesDir: string): Promise<void> {
+  const [owner, repo] = parseRepository(authorRepo);
+  const root = resolve(pipelinesDir);
+  const target = resolve(root, owner, repo);
+  if (!target.startsWith(root + sep)) throw new Error(`Invalid pipeline destination for ${authorRepo}`);
+  await rm(target, { recursive: true, force: true });
 }

@@ -157,6 +157,12 @@ on the next service restart; the header color changes immediately. Stream
 settings (pipeline, bitrate, audio, targets and scheduler options) are saved
 automatically whenever they change.
 
+The settings page also manages GitHub pipeline repositories in
+`author/repository` format. Files below the repository's `pipeline/` directory
+are imported recursively into `PIPELINES_DIR/author/repository/`. **Update all**
+refreshes every configured repository, replacing its local files so deleted
+upstream pipelines are removed too.
+
 # Thanks to
 
 ## Belabox project by rationalirl
