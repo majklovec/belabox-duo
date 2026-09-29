@@ -1,0 +1,20 @@
+# belabox-emmc-install.service
+#
+# One-shot service that installs the running Armbian system to eMMC on
+# first boot. It disables itself after a successful run.
+
+[Unit]
+Description=Belabox eMMC auto-installer
+After=local-fs.target network-online.target
+Wants=network-online.target
+ConditionPathExists=!/root/.emmc-install-complete
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/belabox-emmc-install.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

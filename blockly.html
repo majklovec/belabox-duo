@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GStreamer → Blockly (POC v7)</title>
+    <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+    <style>
+      :root {
+        --border: #d8dbe0;
+        --bg: #f7f8fa;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        font-size: 13px;
+        color: #1f2328;
+      }
+      #app {
+        display: flex;
+        height: 100%;
+      }
+      #left {
+        width: 460px;
+        min-width: 380px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        border-right: 1px solid var(--border);
+        background: var(--bg);
+        overflow-y: auto;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 2px;
+      }
+      .sub {
+        color: #656d76;
+        margin: 0;
+        line-height: 1.4;
+      }
+      label {
+        font-weight: 600;
+        font-size: 12px;
+        color: #424a53;
+      }
+      textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        resize: vertical;
+        background: #fff;
+        color: #1f2328;
+        line-height: 1.45;
+      }
+      #input {
+        height: 200px;
+      }
+      #output {
+        height: 120px;
+        background: #fff;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      button {
+        flex: 1;
+        padding: 8px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        background: #fff;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      button.primary {
+        background: #1f6feb;
+        border-color: #1f6feb;
+        color: #fff;
+      }
+      button:hover {
+        filter: brightness(0.96);
+      }
+      select {
+        padding: 6px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: #fff;
+      }
+      .hint {
+        color: #656d76;
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0;
+      }
+      code {
+        background: #eef1f4;
+        padding: 1px 4px;
+        border-radius: 4px;
+        font-size: 11px;
+      }
+
+      #summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 8px;
+        border-radius: 6px;
+        background: #fff;
+        border: 1px solid var(--border);
+        min-height: 34px;
+      }
+      #summary .empty {
+        color: #8b949e;
+        font-size: 12px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #fff;
+        line-height: 1.6;
+        white-space: nowrap;
+      }
+      .chip .n {
+        background: rgba(255, 255, 255, 0.28);
+        padding: 0 5px;
+        border-radius: 999px;
+        font-weight: 700;
+      }
+
+      #info {
+        font-size: 12px;
+        color: #424a53;
+        padding: 6px 8px;
+        border-radius: 6px;
+        background: #eef1f4;
+        min-height: 26px;
+        line-height: 1.6;
+      }
+      #info b {
+        color: #1f2328;
+      }
+      #info .src {
+        color: #1a7f37;
+        font-weight: 600;
+      }
+      #info .sink {
+        color: #cf222e;
+        font-weight: 600;
+      }
+      #info .br {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      #blocklyDiv {
+        flex: 1;
+        min-width: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="left">
+        <div>
+          <h1>GStreamer → Blockly</h1>
+          <p class="sub">
+            Branches carry descriptive names like <code>rtmpsrc → demux</code>.
+            Edit any label in place.
+          </p>
+        </div>
+
+        <label for="input">Pipeline</label>
+        <textarea id="input" spellcheck="false"></textarea>
+
+        <div class="row">
+          <button id="btnVisualize" class="primary">Visualize ▶</button>
+          <select id="presets" style="flex: 1">
+            <option value="">Examples…</option>
+          </select>
+        </div>
+
+        <button id="btnGenerate">◀ Generate from blocks</button>
+
+        <label>Element summary</label>
+        <div id="summary"><span class="empty">—</span></div>
+
+        <label for="output">Generated pipeline</label>
+        <textarea id="output" readonly spellcheck="false"></textarea>
+
+        <div id="info"></div>
+
+        <p class="hint">
+          A branch’s label is derived from its endpoints: the first stage
+          (element, caps or <code>name.pad</code> link) and the last one, joined
+          by <code>→</code>. Named elements use their
+          <code>name=</code> property, so
+          <code>nvcompositor name=comp … ! mux.</code> becomes
+          <code>comp → mux</code>. Labels are editable on the block itself.
+        </p>
+      </div>
+
+      <div id="blocklyDiv"></div>
+    </div>
+
+    <script>
+      (function () {
+        "use strict";
+
+        /* ============================================================
+     1. Element categories
+     ============================================================ */
+
+        const CATEGORIES = {
+          source: {
+            label: "source",
+            color: "#1a7f37",
+            tip: "Produces data (e.g. *src, videotestsrc)",
+          },
+          sink: {
+            label: "sink",
+            color: "#cf222e",
+            tip: "Consumes data (e.g. *sink, appsink)",
+          },
+          parser: {
+            label: "parser",
+            color: "#6639ba",
+            tip: "Parses a bitstream (e.g. h264parse)",
+          },
+          demuxer: {
+            label: "demuxer",
+            color: "#8250df",
+            tip: "Splits streams (e.g. flvdemux, qtdemux)",
+          },
+          muxer: {
+            label: "muxer",
+            color: "#0969da",
+            tip: "Multiplexes streams (e.g. mpegtsmux)",
+          },
+          decoder: {
+            label: "decoder",
+            color: "#bc4c00",
+            tip: "Decodes (e.g. avdec_h264, nvv4l2decoder)",
+          },
+          encoder: {
+            label: "encoder",
+            color: "#bf3989",
+            tip: "Encodes (e.g. x264enc, voaacenc)",
+          },
+          converter: {
+            label: "converter",
+            color: "#0a3069",
+            tip: "Format / scale / rate conversion",
+          },
+          filter: {
+            label: "filter",
+            color: "#6e7781",
+            tip: "Processing element (identity, queue, volume…)",
+          },
+          other: {
+            label: "other",
+            color: "#57606a",
+            tip: "Uncategorised element",
+          },
+        };
+
+        const CATEGORY_ORDER = [
+          "source",
+          "sink",
+          "parser",
+          "demuxer",
+          "muxer",
+          "decoder",
+          "encoder",
+          "converter",
+          "filter",
+          "other",
+        ];
+
+        const EXTRA_COLORS = {
+          main: "#111827",
+          branch: "#334155",
+          caps: "#b08800",
+          link: "#0d9488",
+        };
+
+        function classifyElement(name) {
+          const n = String(name).toLowerCase();
+
+          if (/^avdec_/.test(n)) return "decoder";
+          if (/^avenc_/.test(n)) return "encoder";
+
+          if (/decoder$/.test(n) || /dec$/.test(n)) return "decoder";
+          if (/enc$/.test(n)) return "encoder";
+
+          if (/demux$/.test(n)) return "demuxer";
+          if (/mux$/.test(n)) return "muxer";
+          if (/parse$/.test(n)) return "parser";
+
+          if (/src$/.test(n)) return "source";
+          if (/sink$/.test(n)) return "sink";
+
+          if (
+            /convert$/.test(n) ||
+            /conv$/.test(n) ||
+            /resample$/.test(n) ||
+            /scale$/.test(n) ||
+            /deinterlace$/.test(n) ||
+            /videorate$/.test(n) ||
+            /audiorate$/.test(n)
+          )
+            return "converter";
+
+          if (/(rtp|rtcp).*depay$/.test(n)) return "demuxer";
+          if (/(rtp|rtcp).*pay$/.test(n)) return "muxer";
+
+          if (/compositor$/.test(n) || /mix$/.test(n) || /overlay$/.test(n))
+            return "filter";
+
+          if (
+            /^(identity|queue|volume|tee|valve|capssetter|textoverlay|videobox|imagefreeze|clockoverlay)$/.test(
+              n,
+            )
+          ) {
+            return "filter";
+          }
+
+          return "other";
+        }
+
+        /* ============================================================
+     2. Block definitions
+     ============================================================ */
+
+        const defineBlocks =
+          (Blockly.common && Blockly.common.defineBlocksWithJsonArray) ||
+          Blockly.defineBlocksWithJsonArray;
+
+        const blockDefs = [
+          {
+            type: "gst_main",
+            message0: "gst-launch-1.0  %1",
+            args0: [{ type: "input_dummy" }],
+            message1: "branches %1",
+            args1: [{ type: "input_statement", name: "BRANCHES" }],
+            colour: EXTRA_COLORS.main,
+            tooltip: "Root of the pipeline. Every branch goes in here.",
+            deletable: false,
+          },
+          {
+            // No more "branch" prefix — the block just shows its label.
+            type: "gst_branch",
+            message0: "%1",
+            args0: [{ type: "field_input", name: "LABEL", text: "new" }],
+            message1: "%1",
+            args1: [{ type: "input_statement", name: "STACK" }],
+            previousStatement: null,
+            nextStatement: null,
+            colour: EXTRA_COLORS.branch,
+            tooltip:
+              "A pipeline branch: a chain of elements ending in a link or a sink.",
+          },
+          {
+            type: "gst_caps",
+            message0: "caps %1",
+            args0: [{ type: "field_input", name: "CAPS", text: "video/x-raw" }],
+            previousStatement: null,
+            nextStatement: null,
+            colour: EXTRA_COLORS.caps,
+            tooltip: "Caps filter",
+          },
+          {
+            type: "gst_link",
+            message0: "link %1",
+            args0: [{ type: "field_input", name: "REF", text: "mux." }],
+            previousStatement: null,
+            nextStatement: null,
+            colour: EXTRA_COLORS.link,
+            tooltip:
+              "Pad reference: source (demux.video) or sink (comp.sink_0)",
+          },
+        ];
+
+        CATEGORY_ORDER.forEach(function (key) {
+          const cat = CATEGORIES[key];
+          blockDefs.push({
+            type: "gst_" + key,
+            message0: cat.label + " %1 %2",
+            args0: [
+              { type: "field_input", name: "NAME", text: "element" },
+              { type: "field_input", name: "PROPS", text: "" },
+            ],
+            previousStatement: null,
+            nextStatement: null,
+            colour: cat.color,
+            tooltip: cat.tip,
+          });
+        });
+
+        defineBlocks(blockDefs);
+
+        /* ============================================================
+     3. Workspace
+     ============================================================ */
+
+        const workspace = Blockly.inject(
+          document.getElementById("blocklyDiv"),
+          {
+            toolbox: {
+              kind: "flyoutToolbox",
+              contents: [
+                { kind: "block", type: "gst_main" },
+                { kind: "block", type: "gst_branch" },
+                { kind: "block", type: "gst_caps" },
+                { kind: "block", type: "gst_link" },
+              ].concat(
+                CATEGORY_ORDER.map(function (key) {
+                  return { kind: "block", type: "gst_" + key };
+                }),
+              ),
+            },
+            grid: { spacing: 24, length: 3, colour: "#d5d8dd", snap: true },
+            zoom: {
+              controls: true,
+              wheel: true,
+              startScale: 0.6,
+              maxScale: 2,
+              minScale: 0.1,
+            },
+            move: { scrollbars: true, drag: true, wheel: true },
+            trashcan: true,
+          },
+        );
+
+        window.addEventListener("resize", function () {
+          Blockly.svgResize(workspace);
+        });
+
+        /* ============================================================
+     4. Pipeline string → stages
+     ============================================================ */
+
+        function splitTopLevel(text) {
+          const parts = [];
+          let cur = "",
+            quote = null,
+            esc = false;
+          for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (esc) {
+              cur += ch;
+              esc = false;
+              continue;
+            }
+            if (ch === "\\") {
+              cur += ch;
+              esc = true;
+              continue;
+            }
+            if (quote) {
+              cur += ch;
+              if (ch === quote) quote = null;
+              continue;
+            }
+            if (ch === '"' || ch === "'") {
+              quote = ch;
+              cur += ch;
+              continue;
+            }
+            if (ch === "!" || ch === "\n" || ch === "\r") {
+              parts.push(cur);
+              cur = "";
+              continue;
+            }
+            cur += ch;
+          }
+          parts.push(cur);
+          return parts
+            .map(function (s) {
+              return s.trim();
+            })
+            .filter(function (s) {
+              return s.length > 0;
+            });
+        }
+
+        function parseStage(stage) {
+          const m = /^([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z0-9_]*)$/.exec(stage);
+          if (m) return { kind: "link", ref: stage, name: m[1], pad: m[2] };
+
+          if (/^[A-Za-z0-9_.\-+]+\/[A-Za-z0-9_.\-+]/.test(stage)) {
+            return { kind: "caps", caps: stage };
+          }
+
+          const sp = stage.search(/\s/);
+          if (sp === -1) return { kind: "element", name: stage, props: "" };
+          return {
+            kind: "element",
+            name: stage.slice(0, sp),
+            props: stage.slice(sp).trim(),
+          };
+        }
+
+        function parseStages(text) {
+          let s = (text || "").trim();
+          s = s.replace(/^gst-launch(-1\.0)?\s+/i, "");
+          return splitTopLevel(s).map(parseStage);
+        }
+
+        /* ============================================================
+     5. stages → branches
+     ============================================================ */
+
+        function collectNameDefinitions(stages) {
+          const defs = {};
+          stages.forEach(function (st, i) {
+            if (st.kind !== "element") return;
+            const m = /\bname=([A-Za-z_][A-Za-z0-9_]*)/.exec(st.props);
+            if (m && defs[m[1]] === undefined) defs[m[1]] = i;
+          });
+          return defs;
+        }
+
+        function parseToBranches(text) {
+          const stages = parseStages(text);
+          const defs = collectNameDefinitions(stages);
+          const branches = [];
+          let current = [];
+
+          stages.forEach(function (st, i) {
+            if (st.kind === "link") {
+              const defPos = defs[st.name];
+              const isSource = defPos !== undefined && defPos < i;
+              if (isSource) {
+                if (current.length > 0) {
+                  branches.push(current);
+                  current = [];
+                }
+                current.push(st);
+              } else {
+                current.push(st);
+                branches.push(current);
+                current = [];
+              }
+            } else {
+              current.push(st);
+            }
+          });
+
+          if (current.length > 0) branches.push(current);
+          return branches;
+        }
+
+        /* ============================================================
+     6. Branch naming
+     ============================================================ */
+
+        function stageShortName(st) {
+          if (!st) return "?";
+          if (st.kind === "link") return st.pad ? st.ref : st.name;
+          if (st.kind === "caps") return "caps";
+          if (st.kind === "element") {
+            const m = /\bname=([A-Za-z_][A-Za-z0-9_]*)/.exec(st.props);
+            if (m) return m[1];
+            return st.name;
+          }
+          return "?";
+        }
+
+        function branchLabel(stages) {
+          if (!stages || stages.length === 0) return "empty";
+
+          const from = stageShortName(stages[0]);
+          if (stages.length === 1) return from;
+
+          let lastIdx = stages.length - 1;
+          while (lastIdx > 0 && stages[lastIdx].kind === "caps") lastIdx--;
+
+          const to = stageShortName(stages[lastIdx]);
+          return from === to ? from : from + " → " + to;
+        }
+
+        /* ============================================================
+     7. branches → Blockly state
+     ============================================================ */
+
+        function stageToBlockJson(st) {
+          if (st.kind === "link")
+            return { type: "gst_link", fields: { REF: st.ref } };
+          if (st.kind === "caps")
+            return { type: "gst_caps", fields: { CAPS: st.caps } };
+          const cat = classifyElement(st.name);
+          return {
+            type: "gst_" + cat,
+            fields: { NAME: st.name, PROPS: st.props },
+          };
+        }
+
+        function branchToStack(stages) {
+          let tail = null;
+          for (let i = stages.length - 1; i >= 0; i--) {
+            const block = stageToBlockJson(stages[i]);
+            if (tail) block.next = { block: tail };
+            tail = block;
+          }
+          return tail;
+        }
+
+        function pipelineToState(text) {
+          const branches = parseToBranches(text);
+          if (branches.length === 0) return null;
+
+          let tail = null;
+          for (let i = branches.length - 1; i >= 0; i--) {
+            const branchJson = {
+              type: "gst_branch",
+              fields: { LABEL: branchLabel(branches[i]) },
+              inputs: { STACK: { block: branchToStack(branches[i]) } },
+            };
+            if (tail) branchJson.next = { block: tail };
+            tail = branchJson;
+          }
+
+          return {
+            blocks: {
+              languageVersion: 0,
+              blocks: [
+                {
+                  type: "gst_main",
+                  x: 40,
+                  y: 40,
+                  inputs: { BRANCHES: { block: tail } },
+                },
+              ],
+            },
+          };
+        }
+
+        /* ============================================================
+     8. Blockly state → pipeline string
+     ============================================================ */
+
+        function blockToText(block) {
+          const type = block.type;
+          if (type === "gst_link")
+            return (block.getFieldValue("REF") || "").trim();
+          if (type === "gst_caps")
+            return (block.getFieldValue("CAPS") || "").trim();
+          if (type === "gst_main" || type === "gst_branch") return "";
+          const name = (block.getFieldValue("NAME") || "").trim();
+          const props = (block.getFieldValue("PROPS") || "").trim();
+          return props ? name + " " + props : name;
+        }
+
+        function branchBodyToText(branchBlock) {
+          const stages = [];
+          let b = branchBlock.getInputTargetBlock("STACK");
+          while (b) {
+            stages.push(blockToText(b));
+            b = b.getNextBlock();
+          }
+          return stages.filter(Boolean).join(" ! ");
+        }
+
+        function stateToPipeline(ws) {
+          const branches = [];
+
+          ws.getTopBlocks(true).forEach(function (top) {
+            if (top.type === "gst_main") {
+              let branch = top.getInputTargetBlock("BRANCHES");
+              while (branch) {
+                if (branch.type === "gst_branch") {
+                  const text = branchBodyToText(branch);
+                  if (text) branches.push(text);
+                }
+                branch = branch.getNextBlock();
+              }
+            } else if (top.type === "gst_branch") {
+              const text = branchBodyToText(top);
+              if (text) branches.push(text);
+            }
+          });
+
+          return branches.length ? "gst-launch-1.0 " + branches.join("\n") : "";
+        }
+
+        /* ============================================================
+     9. UI wiring
+     ============================================================ */
+
+        const inputEl = document.getElementById("input");
+        const outputEl = document.getElementById("output");
+        const infoEl = document.getElementById("info");
+        const summaryEl = document.getElementById("summary");
+
+        function refreshOutput() {
+          outputEl.value = stateToPipeline(workspace);
+        }
+
+        function countCategories() {
+          const counts = {};
+          CATEGORY_ORDER.forEach(function (k) {
+            counts[k] = 0;
+          });
+
+          workspace.getAllBlocks(false).forEach(function (b) {
+            if (b.type.indexOf("gst_") !== 0) return;
+            const key = b.type.slice(4);
+            if (key in counts) counts[key]++;
+          });
+          return counts;
+        }
+
+        function renderSummary() {
+          const counts = countCategories();
+          const used = CATEGORY_ORDER.filter(function (k) {
+            return counts[k] > 0;
+          });
+
+          if (used.length === 0) {
+            summaryEl.innerHTML = '<span class="empty">—</span>';
+            return;
+          }
+
+          summaryEl.innerHTML = used
+            .map(function (key) {
+              const cat = CATEGORIES[key];
+              return (
+                '<span class="chip" style="background:' +
+                cat.color +
+                '" title="' +
+                cat.tip +
+                '">' +
+                cat.label +
+                '<span class="n">' +
+                counts[key] +
+                "</span></span>"
+              );
+            })
+            .join("");
+        }
+
+        function escapeHtml(s) {
+          return String(s).replace(/[&<>"']/g, function (c) {
+            return {
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            }[c];
+          });
+        }
+
+        function updateInfo() {
+          const branches = parseToBranches(inputEl.value);
+          if (branches.length === 0) {
+            infoEl.textContent = "";
+            return;
+          }
+
+          const total = branches.reduce(function (n, b) {
+            return n + b.length;
+          }, 0);
+
+          const lines = branches.map(function (b) {
+            const label = escapeHtml(branchLabel(b));
+            const first = b[0],
+              last = b[b.length - 1];
+            const head =
+              first && first.kind === "link"
+                ? '<span class="src">source</span>'
+                : "";
+            const tail =
+              last && last.kind === "link" && last !== first
+                ? '<span class="sink">sink</span>'
+                : "";
+            const tags = [head, tail].filter(Boolean).join(" ");
+            return (
+              '<span class="br">' +
+              label +
+              "</span>" +
+              (tags ? ' <span style="color:#8b949e">(' + tags + ")</span>" : "")
+            );
+          });
+
+          infoEl.innerHTML =
+            "Parsed <b>" +
+            total +
+            "</b> stage(s) in <b>" +
+            branches.length +
+            "</b> branch(es):<br>" +
+            lines
+              .map(function (l) {
+                return "• " + l;
+              })
+              .join("<br>");
+        }
+
+        function visualize() {
+          const state = pipelineToState(inputEl.value);
+          workspace.clear();
+
+          if (!state) {
+            outputEl.value = "";
+            infoEl.textContent = "Nothing to parse.";
+            renderSummary();
+            return;
+          }
+
+          try {
+            Blockly.serialization.workspaces.load(state, workspace);
+          } catch (err) {
+            console.error(err);
+            outputEl.value = "Error: " + err.message;
+            return;
+          }
+
+          Blockly.svgResize(workspace);
+          workspace.scrollCenter();
+          updateInfo();
+          refreshOutput();
+          renderSummary();
+        }
+
+        document
+          .getElementById("btnVisualize")
+          .addEventListener("click", visualize);
+        document
+          .getElementById("btnGenerate")
+          .addEventListener("click", refreshOutput);
+
+        inputEl.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            visualize();
+          }
+        });
+
+        const SKIP = {};
+        SKIP[Blockly.Events.UI] = true;
+        if (Blockly.Events.VIEWPORT_CHANGE)
+          SKIP[Blockly.Events.VIEWPORT_CHANGE] = true;
+
+        workspace.addChangeListener(function (e) {
+          if (SKIP[e.type]) return;
+          refreshOutput();
+          renderSummary();
+        });
+
+        /* ============================================================
+     10. Examples
+     ============================================================ */
+
+        const PRESETS = {
+          "RTMP + compositor (multi-branch)": [
+            "rtmpsrc location=rtmp://127.0.0.1/publish/live ! flvdemux name=demux",
+            "",
+            "demux.video ! queue max-size-time=1000000000 max-size-buffers=30 leaky=downstream !",
+            "h264parse ! nvv4l2decoder disable-dpb=true enable-max-performance=true ! identity name=v_delay signal-handoffs=TRUE !",
+            "nvvidconv ! video/x-raw(memory:NVMM),format=RGBA,width=1920,height=1080 !",
+            "queue max-size-buffers=3 leaky=downstream ! comp.sink_0",
+            "",
+            "v4l2src do-timestamp=true ! identity name=ptsfixup signal-handoffs=TRUE ! identity drop-buffer-flags=GST_BUFFER_FLAG_DROPPABLE !",
+            "nvvidconv ! video/x-raw(memory:NVMM),format=RGBA,width=400,height=300 !",
+            "queue max-size-buffers=3 leaky=downstream ! comp.sink_1",
+            "",
+            "nvcompositor name=comp sink_0::xpos=0 sink_0::ypos=0 sink_0::width=1920 sink_0::height=1080 sink_1::xpos=20 sink_1::ypos=650 sink_1::width=400 sink_1::height=300 !",
+            "video/x-raw(memory:NVMM),format=RGBA,width=1920,height=1080,framerate=30/1 !",
+            "queue max-size-buffers=3 leaky=downstream !",
+            "nvvidconv ! video/x-raw(memory:NVMM),format=NV12 !",
+            'nvv4l2h265enc control-rate=1 qp-range="28,50:0,36:0,50" iframeinterval=60 preset-level=1 maxperf-enable=true insert-sps-pps=true name=venc_bps !',
+            "h265parse config-interval=-1 ! queue max-size-time=2000000000 max-size-buffers=60 leaky=downstream ! mux.",
+            "",
+            "demux.audio ! aacparse ! avdec_aac ! identity name=a_delay signal-handoffs=TRUE ! volume volume=1.0 !",
+            "audioconvert ! voaacenc bitrate=128000 ! aacparse ! queue max-size-time=1000000000 max-size-buffers=100 leaky=downstream ! mux.",
+            "",
+            "mpegtsmux name=mux !",
+            "appsink name=appsink",
+          ].join("\n"),
+
+          "HDMI-in → MPEG-TS": [
+            "v4l2src device=/dev/hdmirx ! identity name=ptsfixup signal-handoffs=TRUE ! identity drop-buffer-flags=GST_BUFFER_FLAG_DROPPABLE !",
+            "identity name=v_delay signal-handoffs=TRUE !",
+            "textoverlay text='' valignment=top halignment=right font-desc=\"Monospace, 5\" name=overlay ! queue !",
+            "mpph265enc zero-copy-pkt=0 qp-max=51 gop=120 width=1920 height=1080 name=venc_bps !",
+            "h265parse config-interval=-1 ! queue max-size-time=10000000000 max-size-buffers=1000 max-size-bytes=41943040 ! mux.",
+            "alsasrc device=hw:CARD=rockchiphdmiin ! identity name=a_delay signal-handoffs=TRUE ! volume volume=1.0 !",
+            "audioconvert ! voaacenc bitrate=128000 ! aacparse ! queue max-size-time=10000000000 max-size-buffers=1000 ! mux.",
+            "mpegtsmux name=mux !",
+            "appsink name=appsink",
+          ].join("\n"),
+
+          "Test video (simple)":
+            "gst-launch-1.0 videotestsrc pattern=ball num-buffers=100 ! video/x-raw,width=640,height=480 ! videoconvert ! autovideosink",
+
+          "Play an MP4 file":
+            "gst-launch-1.0 filesrc location=/tmp/movie.mp4 ! qtdemux ! h264parse ! avdec_h264 ! videoconvert ! autovideosink",
+
+          "Tee (two sinks)":
+            "gst-launch-1.0 videotestsrc ! tee name=t\nt. ! queue ! autovideosink\nt. ! queue ! videoconvert ! x264enc ! filesink location=out.h264",
+
+          "RTSP camera":
+            "gst-launch-1.0 rtspsrc location=rtsp://192.168.1.10/stream ! rtph264depay ! h264parse ! avdec_h264 ! autovideosink",
+        };
+
+        const presetsEl = document.getElementById("presets");
+        Object.keys(PRESETS).forEach(function (name) {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          presetsEl.appendChild(opt);
+        });
+        presetsEl.addEventListener("change", function () {
+          const name = presetsEl.value;
+          if (!name || !PRESETS[name]) return;
+          inputEl.value = PRESETS[name];
+          visualize();
+          presetsEl.value = "";
+        });
+
+        /* ============================================================
+     11. Go
+     ============================================================ */
+
+        inputEl.value = PRESETS["RTMP + compositor (multi-branch)"];
+        visualize();
+      })();
+    </script>
+  </body>
+</html>
