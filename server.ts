@@ -344,6 +344,7 @@ function summaries(): DeviceSummary[] {
             statusAt: d.statusAt,
             srtla: d.status?.state.srtla,
             encoder: d.status?.state.encoder,
+            maxBitrate: d.status?.state.encoder.config?.maxBitrate,
             ...(d.stats
                 ? {
                       bitrate: d.stats.links.reduce((sum, l) => sum + (l.bitrate_bytes_per_sec || 0), 0),

@@ -51,6 +51,8 @@ export interface DeviceSummary extends DeviceInfo {
 	encoder?: EncoderState;
 	/** Live srtla_send totals, while it pushes link stats. */
 	bitrate?: number;   // bytes/s across all links
+	/** Configured encoder maximum, available even without SRTLA telemetry. */
+	maxBitrate?: number; // kbps
 	activeLinks?: number;
 	totalLinks?: number;
 }

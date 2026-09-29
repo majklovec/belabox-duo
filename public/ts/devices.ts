@@ -23,7 +23,10 @@ function streamState(d: DeviceSummary): Child {
 }
 
 function bitrate(d: DeviceSummary): Child {
-	return d.online && d.bitrate !== undefined ? formatBitrate(d.bitrate) : "—";
+	const live = d.online && d.bitrate !== undefined ? formatBitrate(d.bitrate) : null;
+	const max = d.maxBitrate !== undefined ? `max ${formatBitrate(d.maxBitrate * 125)}` : null;
+	if (live && max) return h("span", {}, live, " / ", h("span", { className: "muted" }, max));
+	return live ?? max ?? "—";
 }
 
 function links(d: DeviceSummary): Child {

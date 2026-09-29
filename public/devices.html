@@ -1,39 +1,42 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Belabox Duo control</title>
-    <link rel="stylesheet" href="css/style.css" />
-  </head>
-  <body>
-    <header>
-      <h1>Belabox Duo control</h1>
-      <span id="conn" class="badge off">loading</span>
-    </header>
 
-    <main>
-      <section class="card">
-        <h2>Devices</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Device</th>
-              <th>Type</th>
-              <th>State</th>
-              <th>Connected</th>
-              <th>Stream</th>
-              <th>Bitrate</th>
-              <th>Links</th>
-              <th data-icon="encoder">Encoder</th>
-              <th data-icon="relay">Relay</th>
-            </tr>
-          </thead>
-          <tbody id="device-rows"></tbody>
-        </table>
-      </section>
-    </main>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Belabox Duo control</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
 
-    <script type="module" src="./ts/devices.ts"></script>
-  </body>
+<body>
+  <header>
+    <h1>Belabox Duo control</h1>
+    <span id="conn" class="badge off">loading</span>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Devices</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Type</th>
+            <th>State</th>
+            <th>Connected</th>
+            <th>Stream</th>
+            <th>Bitrate / max</th>
+            <th>Links</th>
+            <th data-icon="encoder">Encoder</th>
+            <th data-icon="relay">Relay</th>
+          </tr>
+        </thead>
+        <tbody id="device-rows"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script type="module" src="./ts/devices.ts"></script>
+</body>
+
 </html>
