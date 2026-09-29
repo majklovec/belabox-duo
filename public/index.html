@@ -33,8 +33,8 @@
             Pipeline
             <select name="pipeline" id="pipeline" required></select>
           </label>
-          <label
-            >Max bitrate (kbps)
+          <label>
+            Max bitrate (kbps)
             <input
               name="maxBitrate"
               type="number"
@@ -44,6 +44,12 @@
               placeholder="5000"
             />
           </label>
+
+          <label id="overlay-field" class="check" hidden>
+            <input type="checkbox" name="bitrateOverlay" id="bitrate-overlay" />
+            Bitrate overlay
+          </label>
+          <div class="break"></div>
           <label id="asrc-field" hidden
             >Audio source
             <select name="audioSource" id="audio-source"></select>
@@ -64,11 +70,6 @@
               max="2000"
               placeholder="0"
             />
-          </label>
-
-          <label id="overlay-field" class="check" hidden>
-            <input type="checkbox" name="bitrateOverlay" id="bitrate-overlay" />
-            Bitrate overlay
           </label>
 
           <div class="break" id="encoder-relay-break"></div>
