@@ -100,8 +100,11 @@ export async function startSrtla(
         throw new Error("srtla_send is already running");
     }
 
-    srtlaArgs = [listenPort, remoteHost, remotePort];
+    // Save the requested receiver before spawning so failed starts still
+    // leave the UI with a complete target to restore.
     state.srtlaTarget = { listenPort, remoteHost, remotePort };
+    await saveState();
+    srtlaArgs = [listenPort, remoteHost, remotePort];
     console.log(`Starting ${bin} listen: ${listenPort} target: ${remoteHost}:${remotePort} ${UPLINKS_FILE}`);
 
     if (!caps) {

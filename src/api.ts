@@ -42,6 +42,7 @@
  */
 import type { Server, ServerWebSocket } from "bun";
 import index from "../public/index.html";
+import settings from "../public/settings.html";
 import {
 	ALLOWED_ORIGINS,
 	API_HOST,
@@ -50,6 +51,7 @@ import {
 	HAS_RELAY,
 	PIPELINES_DIR,
 	RELOAD_MODE,
+	ROLES,
 	ROLE,
 	UPLINKS_FILE,
 } from "./config";
@@ -95,7 +97,7 @@ import {
 	srtlaControlState,
 } from "./srtlaControl";
 import type { SrtlaOptions } from "./state";
-import { onStateChange, state } from "./state";
+import { onStateChange, saveState, state } from "./state";
 import { cancelAutostart, setAutostart, startCombined, stopCombined } from "./stream";
 
 const WS_PATH = "/ws";
@@ -153,6 +155,13 @@ function requireHost(p: Params, key: string): string {
 	const v = requireString(p, key);
 	if (!/^[A-Za-z0-9[][A-Za-z0-9.:_\[\]-]*$/.test(v)) throw new ApiError(`${key} is not a valid host`);
 	return v;
+}
+
+function optionalSettingString(p: Params, key: string, current: string | undefined): string | undefined {
+	const value = p[key];
+	if (value === undefined) return current;
+	if (typeof value !== "string") throw new ApiError(`${key} must be a string`);
+	return value.trim() || undefined;
 }
 
 function requireModemIndex(p: Params): number {
@@ -404,6 +413,53 @@ const methods: Record<string, Method> = {
 		return { autostart: !!state.autostart };
 	},
 
+	"settings.get": () => ({
+		settings: {
+			hostname: state.settings?.hostname ?? "",
+			role: state.settings?.role ?? "",
+			remoteUrl: state.settings?.remoteUrl ?? "",
+			hasRemoteToken: !!state.settings?.remoteToken,
+			color: state.settings?.color ?? "#0f1115",
+		},
+		restartRequired: true,
+	}),
+
+	"settings.update": async (p) => {
+		const current = state.settings ?? {};
+		const hostname = optionalSettingString(p, "hostname", current.hostname);
+		if (hostname !== undefined && !/^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(hostname)) {
+			throw new ApiError("hostname must contain only letters, numbers, dots and hyphens");
+		}
+		const role = optionalSettingString(p, "role", current.role);
+		if (role !== undefined && !(ROLES as readonly string[]).includes(role)) {
+			throw new ApiError(`role must be one of ${ROLES.join(", ")}`);
+		}
+		const remoteUrl = optionalSettingString(p, "remoteUrl", current.remoteUrl);
+		if (remoteUrl !== undefined && !/^wss?:\/\/.+/.test(remoteUrl)) {
+			throw new ApiError("remoteUrl must be a ws:// or wss:// URL");
+		}
+		if (p.remoteToken !== undefined && typeof p.remoteToken !== "string") {
+			throw new ApiError("remoteToken must be a string");
+		}
+		const remoteToken = p.remoteToken === undefined ? current.remoteToken : String(p.remoteToken).trim() || undefined;
+		const color = optionalSettingString(p, "color", current.color);
+		if (color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+			throw new ApiError("color must be a six-digit hexadecimal color");
+		}
+		state.settings = { hostname, role, remoteUrl, remoteToken, color };
+		await saveState();
+		return {
+			settings: {
+				hostname: hostname ?? "",
+				role: role ?? "",
+				remoteUrl: remoteUrl ?? "",
+				hasRemoteToken: !!remoteToken,
+				color: color ?? "#0f1115",
+			},
+			restartRequired: true,
+		};
+	},
+
 	"log.list": () => ({ entries: logEntries() }),
 };
 
@@ -579,9 +635,11 @@ export function startApiServer(): void {
 		hostname: API_HOST,
 		port: API_PORT,
 		// Web UI from public/ — Bun bundles the HTML's scripts and styles on the fly
-		routes: { "/": index },
+		routes: { "/": index, "/settings/": settings },
 		fetch(req, srv) {
-			if (new URL(req.url).pathname !== WS_PATH) {
+			const path = new URL(req.url).pathname;
+			if (path === "/settings") return Response.redirect("/settings/", 308);
+			if (path !== WS_PATH) {
 				return new Response("Not found\n", { status: 404 });
 			}
 			if (!isOriginAllowed(req)) {

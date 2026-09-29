@@ -19,6 +19,7 @@
 import { REMOTE_ID, REMOTE_INTERVAL, REMOTE_STATS_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
 import { addStatusSink, handleRequest, logHistoryEvent, statsEvent, statusEvent } from "./api";
 import { latestSrtlaStats } from "./srtlaControl";
+import { state } from "./state";
 
 const BACKOFF_MIN_MS = 1_000;
 const BACKOFF_MAX_MS = 30_000;
@@ -95,7 +96,15 @@ function connect(): void {
         console.log("[remote] connected");
         backoff = BACKOFF_MIN_MS;
         touch();
-        send(JSON.stringify({ type: "hello", id: REMOTE_ID, role: ROLE, ...(REMOTE_TOKEN ? { token: REMOTE_TOKEN } : {}) }));
+        send(JSON.stringify({
+            type: "hello",
+            id: REMOTE_ID,
+            role: ROLE,
+            ...(state.encoder.config?.maxBitrate !== undefined
+                ? { maxBitrate: state.encoder.config.maxBitrate }
+                : {}),
+            ...(REMOTE_TOKEN ? { token: REMOTE_TOKEN } : {}),
+        }));
         send(logHistoryEvent());
         void sendStatus();
         if (REMOTE_STATS_INTERVAL > 0 && latestSrtlaStats().stats) send(statsEvent());

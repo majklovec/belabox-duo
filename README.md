@@ -150,6 +150,13 @@ and pushed `{ "type": "event", "event": "status", "data": ... }`. The method lis
 is at the top of [src/api.ts](src/api.ts). Methods that do not apply to the
 device's role are rejected with code 409.
 
+The cog in the device header opens a separate settings page. It uses
+`settings.get` and `settings.update` for the persistent hostname, role,
+control-server URL, remote token and header color. Process settings are applied
+on the next service restart; the header color changes immediately. Stream
+settings (pipeline, bitrate, audio, targets and scheduler options) are saved
+automatically whenever they change.
+
 # Thanks to
 
 ## Belabox project by rationalirl

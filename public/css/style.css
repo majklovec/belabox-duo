@@ -11,6 +11,7 @@
   --bad: #ef4444;
   --encoder: #ff6c6c;
   --relay: #38bdf8;
+  --header-color: #0f1115;
   font-family:
     system-ui,
     -apple-system,
@@ -35,6 +36,21 @@ header {
   justify-content: space-between;
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
+  background: var(--header-color);
+}
+
+.icon-link {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.icon-link:hover {
+  border-color: var(--accent);
 }
 
 h1 {

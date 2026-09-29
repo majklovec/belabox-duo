@@ -4,6 +4,15 @@ import type { EncoderState } from "./encoder";
 import type { SrtlaState } from "./srtla";
 import type { SrtlaMode } from "./srtlaControl";
 
+/** Device settings that can be changed from the control UI and used on restart. */
+export interface DeviceSettings {
+    hostname?: string;
+    role?: string;
+    remoteUrl?: string;
+    remoteToken?: string;
+    color?: string;
+}
+
 /** srtla_send scheduler settings; applied live over the control socket and on every start. */
 export interface SrtlaOptions { mode?: SrtlaMode; quality?: boolean; }
 
@@ -14,6 +23,7 @@ export interface StreamTarget { remoteHost: string; remotePort: string; listenPo
 export interface SrtlaTarget { listenPort: string; remoteHost: string; remotePort: string; }
 
 export interface PersistentState {
+    settings?: DeviceSettings;
     selection: ModemConfig;
     srtla: SrtlaState;
     srtlaTarget?: SrtlaTarget;
@@ -23,7 +33,12 @@ export interface PersistentState {
     autostart?: boolean;      // resume the last stream when the service starts
 }
 
-const defaults = (): PersistentState => ({ selection: {}, srtla: { running: false }, encoder: { running: false } });
+const defaults = (): PersistentState => ({
+    settings: {},
+    selection: {},
+    srtla: { running: false },
+    encoder: { running: false },
+});
 
 async function loadState(): Promise<PersistentState> {
     const file = Bun.file(STATE_FILE);

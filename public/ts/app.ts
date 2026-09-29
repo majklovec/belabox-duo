@@ -121,6 +121,7 @@ function connect(): void {
 	ws.onopen = () => {
 		setConnected(true);
 		pipelinesLoaded = false;
+		void loadAppearance();
 		if (connectionLost) log("info", "Connection", "Reconnected");
 		connectionLost = false;
 	};
@@ -131,6 +132,7 @@ function connect(): void {
 			connectionLost = true;
 			log("warn", "Connection", "Lost, reconnecting…");
 		}
+
 		setConnected(false);
 		setStats(null);
 		for (const p of pending.values()) p.reject(new Error("connection closed"));
@@ -157,6 +159,11 @@ function connect(): void {
 			else p.reject(Object.assign(new Error(msg.error), { logged: !!msg.logged }));
 		}
 	};
+}
+
+async function loadAppearance(): Promise<void> {
+	const result = await call<{ settings: { color: string } }>("settings.get").catch(() => null);
+	if (result) document.documentElement.style.setProperty("--header-color", result.settings.color);
 }
 
 function call<T = unknown>(method: string, params?: Params): Promise<T> {

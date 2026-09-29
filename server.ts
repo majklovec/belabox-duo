@@ -142,6 +142,7 @@ async function buildPage(entry: string): Promise<Page> {
 
 const devicesPage = await buildPage(new URL("./public/devices.html", import.meta.url).pathname);
 const devicePage  = await buildPage(new URL("./public/index.html", import.meta.url).pathname);
+const settingsPage = await buildPage(new URL("./public/settings.html", import.meta.url).pathname);
 
 const htmlResponse = (page: Page) =>
     new Response(page.html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });
@@ -388,6 +389,14 @@ const server = Bun.serve({
             return asset
                 ? new Response(asset, { headers: { "cache-control": "public, max-age=31536000, immutable" } })
                 : new Response("Not found\n", { status: 404 });
+        }
+
+        const settingsMatch = path.match(/^\/d\/([^/]+)\/settings(\/)?$/);
+        if (settingsMatch) {
+            const id = decodeURIComponent(settingsMatch[1]);
+            if (!ID_RE.test(id)) return new Response("Invalid device id\n", { status: 400 });
+            if (!settingsMatch[2]) return Response.redirect(`/d/${encodeURIComponent(id)}/settings/`, 308);
+            return htmlResponse(settingsPage);
         }
 
         const m = path.match(/^\/d\/([^/]+)(\/(ws)?)?$/);

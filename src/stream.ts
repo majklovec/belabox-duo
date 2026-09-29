@@ -18,6 +18,10 @@ const AUTOSTART_RETRY_MS = 5_000;
 /** Bring up srtla_send (reusing it if already aimed at the same target), then belacoder into it. */
 export async function startCombined(target: StreamTarget, cfg: EncoderConfig): Promise<void> {
     if (encoderStatus().running) throw new Error("already streaming");
+    // Persist both halves of the requested stream before validation/startup.
+    state.stream = target;
+    state.encoder = { running: false, config: cfg };
+    await saveState();
     await validateEncoderConfig(cfg);   // fail before touching srtla_send
 
     const { listenPort, remoteHost, remotePort } = target;
@@ -27,8 +31,6 @@ export async function startCombined(target: StreamTarget, cfg: EncoderConfig): P
     }
     if (!srtlaStatus().running) await startSrtla(listenPort, remoteHost, remotePort);
 
-    state.stream = target;
-    await saveState();
     try {
         await startEncoder({ ...cfg, host: "127.0.0.1", port: listenPort });
     } catch (e: unknown) {

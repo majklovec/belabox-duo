@@ -262,6 +262,10 @@ function scheduleRestart(cfg: EncoderConfig, pipelineFile: string): void {
 
 export async function startEncoder(cfg: EncoderConfig): Promise<EncoderState> {
     if (wanted) throw new Error("encoder is already running");
+    // Keep the complete draft configuration even when validation or process
+    // startup fails, so the UI can restore it on the next attempt.
+    state.encoder = { running: false, config: cfg };
+    await saveState();
     const pipelineFile = await preparePipeline(await resolvePipeline(cfg.pipeline), cfg);
     await writeBitrateFile(cfg.maxBitrate);
 
