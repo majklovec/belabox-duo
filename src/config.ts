@@ -39,11 +39,11 @@ export type Role             = (typeof ROLES)[number];
 export const ROLE: Role      = enumArg(
     "--role",
     ROLES,
-    (process.env.SRTLA_ROLE as Role | undefined) ?? (persistedStartup.settings?.role as Role | undefined) ?? "relay",
+    (process.env.ROLE as Role | undefined) ?? (persistedStartup.settings?.role as Role | undefined) ?? "relay",
 );
 if (!(ROLES as readonly string[]).includes(ROLE)) argFail("SRTLA_ROLE", ROLE, ROLES.join(" | "));
-export const HAS_RELAY       = ROLE !== "encoder";
-export const HAS_ENCODER     = ROLE !== "relay";
+export const HAS_RELAY       = ROLE === "relay" || ROLE === "combined";
+export const HAS_ENCODER     = ROLE === "encoder" || ROLE === "combined";
 
 export const BELACODER_BIN   = arg("--belacoder", process.env.BELACODER_BIN ?? "belacoder");
 export const PIPELINES_DIR   = arg("--pipelines", process.env.BELACODER_PIPELINES ?? "/usr/share/belacoder/pipelines");
