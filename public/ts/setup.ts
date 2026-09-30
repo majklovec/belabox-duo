@@ -30,6 +30,28 @@ function selectedRole(): Role | undefined {
 	return new FormData(byId<HTMLFormElement>("setup-form")).get("role") as Role | undefined;
 }
 
+/**
+ * Only required fields in *visible* steps may block submission — a hidden
+ * required control rejects the form save with no visible feedback.
+ */
+function applyRequired(role: Role | undefined): void {
+	const form = byId<HTMLFormElement>("setup-form");
+	const visible = (el: HTMLElement) => !el.closest<HTMLElement>(".wizard-step")?.hidden;
+	const fields: Record<string, boolean> = {
+		pipeline: role !== "relay",
+		audioSource: role !== "relay",
+		encoderHost: role === "encoder",
+		encoderPort: role === "encoder",
+		listenPort: true,
+		srtlaRemoteHost: role === "relay",
+		srtlaRemotePort: role === "relay",
+	};
+	for (const [name, force] of Object.entries(fields)) {
+		const input = form.elements.namedItem(name) as HTMLElement | null;
+		if (input) (input as HTMLInputElement).required = visible(input) && force;
+	}
+}
+
 function rebuildSteps(): void {
 	const role = selectedRole();
 	steps = [...document.querySelectorAll<HTMLElement>(".wizard-step")].filter((step) => {
@@ -39,16 +61,8 @@ function rebuildSteps(): void {
 	});
 	const combined = role === "combined";
 	for (const field of document.querySelectorAll<HTMLElement>(".encoder-target")) field.hidden = combined;
-	for (const input of document.querySelectorAll<HTMLInputElement>(".encoder-target input")) input.required = !combined;
-	for (const name of ["pipeline", "audioSource"] as const) {
-		const input = byId<HTMLFormElement>("setup-form").elements.namedItem(name) as HTMLSelectElement;
-		input.required = role !== "relay";
-	}
-	for (const name of ["listenPort", "srtlaRemoteHost", "srtlaRemotePort"] as const) {
-		const input = byId<HTMLFormElement>("setup-form").elements.namedItem(name) as HTMLInputElement;
-		input.required = role !== "encoder";
-	}
 	current = Math.min(current, steps.length - 1);
+	applyRequired(role);
 	renderStep();
 }
 
