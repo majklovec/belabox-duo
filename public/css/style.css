@@ -431,7 +431,7 @@ td.num {
 }
 .wiz-desc {
   grid-column: 1 / -1;
-  margin: 0;
+  margin: 0 0 1rem 0;
   font-size: 0.85rem;
   color: var(--muted);
   max-width: 60ch;
@@ -447,7 +447,9 @@ td.num {
   border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 .role-card:hover {
   border-color: var(--muted);
