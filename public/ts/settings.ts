@@ -75,11 +75,11 @@ async function save(): Promise<void> {
 			color: state.color,
 			...(state.remoteToken ? { remoteToken: state.remoteToken } : {}),
 		} as Params);
-		state.settings = result.settings;
 		state.remoteToken = "";
-		state.repositories = result.settings.pipelineRepositories;
-		document.documentElement.style.setProperty("--header-color", result.settings.color);
 		state.message = "Settings saved.";
+		// Parameters may have changed on the device side; drop the socket so the
+		// reconnect re-fetches fresh settings (hostname, role, color, …).
+		rpc.reconnect();
 	} catch (error: unknown) {
 		state.message = error instanceof Error ? error.message : String(error);
 	} finally {

@@ -18,7 +18,7 @@ export class RpcClient {
 	private nextId = 1;
 	private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 	private events = new Map<string, Set<EventHandler>>();
-	private reconnect: number | undefined;
+	private reconnectTimer: number | undefined;
 	private destroyed = false;
 
 	constructor(private readonly makeUrl: () => string) {
@@ -68,7 +68,12 @@ export class RpcClient {
 
 	destroy(): void {
 		this.destroyed = true;
-		clearTimeout(this.reconnect);
+		clearTimeout(this.reconnectTimer);
+		this.ws?.close();
+	}
+
+	/** Drop the socket; the auto-reconnect fires and "open" handlers re-fetch state. */
+	reconnect(): void {
 		this.ws?.close();
 	}
 
@@ -107,7 +112,7 @@ export class RpcClient {
 			for (const p of this.pending.values()) p.reject(new RpcError("connection closed"));
 			this.pending.clear();
 			if (wasOpen) this.events.get("close")?.forEach((h) => h());
-			if (wasOpen) this.reconnect = setTimeout(this.connect, RECONNECT_MS) as unknown as number;
+			if (wasOpen) this.reconnectTimer = setTimeout(this.connect, RECONNECT_MS) as unknown as number;
 		};
 	};
 }
