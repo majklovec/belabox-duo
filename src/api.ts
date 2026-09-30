@@ -45,6 +45,7 @@
 import type { Server, ServerWebSocket } from "bun";
 import index from "../public/index.html";
 import settings from "../public/settings.html";
+import setup from "../public/setup.html";
 import {
 	ALLOWED_ORIGINS,
 	API_HOST,
@@ -349,6 +350,9 @@ const methods: Record<string, Method> = {
 			remoteToken,
 		};
 		await completeSetup();
+		// The routes table is fixed per server instance; swap the server once
+		// this response has been flushed (timers run after the microtask that sends it).
+		setTimeout(restartApiServer, 0);
 		return { completed: true, restartRequired: true };
 	},
 
@@ -735,15 +739,23 @@ function isOriginAllowed(req: Request): boolean {
 	}
 }
 
-export function startApiServer(): void {
+/**
+ * Create the HTTP/WS server. The routes table is fixed per server instance:
+ * while `setupRequired` (no state file) "/" serves the setup wizard instead
+ * of the main UI, so a state change needs restartApiServer().
+ */
+function createApiServer(): void {
 	server = Bun.serve({
 		hostname: API_HOST,
 		port: API_PORT,
 		// Web UI from public/ — Bun bundles the HTML's scripts and styles on the fly
-		routes: { "/": index, "/settings/": settings },
+		routes: setupRequired
+			? { "/": setup, "/settings/": settings, "/setup/": setup }
+			: { "/": index, "/settings/": settings, "/setup/": setup },
 		fetch(req, srv) {
 			const path = new URL(req.url).pathname;
 			if (path === "/settings") return Response.redirect("/settings/", 308);
+			if (path === "/setup") return Response.redirect("/setup/", 308);
 			if (path !== WS_PATH) {
 				return new Response("Not found\n", { status: 404 });
 			}
@@ -782,4 +794,14 @@ export function startApiServer(): void {
 	console.log(`SRTLA web UI on http://${API_HOST}:${server.port}/`);
 	console.log(`SRTLA bonding WebSocket API listening on ${url}`);
 	console.log(`Try:  bunx wscat -c ${url}  then send {"id":1,"method":"status"}`);
+}
+
+/** Swap the running server for one whose routes reflect the current setup state. */
+function restartApiServer(): void {
+	server?.stop(true);
+	createApiServer();
+}
+
+export function startApiServer(): void {
+	createApiServer();
 }

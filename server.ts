@@ -8,7 +8,10 @@
  *
  * Endpoints:
  *   GET  /                 device list (server/public/devices.html)
- *   GET  /d/<id>/          relay UI for one device (../public/index.html)
+ *   GET  /d/<id>/          relay UI for one device (../public/index.html); the
+ *                          setup wizard (../public/setup.html) while the device
+ *                          has no state file (status.setupRequired; ?ui=1 forces the UI)
+ *   GET  /d/<id>/setup/    setup wizard for one device
  *   WS   /d/<id>/ws        browser ⇄ device; same protocol as the relay's local /ws
  *   GET  /api/devices      JSON list of known devices
  *   WS   /device           device connections (Authorization: Bearer <token>, x-device-id: <id>,
@@ -143,6 +146,7 @@ async function buildPage(entry: string): Promise<Page> {
 const devicesPage = await buildPage(new URL("./public/devices.html", import.meta.url).pathname);
 const devicePage  = await buildPage(new URL("./public/index.html", import.meta.url).pathname);
 const settingsPage = await buildPage(new URL("./public/settings.html", import.meta.url).pathname);
+const setupPage   = await buildPage(new URL("./public/setup.html", import.meta.url).pathname);
 
 const htmlResponse = (page: Page) =>
     new Response(page.html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });
@@ -400,12 +404,24 @@ const server = Bun.serve({
             return htmlResponse(settingsPage);
         }
 
+        const setupMatch = path.match(/^\/d\/([^/]+)\/setup(\/)?$/);
+        if (setupMatch) {
+            const id = decodeURIComponent(setupMatch[1]);
+            if (!ID_RE.test(id)) return new Response("Invalid device id\n", { status: 400 });
+            if (!setupMatch[2]) return Response.redirect(`/d/${encodeURIComponent(id)}/setup/`, 308);
+            return htmlResponse(setupPage);
+        }
+
         const m = path.match(/^\/d\/([^/]+)(\/(ws)?)?$/);
         if (m) {
             const id = decodeURIComponent(m[1]);
             if (!ID_RE.test(id)) return new Response("Invalid device id\n", { status: 400 });
             if (!m[2]) return Response.redirect(`/d/${encodeURIComponent(id)}/`, 308);
-            if (!m[3]) return htmlResponse(devicePage);
+            if (!m[3]) {
+                // Devices without a state file serve the setup wizard instead of the UI
+                if (deviceFor(id).status?.setupRequired && !new URL(req.url).searchParams.has("ui")) return htmlResponse(setupPage);
+                return htmlResponse(devicePage);
+            }
             if (!sameOrigin(req)) return new Response("Origin not allowed\n", { status: 403 });
             if (srv.upgrade(req, { data: { kind: "viewer", id } })) return undefined;
             return new Response("Expected a WebSocket upgrade\n", { status: 426 });
