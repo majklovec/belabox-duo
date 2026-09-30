@@ -1,28 +1,27 @@
-/* Tiny DOM helpers shared by the relay UI and the control server device list. */
-export type Child = Node | string | number | null | undefined | false;
+/* Tiny Mithril helpers shared by the relay UI and the control server device list. */
+import m from "mithril";
 
+/** Look up an element by id; the imperative form wiring in each page still needs real DOM. */
 export const byId = <T extends HTMLElement = HTMLElement>(id: string): T => {
 	const el = document.getElementById(id);
 	if (!el) throw new Error(`#${id} missing`);
 	return el as T;
 };
 
-/** Create an element; text children are inserted as text (never as HTML). */
-export function h<K extends keyof HTMLElementTagNameMap>(
-	tag: K,
-	props: Partial<HTMLElementTagNameMap[K]> & { className?: string } = {},
-	...children: Child[]
-): HTMLElementTagNameMap[K] {
-	const el = Object.assign(document.createElement(tag), props);
-	for (const c of children) {
-		if (c === null || c === undefined || c === false) continue;
-		el.append(c instanceof Node ? c : String(c));
-	}
-	return el;
-}
+/** A renderable Mithril child: a vnode, text, a number, or nothing. */
+export type Child = m.Vnode | string | number | null | undefined;
 
 export const badge = (text: string, kind: "on" | "off" | "warn" | "" = "") =>
-	h("span", { className: `badge ${kind}` }, text);
+	m("span", { class: `badge ${kind}` }, text);
+
+/** dt/dd rows for a definition list; `definitionList` renders them into an existing target. */
+export function definitionRows(rows: [string, Child][]): m.Vnode[] {
+	return rows.flatMap(([k, v]) => [m("dt", k), m("dd", v ?? "—")]);
+}
+
+export function definitionList(target: HTMLElement, rows: [string, Child][]): void {
+	m.render(target, definitionRows(rows));
+}
 
 export const since = (ts?: number) => {
 	if (!ts) return "—";

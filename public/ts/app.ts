@@ -1,4 +1,8 @@
-import { badge, byId, type Child, formatBitrate, h, since } from "./dom";
+/* Device page (relay UI). The static HTML holds the form skeletons; Mithril renders every
+ * dynamic region (badges, tables, log) into those skeletons, and the WebSocket just mutates
+ * state and redraws. */
+import m from "mithril";
+import { badge, byId, definitionList, definitionRows, type Child, formatBitrate, since } from "./dom";
 import { type Level, levelIcon, roleTag } from "./icons";
 import { type LogEntry, type LogEvent, methodLog } from "../../src/logMessages";
 import type { ModemInfo } from "../../src/modems";
@@ -10,10 +14,6 @@ const CALL_TIMEOUT_MS = 30_000;
 const RECONNECT_MS = 2_000;
 const STATS_STALE_MS = 5_000;
 
-function definitionList(target: HTMLElement, rows: [string, Child][]): void {
-	target.replaceChildren(...rows.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v ?? "—")]));
-}
-
 const LEVEL_LABEL: Record<Level, string> = { info: "INFO", warn: "WARNING", error: "ERROR" };
 const LOG_MAX = 200;
 
@@ -23,30 +23,31 @@ const logRows = new Map<string, LogEntry>();
 const logKey = (e: LogEntry) => `${e.origin ?? "device"}:${e.id}`;
 let nextLocalId = 1;
 
-function formatLogTime(at: number): HTMLTimeElement {
+const formatLogTime = (at: number): m.Vnode => {
 	const date = new Date(at);
 	const today = date.toDateString() === new Date().toDateString();
-	return h(
+	return m(
 		"time",
-		{ dateTime: date.toISOString(), title: date.toLocaleString() },
+		{ datetime: date.toISOString(), title: date.toLocaleString() },
 		today ? date.toLocaleTimeString() : date.toLocaleString(),
 	);
-}
+};
 
 function renderLog(): void {
 	const rows = [...logRows.values()].sort((a, b) => b.at - a.at || b.id - a.id);
 	for (const old of rows.splice(LOG_MAX)) logRows.delete(logKey(old));
-	byId<HTMLUListElement>("log").replaceChildren(
-		...rows.map((e) =>
-			h(
+	m.render(
+		byId("log"),
+		rows.map((e) =>
+			m(
 				"li",
-				{ className: `log-${e.level}` },
+				{ class: `log-${e.level}` },
 				levelIcon(e.level),
 				formatLogTime(e.at),
-				h("span", { className: "log-level" }, LEVEL_LABEL[e.level]),
-				h("span", { className: "log-section" }, e.section),
-				h("span", { className: "log-message" }, e.message),
-				h("span", { className: "log-count" }, (e.count ?? 1) > 1 ? `×${e.count}` : null),
+				m("span.log-level", LEVEL_LABEL[e.level]),
+				m("span.log-section", e.section),
+				m("span.log-message", e.message),
+				m("span.log-count", (e.count ?? 1) > 1 ? `×${e.count}` : null),
 			),
 		),
 	);
@@ -83,7 +84,7 @@ const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Err
 
 let socketOpen = false;
 let connectionLost = false;
-let device: DeviceInfo | null = null;   // null = talking to the relay directly
+let device: DeviceInfo | null = null; // null = talking to the relay directly
 
 function updateConnBadge(): void {
 	const el = byId("conn");
@@ -143,7 +144,7 @@ function connect(): void {
 	ws.onmessage = (e) => {
 		const msg = JSON.parse(String(e.data));
 		if (msg.type === "event" && msg.event === "status") {
-			render(msg.data as Status);
+			renderStatus(msg.data as Status);
 		} else if (msg.type === "event" && msg.event === "srtla.stats") {
 			setStats((msg.data as SrtlaStatsEvent).stats);
 		} else if (msg.type === "event" && msg.event === "device") {
@@ -203,25 +204,25 @@ const STATE_BUTTONS: Record<string, (s: Status) => boolean> = {
 // Status pushes are debounced; keep a finished action's button disabled until the new state
 // arrives (or this long, if the action changed nothing) so it does not flicker back on
 const AWAIT_STATUS_MS = 2_000;
-const inFlight = new Set<HTMLButtonElement>();
-const awaitingStatus = new Set<HTMLButtonElement>();
+const inFlight = new Set<string>();
+const awaitingStatus = new Set<string>();
 
 function updateStateButtons(): void {
-	for (const [id, allowed] of Object.entries(STATE_BUTTONS)) {
+	for (const id of Object.keys(STATE_BUTTONS)) {
 		const b = byId<HTMLButtonElement>(id);
-		b.disabled = inFlight.has(b) || awaitingStatus.has(b) || !lastStatus || !allowed(lastStatus);
+		b.disabled = inFlight.has(id) || awaitingStatus.has(id) || !lastStatus || !STATE_BUTTONS[id](lastStatus);
 	}
 }
 
-/** Run a method with the button disabled while in flight; logs failures the device did not. */
+/** Run a method with its button disabled while in flight; logs failures the device did not. */
 async function act<T = unknown>(
-	button: HTMLButtonElement | null,
+	buttonId: string | null,
 	method: string,
 	params?: Params,
 ): Promise<T | undefined> {
-	if (button) {
-		inFlight.add(button);
-		button.disabled = true;
+	if (buttonId) {
+		inFlight.add(buttonId);
+		byId<HTMLButtonElement>(buttonId).disabled = true;
 	}
 	let ok = false;
 	try {
@@ -235,14 +236,14 @@ async function act<T = unknown>(
 		}
 		return undefined;
 	} finally {
-		if (button) {
-			inFlight.delete(button);
-			if (!(button.id in STATE_BUTTONS)) button.disabled = false;
+		if (buttonId) {
+			inFlight.delete(buttonId);
+			if (!(buttonId in STATE_BUTTONS)) byId<HTMLButtonElement>(buttonId).disabled = false;
 			else {
 				if (ok) {
-					awaitingStatus.add(button);
+					awaitingStatus.add(buttonId);
 					setTimeout(() => {
-						awaitingStatus.delete(button);
+						awaitingStatus.delete(buttonId);
 						updateStateButtons();
 					}, AWAIT_STATUS_MS);
 				}
@@ -253,20 +254,36 @@ async function act<T = unknown>(
 }
 
 // ----------------------------------------------------------------------
-// Rendering
+// SRTLA
 // ----------------------------------------------------------------------
+function srtlaTarget(s: Status["state"]["srtla"]): Child {
+	if (!s.remoteHost) return null;
+	// On combined devices the listen port is an internal belacoder → srtla_send detail
+	return `${s.remoteHost}:${s.remotePort}${role === "combined" ? "" : ` (listen ${s.listenPort})`}`;
+}
+
+function controlBadge(status: Status): Child {
+	const c = status.srtlaControl;
+	if (c?.connected) return badge("connected", "on");
+	if (c?.supported) return badge("connecting", "warn");
+	return m(
+		"span",
+		{ class: "muted", title: "srtla_send without --control-socket: no link stats" },
+		"unavailable",
+	);
+}
+
 function renderSrtla(status: Status): void {
 	const s = status.state.srtla;
 	definitionList(byId("srtla-info"), [
 		["State", s.running ? badge("running", "on") : badge("stopped", "off")],
-		// On combined devices the listen port is an internal belacoder → srtla_send detail
-		["Target", s.remoteHost ? `${s.remoteHost}:${s.remotePort}${role === "combined" ? "" : ` (listen ${s.listenPort})`}` : null],
+		["Target", srtlaTarget(s)],
 		["Started", s.running ? since(s.startedAt) : null],
 		["Reloads", `${s.reloadCount ?? 0} (last ${since(s.lastReloadAt)}, mode ${status.monitor.reloadMode})`],
 		["Monitor", status.monitor.running ? badge("watching", "on") : badge("off", "warn")],
 		["Control", s.running ? controlBadge(status) : null],
-		// ["Uplinks file", status.uplinksFile],
 	]);
+
 	renderSrtlaOptions(status);
 
 	// Prefill the form from the last known target without clobbering user input
@@ -278,13 +295,6 @@ function renderSrtla(status: Status): void {
 	}
 }
 
-function controlBadge(status: Status): Child {
-	const c = status.srtlaControl;
-	if (c?.connected) return badge("connected", "on");
-	if (c?.supported) return badge("connecting", "warn");
-	return h("span", { className: "muted", title: "srtla_send without --control-socket: no link stats" }, "unavailable");
-}
-
 /** Scheduler controls: the saved settings, else what the running srtla_send reports, else its defaults. */
 function renderSrtlaOptions(status: Status): void {
 	const opts = status.state.srtlaOptions ?? {};
@@ -293,11 +303,13 @@ function renderSrtlaOptions(status: Status): void {
 	const modeSelect = byId<HTMLSelectElement>("srtla-mode");
 	const quality = byId<HTMLInputElement>("srtla-quality");
 	if (!modeSelect.disabled && document.activeElement !== modeSelect) modeSelect.value = mode;
-	if (!quality.dataset.busy) {
+	if (!datasetBusy(quality)) {
 		quality.checked = opts.quality ?? live?.quality_enabled ?? true;
 		quality.disabled = mode === "classic";
 	}
 }
+
+const datasetBusy = (el: HTMLElement) => el.dataset.busy === "1";
 
 // ----------------------------------------------------------------------
 // srtla_send link stats (pushed ~1 Hz over the control socket)
@@ -316,7 +328,7 @@ function linkState(l: SrtlaLinkStats): Child {
 	if (l.timed_out) return badge("timed out", "off");
 	if (!l.connected) return badge("connecting", "warn");
 	if (l.stall_gated) return badge("stalled", "warn");
-	if (l.weak) return h("span", { title: l.weak_reason ?? "" }, badge("weak", "warn"));
+	if (l.weak) return m("span", { title: l.weak_reason ?? "" }, badge("weak", "warn"));
 	return badge(l.sole_carrier ? "sole carrier" : "up", "on");
 }
 
@@ -329,37 +341,35 @@ function renderStatsAge(): void {
 	const age = byId("links-age");
 	age.hidden = !stats;
 	const stale = !!statsAt && Date.now() - statsAt > STATS_STALE_MS;
-	age.replaceChildren(stale ? badge(`stale, ${since(statsAt)}`, "warn") : "");
+	m.render(age, stale ? badge(`stale, ${since(statsAt)}`, "warn") : []);
 }
 
 /** Link columns for an interface; srtla_send links are matched to interfaces by source IP. */
-function linkCells(l: SrtlaLinkStats | undefined, total: number): HTMLTableCellElement[] {
-	const cell = (child: Child, props: Partial<HTMLTableCellElement> = {}) =>
-		h("td", { ...props, className: `link-col ${props.className ?? ""}`.trim() }, child);
-	if (!l) return Array.from({ length: 7 }, () => cell("—", { className: "muted" }));
+function linkCells(l: SrtlaLinkStats | undefined, total: number): m.Vnode[] {
+	const cell = (child: Child, cls = "", title?: string): m.Vnode =>
+		m("td", { class: `link-col ${cls}`.trim(), title }, child);
+	if (!l) return Array.from({ length: 7 }, () => cell("—", "muted"));
 	const share = total ? l.bitrate_bytes_per_sec / total : 0;
 	return [
-		cell(linkState(l), { title: l.label ?? "" }),
+		cell(linkState(l), "", l.label ?? ""),
 		cell(
-			h(
+			m(
 				"span",
-				{},
-				h("meter", { className: "share", min: 0, max: 1, value: share, title: `${Math.round(share * 100)}% of total` }),
+				null,
+				m("meter.share", { min: 0, max: 1, value: share, title: `${Math.round(share * 100)}% of total` }),
 				formatBitrate(l.bitrate_bytes_per_sec),
 			),
-			{ className: "num" },
+			"num",
 		),
-		cell(l.connected ? `${Math.round(l.rtt_ms)} ms` : "—", {
-			className: "num",
-			title: `min ${Math.round(l.rtt_min_ms)} ms`,
-		}),
-		cell(`${l.in_flight} / ${l.window}`, { className: "num" }),
-		cell(l.nak_count, { className: "num" }),
-		cell(`${((l.cc_loss_permille ?? 0) / 10).toFixed(1)}%`, { className: "num" }),
-		cell(l.quality_multiplier !== undefined ? `×${l.quality_multiplier.toFixed(2)}` : "—", {
-			className: "num",
-			title: l.base_score !== undefined ? `score ${l.base_score}` : "",
-		}),
+		cell(l.connected ? `${Math.round(l.rtt_ms)} ms` : "—", "num", `min ${Math.round(l.rtt_min_ms)} ms`),
+		cell(`${l.in_flight} / ${l.window}`, "num"),
+		cell(l.nak_count, "num"),
+		cell(`${((l.cc_loss_permille ?? 0) / 10).toFixed(1)}%`, "num"),
+		cell(
+			l.quality_multiplier !== undefined ? `×${l.quality_multiplier.toFixed(2)}` : "—",
+			"num",
+			l.base_score !== undefined ? `score ${l.base_score}` : "",
+		),
 	];
 }
 
@@ -379,101 +389,103 @@ function renderInterfaces(status: Status): void {
 	const total = live ? live.links.reduce((sum, l) => sum + (l.bitrate_bytes_per_sec || 0), 0) : 0;
 
 	const rows = status.interfaces.map((i) => {
-		const box = h("input", {
-			type: "checkbox",
-			checked: selected.has(i.iface),
-			disabled: togglingIfaces.has(i.iface),
-			title: "Include in bond",
-		});
-		box.onchange = async () => {
-			togglingIfaces.add(i.iface);
-			box.disabled = true;
-			await act(null, "modems.toggle", { iface: i.iface });
-			togglingIfaces.delete(i.iface);
-			box.disabled = false;
-		};
 		const sub = [i.cidr, i.modemIndex !== undefined ? `modem #${i.modemIndex}` : null].filter(Boolean).join(" · ");
 		const network = [i.operatorName, i.accessTech].filter(Boolean).join(" · ");
-		return h(
+		return m(
 			"tr",
-			{ className: selected.has(i.iface) ? "selected" : "" },
-			h("td", {}, box),
-			h(
+			{ class: selected.has(i.iface) ? "selected" : "" },
+			m(
 				"td",
-				{},
-				i.iface,
-				i.speed ? h("small", { className: "muted" }, ` · ${formatSpeed(i.speed)}`) : null,
-				sub ? h("span", { className: "iface-sub muted" }, sub) : null,
+				m("input", {
+					id: `iface-check-${i.iface}`,
+					type: "checkbox",
+					checked: selected.has(i.iface),
+					disabled: togglingIfaces.has(i.iface),
+					title: "Include in bond",
+					onchange: () => void toggleIface(i, byId<HTMLInputElement>(`iface-check-${i.iface}`)),
+				}),
 			),
-			h("td", {}, signal(i.signalQuality)),
-			h("td", {}, network || "—"),
+			m(
+				"td",
+				null,
+				i.iface,
+				i.speed ? m("small.muted", ` · ${formatSpeed(i.speed)}`) : null,
+				sub ? m("span.iface-sub.muted", sub) : null,
+			),
+			m("td", signal(i.signalQuality)),
+			m("td", network || "—"),
 			...linkCells(links.get(i.ip), total),
 		);
 	});
-	byId("iface-rows").replaceChildren(
-		...(rows.length ? rows : [h("tr", {}, h("td", { colSpan: 11, className: "muted" }, "No interfaces detected"))]),
+	m.render(
+		byId("iface-rows"),
+		rows.length ? rows : [m("tr", m("td", { colspan: 11, class: "muted" }, "No interfaces detected"))],
 	);
+}
+
+/** Bond checkbox toggle; the checkbox stays disabled until the action round-trips. */
+async function toggleIface(i: { iface: string }, box: HTMLInputElement): Promise<void> {
+	togglingIfaces.add(i.iface);
+	box.disabled = true;
+	await act(null, "modems.toggle", { iface: i.iface });
+	togglingIfaces.delete(i.iface);
+	if (lastStatus && role !== "encoder") renderInterfaces(lastStatus);
 }
 
 function signal(quality?: number): Child {
 	if (quality === undefined) return "—";
-	return h(
-		"span",
-		{},
-		h("meter", { min: 0, max: 100, low: 30, high: 60, optimum: 100, value: quality }),
-		` ${quality}%`,
-	);
+	return m("span", null, m("meter", { min: 0, max: 100, low: 30, high: 60, optimum: 100, value: quality }), ` ${quality}%`);
 }
 
-function modemButton(label: string, method: string, index: number, className = "secondary") {
-	const btn = h("button", { type: "button", className }, label);
-	btn.onclick = () => {
-		if (method === "modems.reset" && !confirm(`Reset modem #${index}?`)) return;
-		void act(btn, method, { index });
-	};
-	return btn;
+// ----------------------------------------------------------------------
+// Modems
+// ----------------------------------------------------------------------
+function modemButton(label: string, method: string, index: number, className = "secondary"): m.Vnode {
+	return m("button", {
+		type: "button",
+		class: className,
+		onclick: (e: Event) => {
+			if (method === "modems.reset" && !confirm(`Reset modem #${index}?`)) return;
+			const btn = e.currentTarget as HTMLButtonElement;
+			btn.disabled = true;
+			void act(null, method, { index }).finally(() => {
+				btn.disabled = false;
+			});
+		},
+	}, label);
 }
 
 function renderModems(modems: ModemInfo[]): void {
-	const cards = modems.map((m) => {
-		const connected = m.state === "connected";
-		return h(
-			"article",
-			{ className: "modem" },
-			h(
+	const cards = modems.map((modem) => {
+		const connected = modem.state === "connected";
+		return m(
+			"article.modem",
+			null,
+			m(
 				"h3",
-				{},
-				`#${m.index} ${[m.manufacturer, m.model].filter(Boolean).join(" ") || "Modem"}`,
-				badge(m.state, connected ? "on" : m.state === "disabled" || m.state === "failed" ? "off" : "warn"),
+				`#${modem.index} ${[modem.manufacturer, modem.model].filter(Boolean).join(" ") || "Modem"}`,
+				badge(modem.state, connected ? "on" : modem.state === "disabled" || modem.state === "failed" ? "off" : "warn"),
 			),
-			(() => {
-				const dl = h("dl");
-				definitionList(dl, [
-					["Signal", signal(m.signalQuality)],
-					["Operator", m.operatorName],
-					["Tech", m.accessTech],
-					["Registration", m.registrationState],
-					["Power", m.powerState],
-					["IMEI", m.imei],
-				]);
-				return dl;
-			})(),
-			h(
-				"div",
-				{ className: "actions" },
-				modemButton("Enable", "modems.enable", m.index),
-				modemButton("Disable", "modems.disable", m.index),
+			m("dl", definitionRows([
+				["Signal", signal(modem.signalQuality)],
+				["Operator", modem.operatorName],
+				["Tech", modem.accessTech],
+				["Registration", modem.registrationState],
+				["Power", modem.powerState],
+				["IMEI", modem.imei],
+			])),
+			m(
+				"div.actions",
+				modemButton("Enable", "modems.enable", modem.index),
+				modemButton("Disable", "modems.disable", modem.index),
 				connected
-					? modemButton("Disconnect", "modems.disconnect", m.index)
-					: modemButton("Connect", "modems.connect", m.index),
-				modemButton("Reset", "modems.reset", m.index, "danger"),
+					? modemButton("Disconnect", "modems.disconnect", modem.index)
+					: modemButton("Connect", "modems.connect", modem.index),
+				modemButton("Reset", "modems.reset", modem.index, "danger"),
 			),
 		);
 	});
-	byId("modem-list").replaceChildren(
-		...(cards.length ? cards : [h("p", { className: "muted" }, "No modems found (ModemManager).")]),
-	);
-
+	m.render(byId("modem-list"), cards.length ? cards : [m("p.muted", "No modems found (ModemManager).")]);
 }
 
 // ----------------------------------------------------------------------
@@ -501,7 +513,7 @@ function prefillSelect(id: string, value: string | undefined): void {
 
 async function loadPipelines(): Promise<void> {
 	pipelinesLoaded = true;
-	const result = await act<{ dir: string; pipelines: Pipeline[] }>(null, "pipelines.list");
+	const result = await act<{ dir: string; pipelines: Pipeline[] } | null>(null, "pipelines.list");
 	if (!result) {
 		pipelinesLoaded = false;
 		return;
@@ -512,14 +524,14 @@ async function loadPipelines(): Promise<void> {
 	for (const p of result.pipelines) pipelines.set(p.id, p);
 	const groups = new Map<string, Pipeline[]>();
 	for (const p of result.pipelines) groups.set(p.group, [...(groups.get(p.group) ?? []), p]);
-	const nodes: Node[] = [];
+	const nodes: m.Vnode[] = [];
 	for (const [group, list] of groups) {
-		const options = list.map((p) => h("option", { value: p.id }, p.name));
-		if (group) nodes.push(h("optgroup", { label: group }, ...options));
+		const options = list.map((p) => m("option", { value: p.id }, p.name));
+		if (group) nodes.push(m("optgroup", { label: group }, options));
 		else nodes.push(...options);
 	}
-	if (!nodes.length) nodes.push(h("option", { value: "", disabled: true }, `No pipelines in ${result.dir}`));
-	select.replaceChildren(...nodes);
+	if (!nodes.length) nodes.push(m("option", { value: "", disabled: true }, `No pipelines in ${result.dir}`));
+	m.render(select, nodes);
 	if (result.pipelines.some((p) => p.id === current)) select.value = current;
 	updatePipelineFields();
 }
@@ -562,7 +574,9 @@ function renderEncoder(status: Status): void {
 		[
 			"Audio",
 			cfg
-				? `${status.audioSources.find((a) => a.id === cfg.audioSource)?.name ?? cfg.audioSource ?? "Pipeline default"}, ${(cfg.audioCodec ?? "aac").toUpperCase()}`
+				? `${status.audioSources.find((a) => a.id === cfg.audioSource)?.name ?? cfg.audioSource ?? "Pipeline default"}, ${(
+						cfg.audioCodec ?? "aac"
+					).toUpperCase()}`
 				: null,
 		],
 		["Started", e.running ? since(e.startedAt) : null],
@@ -583,7 +597,7 @@ function renderEncoder(status: Status): void {
 	// Audio sources change as USB devices come and go; keep the current choice if still present
 	const asrc = byId<HTMLSelectElement>("audio-source");
 	const chosen = asrc.value;
-	asrc.replaceChildren(...status.audioSources.map((a) => h("option", { value: a.id }, a.name)));
+	m.render(asrc, status.audioSources.map((a) => m("option", { value: a.id }, a.name)));
 	if (status.audioSources.some((a) => a.id === chosen)) asrc.value = chosen;
 	prefillSelect("audio-source", cfg?.audioSource);
 	prefillSelect("audio-codec", cfg?.audioCodec);
@@ -603,7 +617,7 @@ function applyRole(next: Role): void {
 	roleBadge.hidden = false;
 	if (roleBadge.dataset.role !== role) {
 		roleBadge.dataset.role = role;
-		roleBadge.replaceChildren(roleTag(role));
+		m.render(roleBadge, roleTag(role));
 	}
 	byId("encoder").hidden = !hasEncoder;
 	for (const id of ["srtla", "interfaces", "modems"]) byId(id).hidden = !hasRelay;
@@ -612,8 +626,6 @@ function applyRole(next: Role): void {
 	const combined = role === "combined";
 	byId("srtla-listen-field").hidden = combined;
 	byId("srtla-actions").hidden = combined;
-	// byId("srtla-host-label").textContent = combined ? "SRTLA receiver host" : "Remote host";
-	// byId("srtla-port-label").textContent = combined ? "SRTLA receiver port" : "Remote port";
 	byId("encoder-relay-break").hidden = combined;
 	byId("encoder-host-field").hidden = combined;
 	byId("encoder-port-field").hidden = combined;
@@ -626,7 +638,7 @@ function applyRole(next: Role): void {
 
 let lastStatus: Status | null = null;
 
-function render(status: Status): void {
+function renderStatus(status: Status): void {
 	lastStatus = status;
 	const autostart = byId<HTMLInputElement>("autostart");
 	if (!autostart.disabled) autostart.checked = !!status.state.autostart;
@@ -642,7 +654,7 @@ function render(status: Status): void {
 }
 
 // ----------------------------------------------------------------------
-// Static controls
+// Static controls (form submission is imperative; Mithril renders the dynamic regions)
 // ----------------------------------------------------------------------
 byId<HTMLFormElement>("srtla-form").onsubmit = (e) => {
 	e.preventDefault();
@@ -653,18 +665,15 @@ byId<HTMLFormElement>("srtla-form").onsubmit = (e) => {
 	}
 	const button = byId<HTMLButtonElement>("srtla-start");
 	if (button.disabled) return;
-	const form = e.currentTarget as HTMLFormElement;
-	const params = Object.fromEntries(new FormData(form));
-	void act(button, "srtla.start", params);
+	const params = Object.fromEntries(new FormData(e.currentTarget as HTMLFormElement));
+	void act("srtla-start", "srtla.start", params);
 };
-byId<HTMLButtonElement>("srtla-stop").onclick = (e) =>
-	void act(e.currentTarget as HTMLButtonElement, "srtla.stop");
-byId<HTMLButtonElement>("srtla-reload").onclick = (e) =>
-	void act(e.currentTarget as HTMLButtonElement, "srtla.reload");
+byId<HTMLButtonElement>("srtla-stop").onclick = () => void act("srtla-stop", "srtla.stop");
+byId<HTMLButtonElement>("srtla-reload").onclick = () => void act("srtla-reload", "srtla.reload");
 async function setSrtlaOption(el: HTMLInputElement | HTMLSelectElement, params: Params): Promise<void> {
 	el.disabled = true;
 	el.dataset.busy = "1";
-	const result = await act<{ options: Status["state"]["srtlaOptions"]; applied: boolean }>(null, "srtla.options", params);
+	const result = await act<{ options: Status["state"]["srtlaOptions"]; applied: boolean } | null>(null, "srtla.options", params);
 	el.disabled = false;
 	delete el.dataset.busy;
 	// The status push is debounced; do not flash the old value until it arrives
@@ -679,8 +688,7 @@ byId<HTMLInputElement>("srtla-quality").onchange = (e) => {
 	const box = e.currentTarget as HTMLInputElement;
 	void setSrtlaOption(box, { quality: box.checked });
 };
-byId<HTMLButtonElement>("reconfigure").onclick = (e) =>
-	void act(e.currentTarget as HTMLButtonElement, "reconfigure");
+byId<HTMLButtonElement>("reconfigure").onclick = () => void act("reconfigure", "reconfigure");
 
 const optionalNumber = (v: FormDataEntryValue | null) => (v === null || v === "" ? undefined : Number(v));
 
@@ -705,31 +713,30 @@ byId<HTMLFormElement>("encoder-form").onsubmit = (e) => {
 		const receiver = byId<HTMLFormElement>("srtla-form");
 		if (!receiver.reportValidity()) return;
 		const r = new FormData(receiver);
-		void act(button, "stream.start", {
+		void act("encoder-start", "stream.start", {
 			...common,
 			remoteHost: r.get("remoteHost"),
 			remotePort: r.get("remotePort"),
 		});
 	} else {
-		void act(button, "encoder.start", { ...common, host: data.get("host"), port: data.get("port") });
+		void act("encoder-start", "encoder.start", { ...common, host: data.get("host"), port: data.get("port") });
 	}
 };
 byId<HTMLInputElement>("autostart").onchange = async (e) => {
 	const box = e.currentTarget as HTMLInputElement;
 	box.disabled = true;
-	const result = await act<{ autostart: boolean }>(null, "autostart.set", { enabled: box.checked });
+	const result = await act<{ autostart: boolean } | null>(null, "autostart.set", { enabled: box.checked });
 	box.disabled = false;
 	box.checked = result ? result.autostart : !box.checked;
 };
-byId<HTMLSelectElement>("pipeline").onchange = updatePipelineFields;
+byId<HTMLSelectElement>("pipeline").onchange = () => updatePipelineFields();
 for (const id of ["audio-source", "audio-codec", "bitrate-overlay"]) {
 	byId(id).addEventListener("change", () => touched.add(id));
 }
-byId<HTMLButtonElement>("encoder-stop").onclick = (e) =>
-	void act(e.currentTarget as HTMLButtonElement, role === "combined" ? "stream.stop" : "encoder.stop");
-byId<HTMLButtonElement>("encoder-bitrate").onclick = (e) => {
+byId<HTMLButtonElement>("encoder-stop").onclick = () => void act("encoder-stop", role === "combined" ? "stream.stop" : "encoder.stop");
+byId<HTMLButtonElement>("encoder-bitrate").onclick = () => {
 	const input = byId<HTMLFormElement>("encoder-form").elements.namedItem("maxBitrate") as HTMLInputElement;
-	void act(e.currentTarget as HTMLButtonElement, "encoder.bitrate", { maxBitrate: optionalNumber(input.value) });
+	void act("encoder-bitrate", "encoder.bitrate", { maxBitrate: optionalNumber(input.value) });
 };
 
 // Refresh relative times ("12s ago") without waiting for a push

@@ -1,4 +1,5 @@
-import { byId, h } from "./dom";
+import m from "mithril";
+import { byId } from "./dom";
 
 type Params = Record<string, unknown>;
 interface Settings {
@@ -43,22 +44,21 @@ function fill(settings: Settings): void {
 }
 
 function renderRepositories(repositories: string[]): void {
-	const list = byId("repository-list");
-	list.replaceChildren(
-		...(repositories.length
+	m.render(
+		byId("repository-list"),
+		repositories.length
 			? repositories.map((repository) =>
-				h(
-					"div",
-					{ className: "card-head" },
-					h("code", {}, repository),
-					h("button", {
+				m(
+					"div.card-head",
+					null,
+					m("code", repository),
+					m("button.danger", {
 						type: "button",
-						className: "danger",
-						textContent: "Remove",
 						onclick: () => void removeRepository(repository),
-					}),
-				))
-			: [h("p", { className: "muted" }, "No pipeline repositories configured.")]),
+					}, "Remove"),
+				),
+			)
+			: [m("p.muted", "No pipeline repositories configured.")],
 	);
 }
 

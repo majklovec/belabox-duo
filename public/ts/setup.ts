@@ -1,4 +1,5 @@
-import { byId, h } from "./dom";
+import m from "mithril";
+import { byId } from "./dom";
 import type { AudioSource, Pipeline, Role } from "../types";
 
 type Params = Record<string, unknown>;
@@ -68,10 +69,8 @@ function populate(info: SetupInfo): void {
 	const form = byId<HTMLFormElement>("setup-form");
 	(form.elements.namedItem("hostname") as HTMLInputElement).value = info.hostname;
 	(form.elements.namedItem("color") as HTMLInputElement).value = info.color;
-	const pipeline = form.elements.namedItem("pipeline") as HTMLSelectElement;
-	pipeline.replaceChildren(...info.pipelines.map((item) => h("option", { value: item.id }, item.id)));
-	const audio = form.elements.namedItem("audioSource") as HTMLSelectElement;
-	audio.replaceChildren(...info.audioSources.map((item) => h("option", { value: item.id }, item.name)));
+	m.render(form.elements.namedItem("pipeline") as HTMLSelectElement, info.pipelines.map((item) => m("option", { value: item.id }, item.id)));
+	m.render(form.elements.namedItem("audioSource") as HTMLSelectElement, info.audioSources.map((item) => m("option", { value: item.id }, item.name)));
 	rebuildSteps();
 }
 
