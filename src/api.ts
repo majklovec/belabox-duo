@@ -73,6 +73,7 @@ import {
 	stopEncoder,
 } from "./encoder";
 import { removePipelineRepository, syncPipelineRepository } from "./git";
+import { applyRemoteSettings } from "./remote";
 import {
 	connectModem,
 	detectModems,
@@ -350,6 +351,8 @@ const methods: Record<string, Method> = {
 			remoteToken,
 		};
 		await completeSetup();
+		// Start (or re-target) the control-server link with the saved endpoint
+		if (remoteUrl) applyRemoteSettings(remoteUrl, remoteToken);
 		// The routes table is fixed per server instance; swap the server once
 		// this response has been flushed (timers run after the microtask that sends it).
 		setTimeout(restartApiServer, 0);
@@ -524,8 +527,23 @@ const methods: Record<string, Method> = {
 		if (color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(color)) {
 			throw new ApiError("color must be a six-digit hexadecimal color");
 		}
+		const remoteChanged = remoteUrl !== current.remoteUrl || remoteToken !== current.remoteToken;
 		state.settings = { ...current, hostname, role, remoteUrl, remoteToken, color };
 		await saveState();
+		// Every save re-registers the device on the control server — re-dialing to
+		// the (possibly new) URL so changed token/role/hostname are picked up live.
+		if (remoteUrl || remoteChanged) {
+			applyRemoteSettings(remoteUrl ?? "", remoteToken);
+			let target = remoteUrl!;
+			try {
+				const u = new URL(remoteUrl!);
+				u.username = u.password = "";
+				target = u.toString();
+			} catch { /* leave as-is */ }
+			logEvent("info", "Settings", `Settings saved; reconnecting to ${target}`);
+		} else {
+			logEvent("info", "Settings", "Settings saved");
+		}
 		return {
 			settings: {
 				hostname: hostname ?? "",

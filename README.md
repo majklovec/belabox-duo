@@ -152,8 +152,12 @@ device's role are rejected with code 409.
 
 The cog in the device header opens a separate settings page. It uses
 `settings.get` and `settings.update` for the persistent hostname, role,
-control-server URL, remote token and header color. Process settings are applied
-on the next service restart; the header color changes immediately. Stream
+control-server URL, remote token and header color. Saving settings re-dials the
+control server, so the device re-registers there (URL, token, hostname and role
+are all picked up live) without a service restart; the header color changes
+immediately. The local API surface follows the role the process started with,
+so a role change on this device itself takes effect on the next service
+restart. Stream
 settings (pipeline, bitrate, audio, targets and scheduler options) are saved
 automatically whenever they change.
 

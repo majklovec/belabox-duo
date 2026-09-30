@@ -155,7 +155,7 @@ const App: m.Component<{}, {}> = {
 			m(
 				Card,
 				null,
-				m("p.muted", "Hostname, role and control-server changes take effect after restarting the service."),
+				m("p.muted", "Settings are re-applied on the control server after saving."),
 						m(
 							"form",
 							{ onsubmit: (e: Event) => { e.preventDefault(); void save(); } },

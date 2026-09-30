@@ -15,6 +15,8 @@
  * The token is also sent as `Authorization: Bearer <token>` on the upgrade.
  *
  * Reconnects with exponential backoff; dead links are detected via ping/pong.
+ * applyRemoteSettings() re-targets the link (and re-registers the device) at
+ * runtime so settings saved in the UI apply without a process restart.
  */
 import { REMOTE_ID, REMOTE_INTERVAL, REMOTE_STATS_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
 import { addStatusSink, handleRequest, logHistoryEvent, statsEvent, statusEvent } from "./api";
@@ -32,6 +34,8 @@ const BunWebSocket = WebSocket as unknown as new (url: string, options?: Bun.Web
 let ws: Bun.WebSocket | null = null;
 let stopped = true;
 let backoff = BACKOFF_MIN_MS;
+// Endpoint the link is (re)connecting to; the config constants are the initial values
+let target = { url: REMOTE_URL, token: REMOTE_TOKEN || null };
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 let statusTimer: ReturnType<typeof setInterval> | null = null;
@@ -43,7 +47,7 @@ const isOpen = (): boolean => ws !== null && ws.readyState === WebSocket.OPEN;
 // Never log the token-bearing parts of the URL
 const safeUrl = (): string => {
     try {
-        const u = new URL(REMOTE_URL);
+        const u = new URL(target.url);
         u.username = u.password = "";
         u.search = "";
         return u.toString();
@@ -84,11 +88,15 @@ function connect(): void {
     if (stopped) return;
     reconnectTimer = null;
 
-    const headers: Record<string, string> = { "x-device-id": REMOTE_ID, "x-device-role": ROLE };
-    if (REMOTE_TOKEN) headers.authorization = `Bearer ${REMOTE_TOKEN}`;
+    // The saved hostname/role are the live identity; the startup constants are
+    // the fallback (a hostname change therefore re-registers the device too)
+    const id = state.settings?.hostname ?? REMOTE_ID;
+    const role = state.settings?.role ?? ROLE;
+    const headers: Record<string, string> = { "x-device-id": id, "x-device-role": role };
+    if (target.token) headers.authorization = `Bearer ${target.token}`;
 
-    console.log(`[remote] connecting to ${safeUrl()} as "${REMOTE_ID}"...`);
-    const sock = new BunWebSocket(REMOTE_URL, { headers });
+    console.log(`[remote] connecting to ${safeUrl()} as "${id}"...`);
+    const sock = new BunWebSocket(target.url, { headers });
     ws = sock;
     const touch = () => { lastSeen = Date.now(); };
 
@@ -98,12 +106,12 @@ function connect(): void {
         touch();
         send(JSON.stringify({
             type: "hello",
-            id: REMOTE_ID,
-            role: ROLE,
+            id: state.settings?.hostname ?? REMOTE_ID,
+            role: state.settings?.role ?? ROLE,
             ...(state.encoder.config?.maxBitrate !== undefined
                 ? { maxBitrate: state.encoder.config.maxBitrate }
                 : {}),
-            ...(REMOTE_TOKEN ? { token: REMOTE_TOKEN } : {}),
+            ...(target.token ? { token: target.token } : {}),
         }));
         send(logHistoryEvent());
         void sendStatus();
@@ -148,8 +156,8 @@ function connect(): void {
 export const isRemoteConnected = isOpen;
 
 export function startRemote(): void {
-    if (!REMOTE_URL || !stopped) return;
-    if (REMOTE_TOKEN && REMOTE_URL.startsWith("ws://")) {
+    if (!target.url || !stopped) return;
+    if (target.token && target.url.startsWith("ws://")) {
         console.warn("[remote] sending token over unencrypted ws:// — prefer wss://");
     }
     stopped = false;
@@ -163,6 +171,7 @@ export function startRemote(): void {
 
 export function stopRemote(): void {
     stopped = true;
+    backoff = BACKOFF_MIN_MS;
     clearTimers();
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = null;
@@ -170,4 +179,15 @@ export function stopRemote(): void {
     removeSink = null;
     ws?.close(1001, "shutting down");
     ws = null;
+}
+
+/**
+ * Point the link at new endpoint values (from saved settings) and re-register.
+ * The current connection is torn down first, so this is also how the device
+ * re-registers on the same server; a cleared `url` stops the link entirely.
+ */
+export function applyRemoteSettings(url: string, token?: string): void {
+    stopRemote();
+    target = { url, token: token || null };
+    if (url) startRemote();
 }
