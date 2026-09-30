@@ -59,6 +59,11 @@ function rebuildSteps(): void {
 		if (step.dataset.step === "relay") return role !== "encoder";
 		return true;
 	});
+	const fieldsets = new Map(steps.map((step) => [step.dataset.step, step] as const));
+	for (const item of document.querySelectorAll<HTMLElement>(".wiz-item")) {
+		item.hidden = !fieldsets.has(item.dataset.step);
+		item.className = "wiz-item";
+	}
 	const combined = role === "combined";
 	for (const field of document.querySelectorAll<HTMLElement>(".encoder-target")) field.hidden = combined;
 	current = Math.min(current, steps.length - 1);
@@ -69,6 +74,11 @@ function rebuildSteps(): void {
 function renderStep(): void {
 	for (const step of document.querySelectorAll<HTMLElement>(".wizard-step")) step.hidden = step !== steps[current];
 	byId("progress").textContent = `Step ${current + 1} of ${steps.length}`;
+	const items = [...document.querySelectorAll<HTMLElement>(".wiz-item")].filter((item) => !item.hidden);
+	items.forEach((item, i) => {
+		item.className = `wiz-item ${i < current ? "done" : i === current ? "current" : "upcoming"}`;
+		item.querySelector(".wiz-dot")!.textContent = i < current ? "✓" : String(i + 1);
+	});
 	byId<HTMLButtonElement>("previous").hidden = current === 0;
 	const last = current === steps.length - 1;
 	byId<HTMLButtonElement>("next").hidden = last;
