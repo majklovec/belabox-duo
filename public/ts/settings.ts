@@ -1,7 +1,10 @@
+/* Device settings + pipeline repositories — a Mithril view over the WebSocket API. */
 import m from "mithril";
+import { Card, Page, badge, field } from "./components/ui";
 import { byId } from "./dom";
+import type { Params } from "./services/rpc";
+import { RpcClient, socketUrl } from "./services/rpc";
 
-type Params = Record<string, unknown>;
 interface Settings {
 	hostname: string;
 	role: string;
@@ -11,167 +14,224 @@ interface Settings {
 	pipelineRepositories: string[];
 }
 
-let ws: WebSocket | null = null;
-let nextId = 1;
-const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+const repoPattern = "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+";
+const hostnamePattern = "[A-Za-z0-9][A-Za-z0-9.-]{0,62}";
 
-function call<T>(method: string, params?: Params): Promise<T> {
-	return new Promise((resolve, reject) => {
-		if (!ws || ws.readyState !== WebSocket.OPEN) {
-			reject(new Error("not connected"));
-			return;
-		}
-		const id = nextId++;
-		pending.set(id, { resolve: (value) => resolve(value as T), reject });
-		ws.send(JSON.stringify({ id, method, params }));
-	});
-}
+const state = {
+	connected: false,
+	settings: null as Settings | null,
+	// Form fields (committed values plus the fields the user is editing)
+	hostname: "",
+	role: "",
+	color: "#0f1115",
+	remoteUrl: "",
+	remoteToken: "",
+	// Repository section
+	repository: "",
+	repositories: [] as string[],
+	message: "",
+	repoMessage: "",
+	saving: false,
+	repoBusy: false,
+};
 
-function applyColor(color: string): void {
-	document.documentElement.style.setProperty("--header-color", color);
-}
+const rpc = new RpcClient(() => socketUrl("../ws"));
+rpc.on("open", () => {
+	state.connected = true;
+	state.settings = null;
+	m.redraw();
+	void load();
+});
+rpc.on("close", () => {
+	state.connected = false;
+	m.redraw();
+});
 
-function fill(settings: Settings): void {
-	const form = byId<HTMLFormElement>("settings-form");
-	for (const key of ["hostname", "role", "remoteUrl", "color"] as const) {
-		const input = form.elements.namedItem(key) as HTMLInputElement | HTMLSelectElement;
-		input.value = settings[key];
+async function load(): Promise<void> {
+	try {
+		const result = await rpc.call<{ settings: Settings }>("settings.get");
+		state.settings = result.settings;
+		state.hostname = result.settings.hostname;
+		state.role = result.settings.role;
+		state.color = result.settings.color;
+		state.remoteUrl = result.settings.remoteUrl;
+		state.repositories = result.settings.pipelineRepositories;
+		document.documentElement.style.setProperty("--header-color", result.settings.color);
+	} catch (error: unknown) {
+		state.message = error instanceof Error ? error.message : String(error);
 	}
-	const token = form.elements.namedItem("remoteToken") as HTMLInputElement;
-	token.placeholder = settings.hasRemoteToken ? "configured (leave blank to keep)" : "not configured";
-	applyColor(settings.color);
-	renderRepositories(settings.pipelineRepositories);
+	m.redraw();
 }
 
-function renderRepositories(repositories: string[]): void {
-	m.render(
-		byId("repository-list"),
-		repositories.length
-			? repositories.map((repository) =>
-				m(
-					"div.card-head",
-					null,
-					m("code", repository),
-					m("button.danger", {
-						type: "button",
-						onclick: () => void removeRepository(repository),
-					}, "Remove"),
-				),
-			)
-			: [m("p.muted", "No pipeline repositories configured.")],
-	);
+async function save(): Promise<void> {
+	state.saving = true;
+	state.message = "";
+	m.redraw();
+	try {
+		const result = await rpc.call<{ settings: Settings }>("settings.update", {
+			hostname: state.hostname,
+			role: state.role,
+			remoteUrl: state.remoteUrl,
+			color: state.color,
+			...(state.remoteToken ? { remoteToken: state.remoteToken } : {}),
+		} as Params);
+		state.settings = result.settings;
+		state.remoteToken = "";
+		state.repositories = result.settings.pipelineRepositories;
+		document.documentElement.style.setProperty("--header-color", result.settings.color);
+		state.message = "Settings saved.";
+	} catch (error: unknown) {
+		state.message = error instanceof Error ? error.message : String(error);
+	} finally {
+		state.saving = false;
+		m.redraw();
+	}
+}
+
+async function addRepository(): Promise<void> {
+	if (!state.repository.trim()) return;
+	const repo = state.repository.trim();
+	state.repoBusy = true;
+	state.repoMessage = `Importing ${repo}...`;
+	m.redraw();
+	try {
+		const response = await rpc.call<{ repositories: string[]; result: { files: number; bytes: number } }>(
+			"pipelines.repositories.add",
+			{ repository: repo } as Params,
+		);
+		state.repositories = response.repositories;
+		state.repository = "";
+		state.repoMessage = `Imported ${response.result.files} file(s).`;
+	} catch (error: unknown) {
+		state.repoMessage = error instanceof Error ? error.message : String(error);
+	} finally {
+		state.repoBusy = false;
+		m.redraw();
+	}
 }
 
 async function removeRepository(repository: string): Promise<void> {
-	const output = byId("repository-result");
-	output.textContent = `Removing ${repository}...`;
+	state.repoMessage = `Removing ${repository}...`;
+	m.redraw();
 	try {
-		const result = await call<{ repositories: string[] }>("pipelines.repositories.remove", { repository });
-		renderRepositories(result.repositories);
-		output.textContent = `${repository} removed.`;
+		const result = await rpc.call<{ repositories: string[] }>("pipelines.repositories.remove", { repository });
+		state.repositories = result.repositories;
+		state.repoMessage = `${repository} removed.`;
 	} catch (error: unknown) {
-		output.textContent = error instanceof Error ? error.message : String(error);
+		state.repoMessage = error instanceof Error ? error.message : String(error);
+	}
+	m.redraw();
+}
+
+async function updateAllRepositories(): Promise<void> {
+	state.repoBusy = true;
+	state.repoMessage = "Updating all pipeline repositories...";
+	m.redraw();
+	try {
+		const response = await rpc.call<{ results: Array<{ repository: string; files: number }> }>("pipelines.repositories.updateAll");
+		const files = response.results.reduce((total, r) => total + r.files, 0);
+		state.repoMessage = `Updated ${response.results.length} repository/repositories (${files} files).`;
+	} catch (error: unknown) {
+		state.repoMessage = error instanceof Error ? error.message : String(error);
+	} finally {
+		state.repoBusy = false;
+		m.redraw();
 	}
 }
 
-function connect(): void {
-	const url = new URL("../ws", location.href);
-	url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
-	ws = new WebSocket(url);
-	ws.onopen = async () => {
-		const conn = byId("conn");
-		conn.textContent = "connected";
-		conn.className = "badge on";
-		try {
-			const result = await call<{ settings: Settings }>("settings.get");
-			fill(result.settings);
-		} catch (error: unknown) {
-			byId("result").textContent = error instanceof Error ? error.message : String(error);
-		}
-	};
-	ws.onmessage = (event) => {
-		const message = JSON.parse(String(event.data));
-		if (message.type !== "response") return;
-		const request = pending.get(message.id);
-		if (!request) return;
-		pending.delete(message.id);
-		if (message.ok) request.resolve(message.result);
-		else request.reject(new Error(message.error));
-	};
-	ws.onclose = () => {
-		const conn = byId("conn");
-		conn.textContent = "disconnected";
-		conn.className = "badge off";
-		for (const request of pending.values()) request.reject(new Error("connection closed"));
-		pending.clear();
-		setTimeout(connect, 2_000);
-	};
-}
-
-byId<HTMLFormElement>("settings-form").onsubmit = async (event) => {
-	event.preventDefault();
-	const form = event.currentTarget as HTMLFormElement;
-	const button = byId<HTMLButtonElement>("save");
-	const data = new FormData(form);
-	button.disabled = true;
-	byId("result").textContent = "";
-	try {
-		const result = await call<{ settings: Settings }>("settings.update", {
-			hostname: data.get("hostname"),
-			role: data.get("role"),
-			remoteUrl: data.get("remoteUrl"),
-			color: data.get("color"),
-			...(data.get("remoteToken") ? { remoteToken: data.get("remoteToken") } : {}),
-		});
-		fill(result.settings);
-		(form.elements.namedItem("remoteToken") as HTMLInputElement).value = "";
-		byId("result").textContent = "Settings saved.";
-	} catch (error: unknown) {
-		byId("result").textContent = error instanceof Error ? error.message : String(error);
-	} finally {
-		button.disabled = false;
-	}
+const App: m.Component<{}, {}> = {
+	view: () => {
+		const tokenPlaceholder = state.settings
+			? state.settings.hasRemoteToken
+				? "configured (leave blank to keep)"
+				: "not configured"
+			: "unchanged";
+		return m(
+			Page,
+			{
+				title: [m("a", { href: "../", title: "Back to device" }, "←"), " Device settings"],
+				headerRight: badge(state.connected ? "connected" : "disconnected", state.connected ? "on" : "off"),
+			},
+			m(
+				Card,
+				null,
+				m("p.muted", "Hostname, role and control-server changes take effect after restarting the service."),
+						m(
+							"form",
+							{ onsubmit: (e: Event) => { e.preventDefault(); void save(); } },
+							field(
+								"Hostname",
+								m("input", { value: state.hostname, pattern: hostnamePattern, oninput: (e: Event) => (state.hostname = (e.target as HTMLInputElement).value) }),
+							),
+							field(
+								"Role",
+								m(
+									"select",
+									{ value: state.role, onchange: (e: Event) => (state.role = (e.target as HTMLSelectElement).value) },
+									m("option", { value: "" }, "Keep current"),
+									m("option", { value: "relay" }, "Relay"),
+									m("option", { value: "encoder" }, "Encoder"),
+									m("option", { value: "combined" }, "Combined"),
+								),
+							),
+							m("div.break"),
+							field(
+								"Header color",
+								m("input", {
+									type: "color",
+									value: state.color,
+									oninput: (e: Event) => {
+										state.color = (e.target as HTMLInputElement).value;
+										document.documentElement.style.setProperty("--header-color", state.color);
+									},
+								}),
+							),
+							m("div.break"),
+							field(
+								"Control server URL",
+								m("input", { placeholder: "wss://control.example/device", value: state.remoteUrl, oninput: (e: Event) => (state.remoteUrl = (e.target as HTMLInputElement).value) }),
+							),
+							field(
+								"Remote token",
+								m("input", { type: "password", autocomplete: "off", placeholder: tokenPlaceholder, value: state.remoteToken, oninput: (e: Event) => (state.remoteToken = (e.target as HTMLInputElement).value) }),
+							),
+							m("div.break"),
+							m("div.actions", m("button", { type: "submit", disabled: state.saving }, "Save settings")),
+						),
+				m("p.muted", { role: "status" }, state.message),
+			),
+			m(
+				Card,
+				{ title: "Pipeline repositories" },
+				m("p.muted", null, "Pipelines are imported recursively from each repository's ", m("code", "pipeline"), " directory."),
+						m(
+							"form",
+							{ onsubmit: (e: Event) => { e.preventDefault(); void addRepository(); } },
+							field(
+								"GitHub repository",
+								m("input", { required: true, pattern: repoPattern, placeholder: "author/repository", value: state.repository, oninput: (e: Event) => (state.repository = (e.target as HTMLInputElement).value) }),
+							),
+							m(
+								"div.actions",
+								m("button", { type: "submit", disabled: state.repoBusy }, "Add repository"),
+								m("button", { type: "button", class: "secondary", disabled: state.repoBusy, onclick: () => void updateAllRepositories() }, "Update all"),
+							),
+						),
+						state.repositories.length
+							? state.repositories.map(
+									(repository) =>
+										m(
+											"div.card-head",
+											{ key: repository },
+											m("code", repository),
+											m("button.danger", { type: "button", onclick: () => void removeRepository(repository) }, "Remove"),
+										),
+								)
+							: m("p.muted", "No pipeline repositories configured."),
+				m("p.muted", { role: "status" }, state.repoMessage),
+			),
+		);
+	},
 };
 
-byId<HTMLFormElement>("repository-form").onsubmit = async (event) => {
-	event.preventDefault();
-	const form = event.currentTarget as HTMLFormElement;
-	const button = byId<HTMLButtonElement>("repository-add");
-	const repository = String(new FormData(form).get("repository") ?? "").trim();
-	const output = byId("repository-result");
-	button.disabled = true;
-	output.textContent = `Importing ${repository}...`;
-	try {
-		const response = await call<{
-			repositories: string[];
-			result: { files: number; bytes: number };
-		}>("pipelines.repositories.add", { repository });
-		renderRepositories(response.repositories);
-		form.reset();
-		output.textContent = `Imported ${response.result.files} file(s) from ${repository}.`;
-	} catch (error: unknown) {
-		output.textContent = error instanceof Error ? error.message : String(error);
-	} finally {
-		button.disabled = false;
-	}
-};
-
-byId<HTMLButtonElement>("repositories-update").onclick = async (event) => {
-	const button = event.currentTarget as HTMLButtonElement;
-	const output = byId("repository-result");
-	button.disabled = true;
-	output.textContent = "Updating all pipeline repositories...";
-	try {
-		const response = await call<{
-			results: Array<{ repository: string; files: number }>;
-		}>("pipelines.repositories.updateAll");
-		const files = response.results.reduce((total, result) => total + result.files, 0);
-		output.textContent = `Updated ${response.results.length} repository/repositories (${files} files).`;
-	} catch (error: unknown) {
-		output.textContent = error instanceof Error ? error.message : String(error);
-	} finally {
-		button.disabled = false;
-	}
-};
-
-connect();
+m.mount(byId("app"), App);

@@ -43,7 +43,7 @@ function draw(parts: readonly (readonly [string, Record<string, string>])[], cla
 	return m(
 		"svg",
 		{ viewBox: "0 0 24 24", class: className, "aria-hidden": "true" },
-		...parts.map(([tag, attrs]) => m(tag, attrs)),
+		...parts.map(([tag, attrs]) => m(tag, { ...attrs })),
 	);
 }
 

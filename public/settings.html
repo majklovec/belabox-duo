@@ -9,67 +9,7 @@
 </head>
 
 <body>
-  <header>
-    <h1><a href="../" title="Back to device">←</a> Device settings</h1>
-    <span id="conn" class="badge off">disconnected</span>
-  </header>
-  <main>
-    <section class="card">
-      <p class="muted">
-        Hostname, role and control-server changes take effect after restarting
-        the service.
-      </p>
-      <form id="settings-form">
-        <label>Hostname
-          <input name="hostname" pattern="[A-Za-z0-9][A-Za-z0-9.-]{0,62}" /></label>
-        <label>Role
-          <select name="role">
-            <option value="">Keep current</option>
-            <option value="relay">Relay</option>
-            <option value="encoder">Encoder</option>
-            <option value="combined">Combined</option>
-          </select>
-        </label>
-        <div class="break"></div>
-        <label>Header color <input name="color" type="color" value="#0f1115" /></label>
-        <div class="break"></div>
-        <label>Control server URL
-          <input name="remoteUrl" placeholder="wss://control.example/device" /></label>
-        <label>Remote token
-          <input name="remoteToken" type="password" autocomplete="off" placeholder="unchanged" /></label>
-        <div class="break"></div>
-        <div class="actions">
-          <button type="submit" id="save">Save settings</button>
-        </div>
-      </form>
-      <p id="result" class="muted" role="status"></p>
-    </section>
-    <section class="card">
-      <h2>Pipeline repositories</h2>
-      <p class="muted">
-        Pipelines are imported recursively from each repository's
-        <code>pipeline</code> directory.
-      </p>
-      <form id="repository-form">
-        <label>GitHub repository
-          <input
-            name="repository"
-            required
-            pattern="[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
-            placeholder="author/repository"
-          />
-        </label>
-        <div class="actions">
-          <button type="submit" id="repository-add">Add repository</button>
-          <button type="button" id="repositories-update" class="secondary">
-            Update all
-          </button>
-        </div>
-      </form>
-      <div id="repository-list"></div>
-      <p id="repository-result" class="muted" role="status"></p>
-    </section>
-  </main>
+  <div id="app"></div>
   <script type="module" src="ts/settings.ts"></script>
 </body>
 

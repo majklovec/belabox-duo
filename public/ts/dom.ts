@@ -1,7 +1,7 @@
-/* Tiny Mithril helpers shared by the relay UI and the control server device list. */
+/* Tiny helpers shared by all pages. Views are Mithril vnodes; this is what doesn't need to be. */
 import m from "mithril";
 
-/** Look up an element by id; the imperative form wiring in each page still needs real DOM. */
+/** Look up an element by id (mount point, the rare DOM escape hatch). */
 export const byId = <T extends HTMLElement = HTMLElement>(id: string): T => {
 	const el = document.getElementById(id);
 	if (!el) throw new Error(`#${id} missing`);
@@ -11,18 +11,7 @@ export const byId = <T extends HTMLElement = HTMLElement>(id: string): T => {
 /** A renderable Mithril child: a vnode, text, a number, or nothing. */
 export type Child = m.Vnode | string | number | null | undefined;
 
-export const badge = (text: string, kind: "on" | "off" | "warn" | "" = "") =>
-	m("span", { class: `badge ${kind}` }, text);
-
-/** dt/dd rows for a definition list; `definitionList` renders them into an existing target. */
-export function definitionRows(rows: [string, Child][]): m.Vnode[] {
-	return rows.flatMap(([k, v]) => [m("dt", k), m("dd", v ?? "—")]);
-}
-
-export function definitionList(target: HTMLElement, rows: [string, Child][]): void {
-	m.render(target, definitionRows(rows));
-}
-
+/** "12s ago" style relative time; "—" when unknown. */
 export const since = (ts?: number) => {
 	if (!ts) return "—";
 	const s = Math.round((Date.now() - ts) / 1000);

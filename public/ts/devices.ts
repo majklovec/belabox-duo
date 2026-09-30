@@ -1,11 +1,20 @@
-/* Control server device list. */
+/* Control server device list — a Mithril view of a polling fetch every few seconds. */
 import m from "mithril";
-import { badge, byId, type Child, formatBitrate, since } from "./dom";
-import { icon, roleTag, type Shape } from "./icons";
+import { Card, Page, badge, type Child } from "./components/ui";
+import { formatBitrate, since } from "./dom";
+import { icon, roleTag } from "./icons";
 import type { DeviceSummary } from "../types";
 
 const REFRESH_MS = 3_000;
 const COLUMNS = 9;
+
+interface UiState {
+	connText: string;
+	connKind: "" | "on" | "off" | "warn";
+	devices: DeviceSummary[] | null; // null = before the first fetch landed
+}
+
+const state: UiState = { connText: "loading", connKind: "off", devices: null };
 
 /** Live stream state, mirroring the device page's encoder / srtla_send badges. */
 function streamState(d: DeviceSummary): Child {
@@ -66,30 +75,69 @@ function row(d: DeviceSummary): m.Vnode {
 }
 
 async function refresh(): Promise<void> {
-	const conn = byId("conn");
 	try {
 		const res = await fetch("api/devices", { cache: "no-store" });
 		if (!res.ok) throw new Error(`HTTP ${res.status}`);
 		const list = (await res.json()) as DeviceSummary[];
 		const online = list.filter((d) => d.online).length;
-		conn.textContent = `${online}/${list.length} online`;
-		conn.className = `badge ${online ? "on" : "warn"}`;
-		m.render(
-			byId("device-rows"),
-			list.length
-				? list.map(row)
-				: [m("tr", m("td", { colspan: COLUMNS, class: "muted" }, "No devices have connected yet."))],
-		);
+		state.devices = list;
+		state.connText = `${online}/${list.length} online`;
+		state.connKind = online ? "on" : "warn";
 	} catch (err) {
-		conn.textContent = err instanceof Error ? err.message : "error";
-		conn.className = "badge off";
+		state.connText = err instanceof Error ? err.message : "error";
+		state.connKind = "off";
 	}
+	m.redraw();
 }
 
-// Column headers for the encoder / relay parts get the matching device icon, before the label
-for (const th of document.querySelectorAll<HTMLElement>("th[data-icon]")) {
-	m.render(th, [icon(th.dataset.icon as Shape), " ", th.textContent]);
-}
+const App: m.Component<{}, {}> = {
+	view: () =>
+		m(
+			Page,
+			{
+				title: "Belabox Duo control",
+				headerRight: m("span", { class: `badge ${state.connKind}` }, state.connText),
+			},
+			m(
+				Card,
+				{ title: "Devices" },
+				m(
+							"table",
+							null,
+							m(
+								"thead",
+								null,
+								m(
+									"tr",
+									null,
+									m("th", "Device"),
+									m("th", "Type"),
+									m("th", "State"),
+									m("th", "Connected"),
+									m("th", "Stream"),
+									m("th", "Bitrate / max"),
+									m("th", "Links"),
+									m("th", null, icon("encoder"), " Encoder"),
+									m("th", null, icon("relay"), " Relay"),
+								),
+							),
+							m(
+								"tbody",
+								state.devices?.length
+									? state.devices.map(row)
+									: [
+											m(
+												"tr",
+												m("td", { colspan: COLUMNS, class: "muted" }, state.devices ? "No devices have connected yet." : "Loading…"),
+											),
+										],
+							),
+				),
+			),
+		),
+};
+
+m.mount(document.getElementById("app")!, App);
 
 void refresh();
 setInterval(refresh, REFRESH_MS);

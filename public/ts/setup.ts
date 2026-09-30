@@ -1,8 +1,12 @@
+/* First-run setup wizard — a fully Mithril view: stepper, one fieldset per step,
+ * Back / Next / Save controls, all driven by a single state object. */
 import m from "mithril";
+import { Page, badge } from "./components/ui";
 import { byId } from "./dom";
+import type { Params } from "./services/rpc";
+import { RpcClient, socketUrl } from "./services/rpc";
 import type { AudioSource, Pipeline, Role } from "../types";
 
-type Params = Record<string, unknown>;
 interface SetupInfo {
 	required: boolean;
 	hostname: string;
@@ -11,176 +15,534 @@ interface SetupInfo {
 	audioSources: AudioSource[];
 }
 
-let ws: WebSocket | null = null;
-let nextId = 1;
-let current = 0;
-let steps: HTMLElement[] = [];
-const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+type StepKey = "role" | "identity" | "control" | "encoder" | "relay" | "finish";
 
-function call<T>(method: string, params?: Params): Promise<T> {
-	return new Promise((resolve, reject) => {
-		if (!ws || ws.readyState !== WebSocket.OPEN) return reject(new Error("not connected"));
-		const id = nextId++;
-		pending.set(id, { resolve: (value) => resolve(value as T), reject });
-		ws.send(JSON.stringify({ id, method, params }));
-	});
-}
+const STEPS: { key: StepKey; title: string; sub: string }[] = [
+	{ key: "role", title: "Role", sub: "Relay, encoder or both" },
+	{ key: "identity", title: "Identity", sub: "Name and color" },
+	{ key: "control", title: "Control server", sub: "Optional" },
+	{ key: "encoder", title: "Encoder", sub: "Pipeline and SRT" },
+	{ key: "relay", title: "Relay", sub: "SRTLA settings" },
+	{ key: "finish", title: "Review", sub: "Save configuration" },
+];
 
-function selectedRole(): Role | undefined {
-	return new FormData(byId<HTMLFormElement>("setup-form")).get("role") as Role | undefined;
-}
-
-/**
- * Only required fields in *visible* steps may block submission — a hidden
- * required control rejects the form save with no visible feedback.
- */
-function applyRequired(role: Role | undefined): void {
-	const form = byId<HTMLFormElement>("setup-form");
-	const visible = (el: HTMLElement) => !el.closest<HTMLElement>(".wizard-step")?.hidden;
-	const fields: Record<string, boolean> = {
-		pipeline: role !== "relay",
-		audioSource: role !== "relay",
-		encoderHost: role === "encoder",
-		encoderPort: role === "encoder",
-		listenPort: true,
-		srtlaRemoteHost: role !== "encoder",
-		srtlaRemotePort: role !== "encoder",
-	};
-	for (const [name, force] of Object.entries(fields)) {
-		const input = form.elements.namedItem(name) as HTMLElement | null;
-		if (input) (input as HTMLInputElement).required = visible(input) && force;
-	}
-}
-
-function rebuildSteps(): void {
-	const role = selectedRole();
-	steps = [...document.querySelectorAll<HTMLElement>(".wizard-step")].filter((step) => {
-		if (step.dataset.step === "encoder") return role !== "relay";
-		if (step.dataset.step === "relay") return role !== "encoder";
-		return true;
-	});
-	const fieldsets = new Map(steps.map((step) => [step.dataset.step, step] as const));
-	for (const item of document.querySelectorAll<HTMLElement>(".wiz-item")) {
-		item.hidden = !fieldsets.has(item.dataset.step);
-		item.className = "wiz-item";
-	}
-	const combined = role === "combined";
-	for (const field of document.querySelectorAll<HTMLElement>(".encoder-target")) field.hidden = combined;
-	current = Math.min(current, steps.length - 1);
-	applyRequired(role);
-	renderStep();
-}
-
-function renderStep(): void {
-	for (const step of document.querySelectorAll<HTMLElement>(".wizard-step")) step.hidden = step !== steps[current];
-	const items = [...document.querySelectorAll<HTMLElement>(".wiz-item")].filter((item) => !item.hidden);
-	items.forEach((item, i) => {
-		item.className = `wiz-item ${i < current ? "done" : i === current ? "current" : "upcoming"}`;
-		item.querySelector(".wiz-dot")!.textContent = i < current ? "✓" : String(i + 1);
-	});
-	byId<HTMLButtonElement>("previous").hidden = current === 0;
-	const last = current === steps.length - 1;
-	byId<HTMLButtonElement>("next").hidden = last;
-	byId<HTMLButtonElement>("complete").hidden = !last;
-}
-
-function populate(info: SetupInfo): void {
-	if (!info.required) {
-		location.replace("../");
-		return;
-	}
-	const form = byId<HTMLFormElement>("setup-form");
-	(form.elements.namedItem("hostname") as HTMLInputElement).value = info.hostname;
-	(form.elements.namedItem("color") as HTMLInputElement).value = info.color;
-	m.render(form.elements.namedItem("pipeline") as HTMLSelectElement, info.pipelines.map((item) => m("option", { value: item.id }, item.id)));
-	m.render(form.elements.namedItem("audioSource") as HTMLSelectElement, info.audioSources.map((item) => m("option", { value: item.id }, item.name)));
-	rebuildSteps();
-}
-
-function connect(): void {
-	const url = new URL("../ws", location.href);
-	url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
-	ws = new WebSocket(url);
-	ws.onopen = async () => {
-		byId("conn").textContent = "connected";
-		byId("conn").className = "badge on";
-		try { populate(await call<SetupInfo>("setup.get")); }
-		catch (error: unknown) { byId("result").textContent = error instanceof Error ? error.message : String(error); }
-	};
-	ws.onmessage = (event) => {
-		const message = JSON.parse(String(event.data));
-		if (message.type !== "response") return;
-		const request = pending.get(message.id);
-		if (!request) return;
-		pending.delete(message.id);
-		message.ok ? request.resolve(message.result) : request.reject(new Error(message.error));
-	};
-	ws.onclose = () => {
-		byId("conn").textContent = "disconnected";
-		byId("conn").className = "badge off";
-		for (const request of pending.values()) request.reject(new Error("connection closed"));
-		pending.clear();
-		setTimeout(connect, 2_000);
-	};
-}
-
-byId<HTMLFormElement>("setup-form").addEventListener("change", (event) => {
-	if ((event.target as HTMLInputElement).name === "role") rebuildSteps();
-	if ((event.target as HTMLInputElement).name === "color") {
-		document.documentElement.style.setProperty("--header-color", (event.target as HTMLInputElement).value);
-	}
-});
-byId<HTMLButtonElement>("next").onclick = () => {
-	const inputs = [...steps[current].querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select")];
-	if (!inputs.every((input) => input.reportValidity())) return;
-	current++;
-	renderStep();
+// A step applies only for roles where it makes sense
+const stepVisible = (key: StepKey, role: Role | undefined): boolean => {
+	if (key === "encoder") return role !== "relay";
+	if (key === "relay") return role !== "encoder";
+	return true;
 };
-byId<HTMLButtonElement>("previous").onclick = () => {
-	current--;
-	renderStep();
+
+const HOSTNAME_RE = /^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/;
+const inRange = (value: string, min: number, max: number) => {
+	const n = Number(value);
+	return value !== "" && n >= min && n <= max;
 };
-byId<HTMLFormElement>("setup-form").onsubmit = async (event) => {
-	event.preventDefault();
-	const form = event.currentTarget as HTMLFormElement;
-	const data = new FormData(form);
-	const role = data.get("role") as Role;
-	const button = byId<HTMLButtonElement>("complete");
-	button.disabled = true;
-	try {
-		await call("setup.complete", {
-			role,
-			hostname: data.get("hostname"),
-			color: data.get("color"),
-			remoteUrl: data.get("remoteUrl"),
-			remoteToken: data.get("remoteToken"),
-			...(role !== "relay" ? {
-				pipeline: data.get("pipeline"),
-				maxBitrate: Number(data.get("maxBitrate")),
-				audioSource: data.get("audioSource"),
-				audioCodec: data.get("audioCodec"),
-				delay: Number(data.get("delay")),
-				encoderHost: data.get("encoderHost"),
-				encoderPort: Number(data.get("encoderPort")),
-				latency: Number(data.get("latency")),
-				streamid: data.get("streamid"),
-				bitrateOverlay: data.get("bitrateOverlay") === "on",
-			} : {}),
-			...(role !== "encoder" ? {
-				listenPort: Number(data.get("listenPort")),
-				srtlaRemoteHost: data.get("srtlaRemoteHost"),
-				srtlaRemotePort: Number(data.get("srtlaRemotePort")),
-				srtlaMode: data.get("srtlaMode"),
-				srtlaQuality: data.get("srtlaQuality") === "on",
-			} : {}),
-			autostart: data.get("autostart") === "on",
+
+const state = {
+	connected: false,
+	loaded: false,
+	current: 0,
+	role: undefined as Role | undefined,
+	hostname: "",
+	color: "#0f1115",
+	remoteUrl: "",
+	remoteToken: "",
+	pipeline: "",
+	maxBitrate: "5000",
+	audioSource: "",
+	audioCodec: "aac",
+	delay: "0",
+	encoderHost: "",
+	encoderPort: "6000",
+	latency: "2000",
+	streamid: "",
+	bitrateOverlay: false,
+	listenPort: "6000",
+	srtlaRemoteHost: "",
+	srtlaRemotePort: "5000",
+	srtlaMode: "enhanced",
+	srtlaQuality: true,
+	autostart: false,
+	pipelines: [] as Pipeline[],
+	audioSources: [] as AudioSource[],
+	message: "",
+	saving: false,
+	saved: false,
+};
+
+const num = (s: string): number => (s === "" ? 0 : Number(s));
+
+const visibleSteps = () => STEPS.filter((s) => stepVisible(s.key, state.role));
+
+/** A step passes when every mandatory field in it is satisfied (same rules as the
+ * native `required`/min/max constraints the old markup carried). */
+function stepValid(key: StepKey): boolean {
+	switch (key) {
+		case "role":
+			return !!state.role;
+		case "identity":
+			return HOSTNAME_RE.test(state.hostname);
+		case "encoder":
+			if (!state.pipeline || !state.audioSource) return false;
+			if (!inRange(state.maxBitrate, 300, 30000) || !inRange(state.latency, 100, 10000)) return false;
+			if (state.role === "encoder") return !!state.encoderHost && inRange(state.encoderPort, 1, 65535);
+			return true;
+		case "relay": {
+			if (!inRange(state.listenPort, 1, 65535)) return false;
+			if (state.role !== "encoder") return !!state.srtlaRemoteHost && inRange(state.srtlaRemotePort, 1, 65535);
+			return true;
+		}
+		default:
+			return true;
+	}
+}
+
+function goNext(): void {
+	const steps = visibleSteps();
+	if (!stepValid(steps[Math.min(state.current, steps.length - 1)].key)) return;
+	state.current = Math.min(state.current + 1, steps.length - 1);
+	m.redraw();
+}
+
+function goPrev(): void {
+	state.current = Math.max(state.current - 1, 0);
+	m.redraw();
+}
+
+// The wizard is served at /d/<id>/, so the viewer socket is "ws" relative to it (settings uses "../ws").
+const rpc = new RpcClient(() => socketUrl("ws"));
+rpc.on("open", () => {
+	state.connected = true;
+	m.redraw();
+	rpc
+		.call<SetupInfo>("setup.get")
+		.then((info) => {
+			if (!info.required) {
+				// device is already configured — the same URL now serves the device page
+				location.replace("./");
+				return;
+			}
+			state.hostname = info.hostname;
+			state.color = info.color;
+			state.pipelines = info.pipelines;
+			state.audioSources = info.audioSources;
+			state.loaded = true;
+			document.documentElement.style.setProperty("--header-color", state.color);
+			state.current = Math.min(state.current, visibleSteps().length - 1);
+			m.redraw();
+		})
+		.catch((error: unknown) => {
+			state.message = error instanceof Error ? error.message : String(error);
+			m.redraw();
 		});
-		form.hidden = true;
-		byId("result").textContent = "Configuration saved. Restart the service to apply the selected role, hostname and control server.";
-	} catch (error: unknown) {
-		byId("result").textContent = error instanceof Error ? error.message : String(error);
-		button.disabled = false;
+});
+rpc.on("close", () => {
+	state.connected = false;
+	m.redraw();
+});
+
+async function complete(): Promise<void> {
+	state.saving = true;
+	state.message = "";
+	m.redraw();
+	const { role, hostname, color, remoteUrl, remoteToken } = state;
+	const payload: Params = { role, hostname, color, remoteUrl, remoteToken, autostart: state.autostart };
+	if (role !== "relay") {
+		Object.assign(payload, {
+			pipeline: state.pipeline,
+			maxBitrate: num(state.maxBitrate),
+			audioSource: state.audioSource,
+			audioCodec: state.audioCodec,
+			delay: num(state.delay),
+			encoderHost: state.encoderHost,
+			encoderPort: num(state.encoderPort),
+			latency: num(state.latency),
+			streamid: state.streamid,
+			bitrateOverlay: state.bitrateOverlay,
+		});
 	}
+	if (role !== "encoder") {
+		Object.assign(payload, {
+			listenPort: num(state.listenPort),
+			srtlaRemoteHost: state.srtlaRemoteHost,
+			srtlaRemotePort: num(state.srtlaRemotePort),
+			srtlaMode: state.srtlaMode,
+			srtlaQuality: state.srtlaQuality,
+		});
+	}
+	try {
+		await rpc.call("setup.complete", payload);
+		state.saved = true;
+		state.message = "Configuration saved. Restart the service to apply the selected role, hostname and control server.";
+	} catch (error: unknown) {
+		state.message = error instanceof Error ? error.message : String(error);
+	} finally {
+		state.saving = false;
+		m.redraw();
+	}
+}
+
+// -- Role card icons -----------------------------------------------------------
+const roleIcon = (shape: "encoder" | "relay" | "combined"): m.Vnode =>
+	m(
+		"svg",
+		{
+			class: "role-icon",
+			viewbox: "0 0 24 24",
+			width: "36",
+			height: "36",
+			fill: "none",
+			stroke: "currentColor",
+			"stroke-width": "1.6",
+			"stroke-linecap": "round",
+			"stroke-linejoin": "round",
+			"aria-hidden": "true",
+		},
+		{
+			encoder: [m("rect", { x: "2", y: "7", width: "13", height: "10", rx: "2" }), m("path", { d: "m15 11 7-3v8l-7-3z" })],
+			relay: [
+				m("rect", { x: "1.5", y: "9", width: "7", height: "6", rx: "1.5" }),
+				m("rect", { x: "15.5", y: "9", width: "7", height: "6", rx: "1.5" }),
+				m("path", { d: "M9 12h6" }),
+				m("path", { d: "m13.5 9.5 2.5 2.5-2.5 2.5" }),
+				m("path", { d: "m10.5 9.5-2.5 2.5 2.5 2.5" }),
+			],
+			combined: [
+				m("rect", { x: "1.5", y: "8.5", width: "10", height: "7", rx: "1.5" }),
+				m("path", { d: "m11.5 11 4-2v4l-4-2z" }),
+				m("path", { d: "M17.5 12H23" }),
+				m("path", { d: "m21 10 2 2-2 2" }),
+			],
+		}[shape],
+	);
+
+const roleCard = (value: Role, name: string, tagline: string, shape: "encoder" | "relay" | "combined"): m.Vnode =>
+	m(
+		"label.role-card",
+		m("input", {
+			type: "radio",
+			name: "role",
+			value,
+			required: true,
+			checked: state.role === value,
+			onchange: () => {
+				state.role = value;
+				m.redraw();
+			},
+		}),
+		roleIcon(shape),
+		m("span.role-name", name),
+		m("span.role-tagline", tagline),
+	);
+
+// -- One fieldset per step -----------------------------------------------------
+function stepBody(key: StepKey): m.Vnode {
+	switch (key) {
+		case "role":
+			return m(
+				"fieldset.wizard-step",
+				{ "data-step": key },
+				m("h2.wiz-heading", "Device role"),
+				m("p.wiz-desc", "Choose how this device streams. The role is applied after the configuration is saved."),
+				roleCard("encoder", "Encoder", "Captures a GStreamer pipeline and sends it over SRT", "encoder"),
+				roleCard("relay", "Relay", "Receives streams and forwards them with SRTLA", "relay"),
+				roleCard("combined", "Combined", "Encodes and relays in a single service", "combined"),
+			);
+		case "identity":
+			return m(
+				"fieldset.wizard-step",
+				{ "data-step": key },
+				m("h2.wiz-heading", "Identity and appearance"),
+				m("p.wiz-desc", "Give this device its name and look. The hostname identifies it on the control server and the header color themes its status page."),
+				m(
+					"label",
+					"Hostname",
+					m("input", {
+						name: "hostname",
+						required: true,
+						pattern: "[A-Za-z0-9][A-Za-z0-9.-]{0,62}",
+						title: "Letters, digits, dots and dashes; must start with a letter or digit, max 63 chars",
+						value: state.hostname,
+						oninput: (e: Event) => (state.hostname = (e.target as HTMLInputElement).value),
+					}),
+				),
+				m(
+					"label",
+					"Header color",
+					m("input", {
+						name: "color",
+						type: "color",
+						value: state.color,
+						oninput: (e: Event) => {
+							state.color = (e.target as HTMLInputElement).value;
+							document.documentElement.style.setProperty("--header-color", state.color);
+						},
+					}),
+				),
+			);
+		case "control":
+			return m(
+				"fieldset.wizard-step",
+				{ "data-step": key },
+				m("h2.wiz-heading", "Control server"),
+				m("p.wiz-desc", "Optional. Register this device with the central control server for unified monitoring. Leave both fields empty to skip."),
+				m(
+					"label",
+					"Control server URL",
+					m("input", {
+						name: "remoteUrl",
+						placeholder: "wss://control.example/device",
+						value: state.remoteUrl,
+						oninput: (e: Event) => (state.remoteUrl = (e.target as HTMLInputElement).value),
+					}),
+				),
+				m(
+					"label",
+					"Remote token",
+					m("input", {
+						name: "remoteToken",
+						type: "password",
+						autocomplete: "off",
+						value: state.remoteToken,
+						oninput: (e: Event) => (state.remoteToken = (e.target as HTMLInputElement).value),
+					}),
+				),
+			);
+		case "encoder":
+			return m(
+				"fieldset.wizard-step",
+				{ "data-step": key },
+				m("h2.wiz-heading", "Encoder"),
+				m("p.wiz-desc", "Pick the pipeline to capture from and configure the SRT output that is sent to the relay."),
+				m(
+					"label",
+					"Pipeline",
+					m(
+						"select",
+						{ name: "pipeline", required: true, value: state.pipeline, onchange: (e: Event) => (state.pipeline = (e.target as HTMLSelectElement).value) },
+						state.pipelines.map((p) => m("option", { value: p.id }, p.id)),
+					),
+				),
+				m(
+					"label",
+					"Max bitrate (kbps)",
+					m("input", {
+						name: "maxBitrate",
+						type: "number",
+						min: 300,
+						max: 30000,
+						step: 100,
+						required: true,
+						value: state.maxBitrate,
+						oninput: (e: Event) => (state.maxBitrate = (e.target as HTMLInputElement).value),
+					}),
+				),
+				m(
+					"label",
+					"Audio source",
+					m(
+						"select",
+						{ name: "audioSource", required: true, value: state.audioSource, onchange: (e: Event) => (state.audioSource = (e.target as HTMLSelectElement).value) },
+						state.audioSources.map((a) => m("option", { value: a.id }, a.name)),
+					),
+				),
+				m(
+					"label",
+					"Audio codec",
+					m(
+						"select",
+						{ name: "audioCodec", value: state.audioCodec, onchange: (e: Event) => (state.audioCodec = (e.target as HTMLSelectElement).value) },
+						m("option", { value: "aac" }, "AAC"),
+						m("option", { value: "opus" }, "Opus"),
+					),
+				),
+				m(
+					"label",
+					"Audio delay (ms)",
+					m("input", { name: "delay", type: "number", min: -2000, max: 2000, value: state.delay, oninput: (e: Event) => (state.delay = (e.target as HTMLInputElement).value) }),
+				),
+				m(
+					"label.encoder-target",
+					{ hidden: state.role === "combined" },
+					"Relay host",
+					m("input", {
+						name: "encoderHost",
+						placeholder: "192.168.1.10",
+						required: state.role === "encoder",
+						value: state.encoderHost,
+						oninput: (e: Event) => (state.encoderHost = (e.target as HTMLInputElement).value),
+					}),
+				),
+				m(
+					"label.encoder-target",
+					{ hidden: state.role === "combined" },
+					"Relay SRT port",
+					m("input", {
+						name: "encoderPort",
+						type: "number",
+						min: 1,
+						max: 65535,
+						required: state.role === "encoder",
+						value: state.encoderPort,
+						oninput: (e: Event) => (state.encoderPort = (e.target as HTMLInputElement).value),
+					}),
+				),
+				m(
+					"label",
+					"SRT latency (ms)",
+					m("input", {
+						name: "latency",
+						type: "number",
+						min: 100,
+						max: 10000,
+						step: 100,
+						required: true,
+						value: state.latency,
+						oninput: (e: Event) => (state.latency = (e.target as HTMLInputElement).value),
+					}),
+				),
+				m("label", "Stream ID", m("input", { name: "streamid", placeholder: "optional", value: state.streamid, oninput: (e: Event) => (state.streamid = (e.target as HTMLInputElement).value) })),
+				m(
+					"label.check",
+					m("input", {
+						type: "checkbox",
+						name: "bitrateOverlay",
+						checked: state.bitrateOverlay,
+						onchange: (e: Event) => (state.bitrateOverlay = (e.target as HTMLInputElement).checked),
+					}),
+					" Bitrate overlay",
+				),
+			);
+		case "relay":
+			return m(
+				"fieldset.wizard-step",
+				{ "data-step": key },
+				m("h2.wiz-heading", "Relay"),
+				m("p.wiz-desc", "Choose the local SRT port encoders connect to, and the SRTLA endpoint streams are forwarded to."),
+				m(
+					"label",
+					"SRT listen port",
+					m("input", {
+						name: "listenPort",
+						type: "number",
+						min: 1,
+						max: 65535,
+						required: true,
+						value: state.listenPort,
+						oninput: (e: Event) => (state.listenPort = (e.target as HTMLInputElement).value),
+					}),
+				),
+				m(
+					"label",
+					"SRTLA remote host",
+					m("input", {
+						name: "srtlaRemoteHost",
+						placeholder: "rec.example.com",
+						required: state.role !== "encoder",
+						value: state.srtlaRemoteHost,
+						oninput: (e: Event) => (state.srtlaRemoteHost = (e.target as HTMLInputElement).value),
+					}),
+				),
+				m(
+					"label",
+					"SRTLA remote port",
+					m("input", {
+						name: "srtlaRemotePort",
+						type: "number",
+						min: 1,
+						max: 65535,
+						required: state.role !== "encoder",
+						value: state.srtlaRemotePort,
+						oninput: (e: Event) => (state.srtlaRemotePort = (e.target as HTMLInputElement).value),
+					}),
+				),
+				m(
+					"label",
+					"Scheduler",
+					m(
+						"select",
+						{
+							name: "srtlaMode",
+							value: state.srtlaMode,
+							onchange: (e: Event) => (state.srtlaMode = (e.target as HTMLSelectElement).value),
+						},
+						m("option", { value: "enhanced" }, "Enhanced"),
+						m("option", { value: "classic" }, "Classic"),
+					),
+				),
+				m(
+					"label.check",
+					m("input", {
+						type: "checkbox",
+						name: "srtlaQuality",
+						checked: state.srtlaQuality,
+						onchange: (e: Event) => (state.srtlaQuality = (e.target as HTMLInputElement).checked),
+					}),
+					" Quality scoring",
+				),
+			);
+		case "finish":
+			return m(
+				"fieldset.wizard-step",
+				{ "data-step": key },
+				m("h2.wiz-heading", "Review"),
+				m("p.wiz-desc", "Review your choices with Back, then save the configuration."),
+				m(
+					"label.check",
+					m("input", {
+						type: "checkbox",
+						name: "autostart",
+						checked: state.autostart,
+						onchange: (e: Event) => (state.autostart = (e.target as HTMLInputElement).checked),
+					}),
+					" Start the saved stream automatically after restart",
+				),
+			);
+	}
+}
+
+function wizard(): m.Vnode[] {
+	const steps = visibleSteps();
+	const current = Math.min(state.current, steps.length - 1);
+	const last = current === steps.length - 1;
+	return [
+		m(
+			"ol.wizard-stepper",
+			{ id: "stepper" },
+			steps.map((s, i) =>
+				m(
+					"li",
+					{ key: s.key, class: `wiz-item ${i < current ? "done" : i === current ? "current" : "upcoming"}`, "data-step": s.key },
+					m("span.wiz-dot", i < current ? "✓" : String(i + 1)),
+					m("span.wiz-title", s.title),
+					m("span.wiz-sub", s.sub),
+				),
+			),
+		),
+		m(
+			"form",
+			{ id: "setup-form", onsubmit: (e: Event) => { e.preventDefault(); void complete(); } },
+			stepBody(steps[current].key),
+			m("div.break"),
+			m(
+				"div.actions",
+				m("button", { type: "button", id: "previous", class: "secondary", hidden: current === 0, onclick: goPrev }, "Back"),
+				m("button", { type: "button", id: "next", hidden: last, onclick: goNext }, "Next"),
+				m("button", { type: "submit", id: "complete", hidden: !last, disabled: state.saving }, "Save configuration"),
+			),
+		),
+		m("p.muted", { id: "result", role: "status" }, state.saved ? state.message : state.message),
+	];
+}
+
+const App: m.Component<{}, {}> = {
+	view: () =>
+		m(
+			Page,
+			{ title: "Belabox Duo setup", headerRight: badge(state.connected ? "connected" : "disconnected", state.connected ? "on" : "off") },
+			m("section.card", null, state.loaded ? wizard() : m("p.muted", "Loading setup data…")),
+		),
 };
 
-connect();
+m.mount(byId("app"), App);
