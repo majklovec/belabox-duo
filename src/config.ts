@@ -18,7 +18,6 @@ export const REMOTE_ID       = arg("--remote-id", process.env.SRTLA_REMOTE_ID ??
 export const LOG_FILE        = arg("--log-file", join(dirname(STATE_FILE), `${REMOTE_ID}_log.json`));
 export const UPLINKS_FILE    = arg("--uplinks", join(TMP, `${REMOTE_ID}_srtla_ips.txt`));
 export const DRY_RUN         = flag("--dry-run");
-export const API_MODE        = flag("--api");
 export const API_PORT        = intArg("--port", 8085, 1, 65535);
 export const API_HOST        = arg("--host", "127.0.0.1");
 // Extra browser origins allowed to open the WebSocket (comma-separated, `*` = any)
@@ -49,8 +48,8 @@ export const BELACODER_BIN   = arg("--belacoder", process.env.BELACODER_BIN ?? "
 export const PIPELINES_DIR   = arg("--pipelines", process.env.BELACODER_PIPELINES ?? "/usr/share/belacoder/pipelines");
 export const BITRATE_FILE    = arg("--bitrate-file", join(TMP, "belacoder_br"));
 
-// Daemon modes imply monitor; encoder-only devices do no bonding so have nothing to watch
-export const MONITOR         = HAS_RELAY && (flag("--monitor") || API_MODE || !!REMOTE_URL);
+// Encoder-only devices do no bonding so have nothing to watch
+export const MONITOR         = HAS_RELAY;
 export const RELOAD_MODE     = enumArg("--srtla-reload", ["signal", "restart"] as const, "signal");
 // srtla_send JSON-RPC control socket (link stats, mode / quality switching); "" disables it
 export const SRTLA_SOCKET    = arg("--srtla-socket", process.env.SRTLA_CONTROL_SOCKET ?? join(TMP, "srtla_send.sock"));

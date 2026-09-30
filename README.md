@@ -26,16 +26,16 @@ and GStreamer (encoder/combined), and `iproute2` / ModemManager for bonding.
 
 ```sh
 # Relay: local web UI + API on :8085, watches interfaces and reloads srtla_send
-sudo bun client.ts --api --host 0.0.0.0
+sudo bun client.ts --host 0.0.0.0
 
 # Encoder: pick a pipeline and the relay's SRT port in the UI
-bun client.ts --api --role encoder --pipelines /usr/share/belacoder/pipelines
+bun client.ts --role encoder --pipelines /usr/share/belacoder/pipelines
 
 # Combined
-sudo bun client.ts --api --role combined --pipelines /usr/share/belacoder/pipelines
+sudo bun client.ts --role combined --pipelines /usr/share/belacoder/pipelines
 
-# One-shot (relay): set up routing + uplinks file, optionally start srtla_send
-sudo bun client.ts --start-srtla 6000 rec.example.com 5000 --monitor
+# Relay: also start srtla_send immediately on startup
+sudo bun client.ts --start-srtla 6000 rec.example.com 5000
 ```
 
 Open `http://<device>:8085/`. The UI shows only what applies to the role.
@@ -46,7 +46,7 @@ For a local checkout with the bundled binaries, override their paths explicitly:
 sudo SRTLA_REMOTE_TOKEN=token \
   BELACODER_BIN=./belacoder \
   SRTLA_SEND_BIN=./srtla_send \
-  bun client.ts --api --port 8085 \
+  bun client.ts --port 8085 \
   --remote ws://127.0.0.1:8090/device \
   --role combined --pipelines ./pipelines
 ```
@@ -60,12 +60,12 @@ passes them to the command without requiring a persistent shell environment.
 | Option                      | Env                   | Default                          | Notes                                                                                  |
 | --------------------------- | --------------------- | -------------------------------- | -------------------------------------------------------------------------------------- |
 | `--role`                    | `SRTLA_ROLE`          | `relay`                          | `relay`, `encoder`, `combined`                                                         |
-| `--api`, `--host`, `--port` |                       | off, `127.0.0.1`, `8085`         | Local web UI and WebSocket API (`/ws`)                                                 |
+| `--host`, `--port`          |                       | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on                                      |
 | `--allow-origin`            |                       |                                  | Extra browser origins for `/ws` (comma-separated, `*` = any)                           |
 | `--state`                   |                       | `$TMPDIR/srtla_state.json`       | Persist selection, last stream and autostart. **Use a persistent path in production.** |
 | `--config`                  |                       | `modems.json`                    | Optional default bonding selection `{"modems": [...]}` or `{"ips": [...]}`             |
 | `--uplinks`                 |                       | `$TMPDIR/srtla_ips.txt`          | Uplinks file for `srtla_send`                                                          |
-| `--monitor`                 |                       | on with `--api`/`--remote`       | Watch interfaces and reconfigure on change (relay/combined)                            |
+| `--start-srtla`             |                       |                                  | relay/combined: start srtla_send with `<listenPort> <remoteHost> <remotePort>` on boot |
 | `--srtla-reload`            |                       | `signal`                         | `signal` (SIGHUP) or `restart`                                                         |
 | `--srtla-socket`            | `SRTLA_CONTROL_SOCKET`| `$TMPDIR/srtla_send.sock`        | srtla_send control socket (link stats, mode/quality); `""` disables it                 |
 | `--debounce-ms`             |                       | `1500`                           | Interface event debounce                                                               |
