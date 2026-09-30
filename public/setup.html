@@ -1,114 +1,165 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Setup - Belabox Duo</title>
-    <link rel="stylesheet" href="css/style.css" />
-  </head>
-  <body>
-    <header>
-      <h1>Belabox Duo setup</h1>
-      <span id="conn" class="badge off">disconnected</span>
-    </header>
-    <main>
-      <section class="card">
-        <ol id="stepper" class="wizard-stepper">
-          <li class="wiz-item" data-step="role"><span class="wiz-dot"></span><span class="wiz-title">Role</span><span class="wiz-sub">Relay, encoder or both</span></li>
-          <li class="wiz-item" data-step="identity"><span class="wiz-dot"></span><span class="wiz-title">Identity</span><span class="wiz-sub">Name and color</span></li>
-          <li class="wiz-item" data-step="control"><span class="wiz-dot"></span><span class="wiz-title">Control server</span><span class="wiz-sub">Optional</span></li>
-          <li class="wiz-item" data-step="encoder"><span class="wiz-dot"></span><span class="wiz-title">Encoder</span><span class="wiz-sub">Pipeline and SRT</span></li>
-          <li class="wiz-item" data-step="relay"><span class="wiz-dot"></span><span class="wiz-title">Relay</span><span class="wiz-sub">SRTLA settings</span></li>
-          <li class="wiz-item" data-step="finish"><span class="wiz-dot"></span><span class="wiz-title">Review</span><span class="wiz-sub">Save configuration</span></li>
-        </ol>
-        <p id="progress" class="muted"></p>
-        <form id="setup-form">
-          <fieldset class="wizard-step" data-step="role">
-            <legend>1. Device role</legend>
-            <label><input type="radio" name="role" value="relay" required /> Relay</label>
-            <label><input type="radio" name="role" value="encoder" required /> Encoder</label>
-            <label><input type="radio" name="role" value="combined" required /> Combined</label>
-          </fieldset>
 
-          <fieldset class="wizard-step" data-step="identity" hidden>
-            <legend>2. Identity and appearance</legend>
-            <label>Hostname
-              <input name="hostname" required pattern="[A-Za-z0-9](?:[A-Za-z0-9.\-]){0,62}" title="Letters, digits, dots and dashes; must start with a letter or digit, max 63 chars" />
-            </label>
-            <label>Header color <input name="color" type="color" value="#0f1115" /></label>
-          </fieldset>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Setup - Belabox Duo</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
 
-          <fieldset class="wizard-step" data-step="control" hidden>
-            <legend>3. Control server</legend>
-            <label>Control server URL
-              <input name="remoteUrl" placeholder="wss://control.example/device" />
-            </label>
-            <label>Remote token
-              <input name="remoteToken" type="password" autocomplete="off" />
-            </label>
-          </fieldset>
+<body>
+  <header>
+    <h1>Belabox Duo setup</h1>
+    <span id="conn" class="badge off">disconnected</span>
+  </header>
+  <main>
+    <section class="card">
+      <ol id="stepper" class="wizard-stepper">
+        <li class="wiz-item" data-step="role"><span class="wiz-dot"></span><span class="wiz-title">Role</span><span
+            class="wiz-sub">Relay, encoder or both</span></li>
+        <li class="wiz-item" data-step="identity"><span class="wiz-dot"></span><span
+            class="wiz-title">Identity</span><span class="wiz-sub">Name and color</span></li>
+        <li class="wiz-item" data-step="control"><span class="wiz-dot"></span><span class="wiz-title">Control
+            server</span><span class="wiz-sub">Optional</span></li>
+        <li class="wiz-item" data-step="encoder"><span class="wiz-dot"></span><span
+            class="wiz-title">Encoder</span><span class="wiz-sub">Pipeline and SRT</span></li>
+        <li class="wiz-item" data-step="relay"><span class="wiz-dot"></span><span class="wiz-title">Relay</span><span
+            class="wiz-sub">SRTLA settings</span></li>
+        <li class="wiz-item" data-step="finish"><span class="wiz-dot"></span><span class="wiz-title">Review</span><span
+            class="wiz-sub">Save configuration</span></li>
+      </ol>
 
-          <fieldset class="wizard-step" data-step="encoder" hidden>
-            <legend>4. Encoder</legend>
-            <label>Pipeline <select name="pipeline"></select></label>
-            <label>Max bitrate (kbps)
-              <input name="maxBitrate" type="number" min="300" max="30000" step="100" value="5000" />
-            </label>
-            <label>Audio source <select name="audioSource"></select></label>
-            <label>Audio codec
-              <select name="audioCodec"><option value="aac">AAC</option><option value="opus">Opus</option></select>
-            </label>
-            <label>Audio delay (ms)
-              <input name="delay" type="number" min="-2000" max="2000" value="0" />
-            </label>
-            <label class="encoder-target">Relay host
-              <input name="encoderHost" placeholder="192.168.1.10" />
-            </label>
-            <label class="encoder-target">Relay SRT port
-              <input name="encoderPort" type="number" min="1" max="65535" value="6000" />
-            </label>
-            <label>SRT latency (ms)
-              <input name="latency" type="number" min="100" max="10000" step="100" value="2000" />
-            </label>
-            <label>Stream ID <input name="streamid" placeholder="optional" /></label>
-            <label class="check"><input type="checkbox" name="bitrateOverlay" /> Bitrate overlay</label>
-          </fieldset>
 
-          <fieldset class="wizard-step" data-step="relay" hidden>
-            <legend>5. SRTLA relay</legend>
-            <label>SRT listen port
-              <input name="listenPort" type="number" min="1" max="65535" value="6000" />
-            </label>
-            <label>SRTLA remote host
-              <input name="srtlaRemoteHost" placeholder="rec.example.com" />
-            </label>
-            <label>SRTLA remote port
-              <input name="srtlaRemotePort" type="number" min="1" max="65535" value="5000" />
-            </label>
-            <label>Scheduler
-              <select name="srtlaMode"><option value="enhanced">Enhanced</option><option value="classic">Classic</option></select>
-            </label>
-            <label class="check"><input type="checkbox" name="srtlaQuality" checked /> Quality scoring</label>
-          </fieldset>
+      <form id="setup-form">
+        <fieldset class="wizard-step" data-step="role">
+          <h2 class="wiz-heading">Device role</h2>
+          <p class="wiz-desc">Choose how this device streams. The role is applied after the configuration is saved.</p>
+          <label class="role-card">
+            <input type="radio" name="role" value="encoder" required />
+            <svg class="role-icon" viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="7" width="13" height="10" rx="2" />
+              <path d="m15 11 7-3v8l-7-3z" />
+            </svg>
+            <span class="role-name">Encoder</span>
+            <span class="role-tagline">Captures a GStreamer pipeline and sends it over SRT</span>
+          </label>
+          <label class="role-card">
+            <input type="radio" name="role" value="relay" required />
+            <svg class="role-icon" viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="1.5" y="9" width="7" height="6" rx="1.5" />
+              <rect x="15.5" y="9" width="7" height="6" rx="1.5" />
+              <path d="M9 12h6" />
+              <path d="m13.5 9.5 2.5 2.5-2.5 2.5" />
+              <path d="m10.5 9.5-2.5 2.5 2.5 2.5" />
+            </svg>
+            <span class="role-name">Relay</span>
+            <span class="role-tagline">Receives streams and forwards them with SRTLA</span>
+          </label>
+          <label class="role-card">
+            <input type="radio" name="role" value="combined" required />
+            <svg class="role-icon" viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="1.5" y="8.5" width="10" height="7" rx="1.5" />
+              <path d="m11.5 11 4-2v4l-4-2z" />
+              <path d="M17.5 12H23" />
+              <path d="m21 10 2 2-2 2" />
+            </svg>
+            <span class="role-name">Combined</span>
+            <span class="role-tagline">Encodes and relays in a single service</span>
+          </label>
+        </fieldset>
 
-          <fieldset class="wizard-step" data-step="finish" hidden>
-            <legend>Finish</legend>
-            <label class="check">
-              <input type="checkbox" name="autostart" /> Start the saved stream automatically after restart
-            </label>
-            <p>Review your choices with Back, then save the configuration.</p>
-          </fieldset>
+        <fieldset class="wizard-step" data-step="identity" hidden>
+          <h2 class="wiz-heading">Identity and appearance</h2>
+          <p class="wiz-desc">Give this device its name and look. The hostname identifies it on the control server and the header color themes its status page.</p>
+          <label>Hostname
+            <input name="hostname" required pattern="[A-Za-z0-9](?:[A-Za-z0-9.\-]){0,62}"
+              title="Letters, digits, dots and dashes; must start with a letter or digit, max 63 chars" />
+          </label>
+          <label>Header color <input name="color" type="color" value="#0f1115" /></label>
+        </fieldset>
 
-          <div class="break"></div>
-          <div class="actions">
-            <button type="button" id="previous" class="secondary" hidden>Back</button>
-            <button type="button" id="next">Next</button>
-            <button type="submit" id="complete" hidden>Save configuration</button>
-          </div>
-        </form>
-        <p id="result" class="muted" role="status"></p>
-      </section>
-    </main>
-    <script type="module" src="ts/setup.ts"></script>
-  </body>
+        <fieldset class="wizard-step" data-step="control" hidden>
+          <h2 class="wiz-heading">Control server</h2>
+          <p class="wiz-desc">Optional. Register this device with the central control server for unified monitoring. Leave both fields empty to skip.</p>
+          <label>Control server URL
+            <input name="remoteUrl" placeholder="wss://control.example/device" />
+          </label>
+          <label>Remote token
+            <input name="remoteToken" type="password" autocomplete="off" />
+          </label>
+        </fieldset>
+
+        <fieldset class="wizard-step" data-step="encoder" hidden>
+          <h2 class="wiz-heading">Encoder</h2>
+          <p class="wiz-desc">Pick the pipeline to capture from and configure the SRT output that is sent to the relay.</p>
+          <label>Pipeline <select name="pipeline"></select></label>
+          <label>Max bitrate (kbps)
+            <input name="maxBitrate" type="number" min="300" max="30000" step="100" value="5000" />
+          </label>
+          <label>Audio source <select name="audioSource"></select></label>
+          <label>Audio codec
+            <select name="audioCodec">
+              <option value="aac">AAC</option>
+              <option value="opus">Opus</option>
+            </select>
+          </label>
+          <label>Audio delay (ms)
+            <input name="delay" type="number" min="-2000" max="2000" value="0" />
+          </label>
+          <label class="encoder-target">Relay host
+            <input name="encoderHost" placeholder="192.168.1.10" />
+          </label>
+          <label class="encoder-target">Relay SRT port
+            <input name="encoderPort" type="number" min="1" max="65535" value="6000" />
+          </label>
+          <label>SRT latency (ms)
+            <input name="latency" type="number" min="100" max="10000" step="100" value="2000" />
+          </label>
+          <label>Stream ID <input name="streamid" placeholder="optional" /></label>
+          <label class="check"><input type="checkbox" name="bitrateOverlay" /> Bitrate overlay</label>
+        </fieldset>
+
+        <fieldset class="wizard-step" data-step="relay" hidden>
+          <h2 class="wiz-heading">Relay</h2>
+          <p class="wiz-desc">Choose the local SRT port encoders connect to, and the SRTLA endpoint streams are forwarded to.</p>
+          <label>SRT listen port
+            <input name="listenPort" type="number" min="1" max="65535" value="6000" />
+          </label>
+          <label>SRTLA remote host
+            <input name="srtlaRemoteHost" placeholder="rec.example.com" />
+          </label>
+          <label>SRTLA remote port
+            <input name="srtlaRemotePort" type="number" min="1" max="65535" value="5000" />
+          </label>
+          <label>Scheduler
+            <select name="srtlaMode">
+              <option value="enhanced">Enhanced</option>
+              <option value="classic">Classic</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" name="srtlaQuality" checked /> Quality scoring</label>
+        </fieldset>
+
+        <fieldset class="wizard-step" data-step="finish" hidden>
+          <h2 class="wiz-heading">Review</h2>
+          <p class="wiz-desc">Review your choices with Back, then save the configuration.</p>
+          <label class="check">
+            <input type="checkbox" name="autostart" /> Start the saved stream automatically after restart
+          </label>
+        </fieldset>
+
+        <div class="break"></div>
+        <div class="actions">
+          <button type="button" id="previous" class="secondary" hidden>Back</button>
+          <button type="button" id="next">Next</button>
+          <button type="submit" id="complete" hidden>Save configuration</button>
+        </div>
+      </form>
+      <p id="result" class="muted" role="status"></p>
+    </section>
+  </main>
+  <script type="module" src="ts/setup.ts"></script>
+</body>
+
 </html>

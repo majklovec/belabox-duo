@@ -43,8 +43,8 @@ function applyRequired(role: Role | undefined): void {
 		encoderHost: role === "encoder",
 		encoderPort: role === "encoder",
 		listenPort: true,
-		srtlaRemoteHost: role === "relay",
-		srtlaRemotePort: role === "relay",
+		srtlaRemoteHost: role !== "encoder",
+		srtlaRemotePort: role !== "encoder",
 	};
 	for (const [name, force] of Object.entries(fields)) {
 		const input = form.elements.namedItem(name) as HTMLElement | null;
@@ -73,7 +73,6 @@ function rebuildSteps(): void {
 
 function renderStep(): void {
 	for (const step of document.querySelectorAll<HTMLElement>(".wizard-step")) step.hidden = step !== steps[current];
-	byId("progress").textContent = `Step ${current + 1} of ${steps.length}`;
 	const items = [...document.querySelectorAll<HTMLElement>(".wiz-item")].filter((item) => !item.hidden);
 	items.forEach((item, i) => {
 		item.className = `wiz-item ${i < current ? "done" : i === current ? "current" : "upcoming"}`;
@@ -177,7 +176,6 @@ byId<HTMLFormElement>("setup-form").onsubmit = async (event) => {
 			autostart: data.get("autostart") === "on",
 		});
 		form.hidden = true;
-		byId("progress").textContent = "Setup complete";
 		byId("result").textContent = "Configuration saved. Restart the service to apply the selected role, hostname and control server.";
 	} catch (error: unknown) {
 		byId("result").textContent = error instanceof Error ? error.message : String(error);
