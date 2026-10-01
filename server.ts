@@ -31,6 +31,8 @@
  * connect and whenever the device connects or disconnects.
  * The device's event log (`log` events) is cached too, merged with this server's own
  * "Device online / offline" entries (in memory only), and replayed to new viewers as a reset.
+ * Entries are memory-only: a device with no heartbeat for 5 minutes is removed from the
+ * list and reappears from scratch the next time it connects.
  *
  * Auth:
  *   devices  shared token (--device-token / SRTLA_DEVICE_TOKEN) and/or a JSON
@@ -56,8 +58,12 @@ const UI_USER      = arg("--ui-user", process.env.SRTLA_UI_USER ?? "admin");
 const UI_PASSWORD  = arg("--ui-password", process.env.SRTLA_UI_PASSWORD ?? "");
 const NO_AUTH      = flag("--no-auth");
 
+const STALE_DEVICE_MS  = 5 * 60 * 1000;
+const PRUNE_INTERVAL_MS = 30 * 1000;
+
 const REQUEST_TIMEOUT_MS = 60_000;
 const LOG_MAX = 200;
+
 const ID_RE = /^[\w.-]{1,64}$/;
 const ROLES: readonly Role[] = ["relay", "encoder", "combined"];
 const asRole = (v: unknown): Role | undefined => (ROLES as readonly unknown[]).includes(v) ? (v as Role) : undefined;
@@ -514,6 +520,21 @@ const server = Bun.serve({
         },
     },
 });
+
+// A device entry is dropped from the list once it has been silent for this long
+// (lastSeen covers every frame received from the device, refreshed on connect).
+setInterval(() => {
+    const now = Date.now();
+    for (const d of [...devices.values()]) {
+        const seen = d.lastSeen ?? d.connectedAt ?? 0;   // never-heard-from phantoms use epoch 0
+        if (now - seen <= STALE_DEVICE_MS) continue;
+        d.ws?.close(4000, "removed after inactivity");
+        devices.delete(d.id);
+        failPending((p) => p.deviceId === d.id, "device disconnected", 503);
+        server.publish(viewersTopic(d.id), deviceEvent(d));
+        console.log(`[device ${d.id}] removed: no heartbeat for >${STALE_DEVICE_MS / 60000} minutes`);
+    }
+}, PRUNE_INTERVAL_MS);
 
 console.log(`SRTLA control server on http://${HOST}:${server.port}/`);
 console.log(`Relays connect with: --remote ws://<this-host>:${server.port}/device`);
