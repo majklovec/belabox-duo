@@ -1,5 +1,5 @@
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { arg, argFail, argv, enumArg, flag, intArg } from "./args";
 import { REMOTE_URL_RE } from "./validate";
@@ -46,9 +46,12 @@ if (!(ROLES as readonly string[]).includes(ROLE)) argFail("BELABOX_ROLE", ROLE, 
 export const HAS_RELAY       = ROLE === "relay" || ROLE === "combined";
 export const HAS_ENCODER     = ROLE === "encoder" || ROLE === "combined";
 
-export const BELACODER_BIN   = arg("--belacoder", process.env.BELACODER_BIN ?? "belacoder");
-export const PIPELINES_DIR   = arg("--pipelines", process.env.BELACODER_PIPELINES ?? "/usr/share/belacoder/pipelines");
+export const ENCODER_BIN   = arg("--encoder", process.env.ENCODER_BIN ?? "belacoder");
+export const PIPELINES_DIR   = arg("--pipelines", process.env.PIPELINES_DIR ?? "/usr/share/belacoder/pipelines");
 export const BITRATE_FILE    = arg("--bitrate-file", join(TMP, "belacoder_br"));
+// ceracoder replaces belacoder's bitrate file (-b) with a config file (-c); see src/encoder_ceracoder.ts
+export const IS_CERA         = basename(ENCODER_BIN).includes("ceracoder");
+export const CERACODER_CONF  = arg("--ceracoder-conf", join(TMP, "ceracoder.conf"));
 
 // Encoder-only devices do no bonding so have nothing to watch
 export const MONITOR         = HAS_RELAY;

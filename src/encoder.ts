@@ -1,6 +1,10 @@
 /*
- * belacoder management for encoder / combined devices: pipeline discovery,
- * start / stop with automatic restart, and live bitrate changes.
+ * Common encoder management for encoder / combined devices: pipeline
+ * discovery, start / stop with automatic restart, and live bitrate changes.
+ *
+ * The actual encoder binary is belacoder by default; if ENCODER_BIN is
+ * ceracoder (IS_CERA), the encoder-specific pieces in
+ * encoder_belacoder.ts / encoder_ceracoder.ts are swapped accordingly.
  *
  * Pipelines are GStreamer pipeline files under PIPELINES_DIR, including
  * subdirectories (generic/, rk3588/, jetson/, custom/, ...). A pipeline's id
@@ -12,13 +16,15 @@
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative, resolve, sep } from "node:path";
-import { BELACODER_BIN, BITRATE_FILE, DRY_RUN, PIPELINES_DIR } from "./config";
+import { basename, join, relative, resolve, sep } from "node:path";
+import { ENCODER_BIN, DRY_RUN, IS_CERA, PIPELINES_DIR } from "./config";
 import { logEvent } from "./eventlog";
 import { t } from "./i18n";
 import { notifyStateChange, saveState, state } from "./state";
 import { Supervisor } from "./supervisor";
 import { errorMessage, readLines } from "./util";
+import { spawnBelacoder, writeBitrateFile } from "./encoder_belacoder";
+import { spawnCeracoder, writeCeraConf } from "./encoder_ceracoder";
 
 export const MIN_BITRATE_KBPS = 300;
 export const MAX_BITRATE_KBPS = 30_000;
@@ -176,50 +182,24 @@ export async function resolvePipeline(id: string): Promise<string> {
 // ----------------------------------------------------------------------
 // Process management
 // ----------------------------------------------------------------------
-const supervisor = new Supervisor("Encoder", RESTART_DELAY_MS, onBelacoderExit);
+const supervisor = new Supervisor("Encoder", RESTART_DELAY_MS, onEncoderExit);
 
 export function encoderStatus(): EncoderState {
     if (supervisor.wanted) return state.encoder;
     return { running: false, config: state.encoder.config, lastError: state.encoder.lastError };
 }
 
-async function writeBitrateFile(kbps: number): Promise<void> {
-    const content = `${MIN_BITRATE_KBPS * 1000}\n${kbps * 1000}\n`;
-    if (DRY_RUN) {
-        console.log(`[DRY-RUN] write ${BITRATE_FILE}: ${content.replace(/\n/g, " ")}`);
-        return;
-    }
-    await Bun.write(BITRATE_FILE, content);
+// Both encoders re-read their settings on SIGHUP while running.
+export function signalEncoderReload(): void {
+    if (supervisor.running) supervisor.pid && process.kill(supervisor.pid, "SIGHUP");
 }
 
-// belacoder logs a lot; keep the last line that looks like a problem for the UI
+// The encoder logs a lot; keep the last line that looks like a problem for the UI
 const ERROR_LINE = /error|fail|stall|unable|cannot|could not/i;
 
-/**
- * belacoder exits on SRT / capture failures; keep retrying like belaUI does.
- * The starter re-runs the full start sequence against the given target.
- */
-function spawnBelacoder(cfg: EncoderConfig, pipelineFile: string): Bun.Subprocess {
-    const args = [
-        pipelineFile, cfg.host, cfg.port,
-        "-d", String(cfg.delay),
-        "-b", BITRATE_FILE,
-        "-l", String(cfg.latency),
-    ];
-    if (cfg.streamid) args.push("-s", cfg.streamid);
-    console.log(`Starting ${BELACODER_BIN} ${args.join(" ")}`);
-
-    const p = Bun.spawn([BELACODER_BIN, ...args], { stdin: "ignore", stdout: "inherit", stderr: "pipe" });
-    state.encoder.pid = p.pid;
-
-    // Surface the noisy stderr in the console and keep the last problem line for the UI.
-    void pumpStderr(p.stderr).catch(() => {});
-    return p;
-}
-
-async function pumpStderr(stream: ReadableStream<Uint8Array>): Promise<void> {
+export async function pumpStderr(stream: ReadableStream<Uint8Array>): Promise<void> {
     for await (const line of readLines(stream)) {
-        console.error(`[belacoder] ${line}`);
+        console.error(`[${basename(ENCODER_BIN)}] ${line}`);
         if (ERROR_LINE.test(line) && state.encoder.lastError !== line) {
             state.encoder.lastError = line;
             logEvent("error", "Encoder", line);
@@ -228,14 +208,18 @@ async function pumpStderr(stream: ReadableStream<Uint8Array>): Promise<void> {
     }
 }
 
-function onBelacoderExit(code: number | null): void {
+/**
+ * The encoder exits on SRT / capture failures; keep retrying like belaUI does.
+ * The starter re-runs the full start sequence against the given target.
+ */
+function onEncoderExit(code: number | null): void {
     state.encoder.pid = undefined;
     if (!supervisor.wanted) return;
     logEvent("warn", "Encoder", t("log.encoder_exited", code, RESTART_DELAY_MS / 1000));
     state.encoder.restarts = (state.encoder.restarts ?? 0) + 1;
-    state.encoder.lastError ??= `belacoder exited with code ${code}`;
+    state.encoder.lastError ??= `${basename(ENCODER_BIN)} exited with code ${code}`;
     notifyStateChange();
-    console.warn(`belacoder exited with code ${code}; restarting in ${RESTART_DELAY_MS / 1000}s`);
+    console.warn(`${basename(ENCODER_BIN)} exited with code ${code}; restarting in ${RESTART_DELAY_MS / 1000}s`);
     supervisor.scheduleRestart();
 }
 
@@ -246,17 +230,19 @@ export async function startEncoder(cfg: EncoderConfig): Promise<EncoderState> {
     state.encoder = { running: false, config: cfg };
     await saveState();
     const pipelineFile = await preparePipeline(await resolvePipeline(cfg.pipeline), cfg);
-    await writeBitrateFile(cfg.maxBitrate);
+    if (IS_CERA) await writeCeraConf();
+    else await writeBitrateFile(cfg.maxBitrate);
 
     state.encoder = { running: true, config: cfg, startedAt: Date.now(), restarts: 0 };
     if (DRY_RUN) {
-        console.log(`[DRY-RUN] ${BELACODER_BIN} ${pipelineFile} ${cfg.host} ${cfg.port}`);
+        console.log(`[DRY-RUN] ${ENCODER_BIN} ${pipelineFile} ${cfg.host} ${cfg.port}`);
         supervisor.markWanted();
     } else {
         try {
-            await supervisor.start(() => spawnBelacoder(cfg, pipelineFile));
+            const spawnEncoder = IS_CERA ? spawnCeracoder : spawnBelacoder;
+            await supervisor.start(() => spawnEncoder(cfg, pipelineFile));
         } catch (err: unknown) {
-            const msg = `Cannot start ${BELACODER_BIN}: ${errorMessage(err)}`;
+            const msg = `Cannot start ${ENCODER_BIN}: ${errorMessage(err)}`;
             state.encoder = { running: false, config: cfg, lastError: msg };
             await saveState();
             throw new Error(msg);
@@ -272,11 +258,12 @@ export async function stopEncoder(): Promise<void> {
     await saveState();
 }
 
-/** Change the max bitrate; belacoder re-reads the bitrate file on SIGHUP. */
+/** Change the max bitrate; the encoder re-reads its settings on SIGHUP. */
 export async function setEncoderBitrate(kbps: number): Promise<EncoderState> {
-    await writeBitrateFile(kbps);
     if (state.encoder.config) state.encoder.config = { ...state.encoder.config, maxBitrate: kbps };
-    if (supervisor.running) supervisor.pid && process.kill(supervisor.pid, "SIGHUP");
+    if (IS_CERA) await writeCeraConf();
+    else await writeBitrateFile(kbps);
+    signalEncoderReload();
     await saveState();
     return encoderStatus();
 }

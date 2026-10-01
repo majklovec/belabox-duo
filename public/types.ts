@@ -6,8 +6,10 @@ import type { EncoderState } from "../src/encoder";
 import type { SrtlaOptions, SrtlaTarget, StreamTarget } from "../src/state";
 import type { SrtlaControlState } from "../src/srtlaControl";
 import type { Language } from "../src/i18n";
+import type { CeraConfig } from "../src/encoder_ceracoder";
 
 export type { EncoderState, StreamTarget };
+export type { CeraBalancer, CeraConfig } from "../src/encoder_ceracoder";
 export type { AudioSource, Pipeline } from "../src/encoder";
 export type { SrtlaLinkStats, SrtlaMode, SrtlaStats, SrtlaStatsEvent } from "../src/srtlaControl";
 import type { AudioSource } from "../src/encoder";
@@ -34,6 +36,7 @@ export interface Status {
 	uplinksFile: string;
 	srtlaControl: SrtlaControlState;
 	monitor: { running: boolean; reloadMode: string };
+	ceracoder: CeraConfig | null;
 }
 
 /** Sent only when the UI is served by the control server (server/) for a remote device. */

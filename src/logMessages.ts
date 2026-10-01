@@ -41,6 +41,7 @@ const METHOD_LOG: Record<string, MethodLogDef> = {
     "encoder.start": { section: "Encoder", action: "Start", done: (_p) => t("mlog.done.started") },
     "encoder.stop": { section: "Encoder", action: "Stop", done: (_p) => t("mlog.done.stopped") },
     "encoder.bitrate": { section: "Encoder", action: "Bitrate change", done: (p) => t("mlog.done.bitrate", p.maxBitrate) },
+    "ceracoder.set": { section: "Encoder", action: "Bitrate control", done: (_p) => t("mlog.done.cera_settings") },
     "stream.start": { section: "Stream", action: "Start", done: (_p) => t("mlog.done.started") },
     "stream.stop": { section: "Stream", action: "Stop", done: (_p) => t("mlog.done.stopped") },
     "srtla.start": { section: "SRTLA", action: "Start", done: (_p) => t("mlog.done.started") },

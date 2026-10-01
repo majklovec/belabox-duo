@@ -31,6 +31,9 @@
  *   encoder.status, encoder.start {pipeline, host, port, maxBitrate?, latency?, delay?, streamid?,
  *                                  audioSource?, audioCodec? ("aac"|"opus"), bitrateOverlay?},
  *   encoder.stop, encoder.bitrate {maxBitrate}
+ *   ceracoder.set {balancer? ("adaptive"|"fixed"|"aimd"), minBitrate?, adaptive? {incrStep?,
+ *                   decrStep?, incrInterval?, decrInterval?}, aimd? {incrStep?, decrMult?,
+ *                   incrInterval?, decrInterval?}}   (ceracoder encoder only; applied live)
  *   stream.start {pipeline, remoteHost, remotePort, listenPort?, ...same encoder options},
  *   stream.stop   (combined devices: srtla_send + belacoder in one action)
  *   autostart.set {enabled}   resume the last stream when the service starts
@@ -51,6 +54,7 @@ import {
 	ALLOWED_ORIGINS,
 	API_HOST,
 	API_PORT,
+	IS_CERA,
 	PIPELINES_DIR,
 	RELOAD_MODE,
 	ROLES,
@@ -58,6 +62,7 @@ import {
 	UPLINKS_FILE,
 } from "./config";
 import type { Role } from "./config";
+import { currentCeraConfig, mergeCeraConfig, updateCeraConfig } from "./encoder_ceracoder";
 import {
 	AUDIO_CODECS,
 	AUDIO_DEFAULT,
@@ -216,6 +221,8 @@ async function buildStatus() {
 		uplinksFile: UPLINKS_FILE,
 		srtlaControl: srtlaControlState(),
 		monitor: { running: isMonitorRunning(), reloadMode: RELOAD_MODE },
+		// null when the encoder binary is not ceracoder; the UI hides its settings then
+		ceracoder: IS_CERA ? currentCeraConfig() : null,
 	};
 }
 
@@ -565,6 +572,16 @@ const methods: Record<string, Method> = {
 		return { encoder: await setEncoderBitrate(kbps) };
 	},
 
+	"ceracoder.set": async (p) => {
+		if (!IS_CERA) throw new ApiError("The device encoder is not ceracoder", 400);
+		try {
+			const merged = mergeCeraConfig(currentCeraConfig(), p);
+			return { ceracoder: await updateCeraConfig(merged) };
+		} catch (e: unknown) {
+			throw new ApiError(errorMessage(e), 400);
+		}
+	},
+
 	"stream.start": startStream,
 
 	"stream.stop": async () => {
@@ -631,7 +648,8 @@ const methods: Record<string, Method> = {
 function methodAllowed(name: string): boolean {
 	const role = effectiveRole();
 	if (name.startsWith("stream.")) return role === "combined";
-	if (name.startsWith("encoder.") || name === "pipelines.list") return role !== "relay";
+	if (name.startsWith("encoder.") || name.startsWith("ceracoder.") || name === "pipelines.list")
+		return role !== "relay";
 	if (name.startsWith("modems.") || name.startsWith("srtla.") || name === "reconfigure") return role !== "encoder";
 	return true;
 }

@@ -12,6 +12,7 @@
 import { randomUUID } from "node:crypto";
 
 import { CONFIG_FILE, DRY_RUN } from "./config";
+import type { CeraConfig } from "./encoder_ceracoder";
 import type { EncoderConfig, EncoderState } from "./encoder";
 import { DEFAULT_LANGUAGE, asLanguage, setCurrentLanguage, type Language } from "./i18n";
 import type { ModemConfig } from "./routing";
@@ -63,6 +64,8 @@ export interface DeviceConfig {
     remoteToken?: string;
     pipelineRepositories?: string[];
     encoder?: EncoderConfig;
+    /** ceracoder bitrate-control settings (only with the ceracoder encoder). */
+    ceracoder?: CeraConfig;
     /** Bonding selection (old modems.json). */
     modems?: ModemConfig;
     srtla: SrtlaConfig;
@@ -76,6 +79,7 @@ export interface PersistentState {
     srtlaTarget?: SrtlaTarget;
     srtlaOptions?: SrtlaOptions;
     encoder: EncoderState;
+    ceracoder?: CeraConfig;   // only with the ceracoder encoder
     stream?: StreamTarget;
     autostart?: boolean;      // resume the last stream when the service starts
 }
@@ -120,6 +124,7 @@ function projectConfig(s: PersistentState): DeviceConfig {
     };
     if (settings.remoteToken) cfg.remoteToken = settings.remoteToken;
     if (settings.pipelineRepositories?.length) cfg.pipelineRepositories = settings.pipelineRepositories;
+    if (s.ceracoder) cfg.ceracoder = s.ceracoder;
     return cfg;
 }
 
@@ -147,6 +152,7 @@ function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
             ? { mode: section.mode, quality: section.quality }
             : undefined,
         encoder: { running: false, config: cfg?.encoder },
+        ceracoder: cfg?.ceracoder,
         stream: target,
         autostart: cfg?.autostart,
     };

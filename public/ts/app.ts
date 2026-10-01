@@ -7,7 +7,7 @@ import { type Level, levelIcon, roleTag } from "./icons";
 import { t } from "./i18n";
 import { LOG_MAX, type LogEntry, type LogEvent, label, methodLog } from "../../src/logMessages";
 import type { ModemInfo } from "../../src/modems";
-import type { DeviceInfo, Pipeline, Role, SrtlaLinkStats, SrtlaStats, SrtlaStatsEvent, Status } from "../types";
+import type { CeraBalancer, CeraConfig, DeviceInfo, Pipeline, Role, SrtlaLinkStats, SrtlaStats, SrtlaStatsEvent, Status } from "../types";
 import { RpcClient, RpcError, socketUrl } from "./services/rpc";
 import { errorMessage } from "../../src/util";
 import type { Params } from "./services/rpc";
@@ -83,6 +83,17 @@ const st = {
 	audioSource: "",
 	audioCodec: "aac",
 	bitrateOverlay: false,
+	// Ceracoder bitrate-control form (the card only renders it when the device runs ceracoder)
+	ceraBalancer: "adaptive" as CeraBalancer,
+	ceraMinBitrate: "",
+	ceraIncrStep: "",
+	ceraDecrStep: "",
+	ceraIncrInterval: "",
+	ceraDecrInterval: "",
+	ceraAimdIncrStep: "",
+	ceraDecrMult: "",
+	ceraAimdIncrInterval: "",
+	ceraAimdDecrInterval: "",
 	pipelines: [] as Pipeline[],
 	pipelineDir: "",
 	autostartBusy: false,
@@ -109,6 +120,7 @@ const STATE_BUTTONS: Record<string, (s: Status) => boolean> = {
 	"srtla-start": (s) => !s.state.srtla.running,
 	"srtla-stop": (s) => s.state.srtla.running,
 	"srtla-reload": (s) => s.state.srtla.running,
+	"ceracoder-apply": (s) => !!s.ceracoder,
 };
 // Status pushes are debounced; keep a finished action's button disabled until the new state
 // arrives (or this long, if the action changed nothing) so it does not flicker back on
@@ -195,7 +207,10 @@ rpc.on("log", (data) => applyLog(data as LogEvent));
 const optionalNumber = (v: string) => (v === "" ? undefined : Number(v));
 
 // Form fields the device's status can prefill, and the DOM id of each input (for the focus check).
-type StField = "listenPort" | "remoteHost" | "remotePort" | "encHost" | "encPort" | "maxBitrate" | "latency" | "delay" | "streamid";
+type StField =
+	| "listenPort" | "remoteHost" | "remotePort" | "encHost" | "encPort" | "maxBitrate" | "latency" | "delay" | "streamid"
+	| "ceraBalancer" | "ceraMinBitrate" | "ceraIncrStep" | "ceraDecrStep" | "ceraIncrInterval" | "ceraDecrInterval"
+	| "ceraAimdIncrStep" | "ceraDecrMult" | "ceraAimdIncrInterval" | "ceraAimdDecrInterval";
 const FIELD_DNS: Record<StField, string> = {
 	listenPort: "srt-listenPort",
 	remoteHost: "srtla-remoteHost",
@@ -206,6 +221,16 @@ const FIELD_DNS: Record<StField, string> = {
 	latency: "enc-latency",
 	delay: "enc-delay",
 	streamid: "enc-streamid",
+	ceraBalancer: "cera-balancer",
+	ceraMinBitrate: "cera-minBitrate",
+	ceraIncrStep: "cera-incrStep",
+	ceraDecrStep: "cera-decrStep",
+	ceraIncrInterval: "cera-incrInterval",
+	ceraDecrInterval: "cera-decrInterval",
+	ceraAimdIncrStep: "cera-aimdIncrStep",
+	ceraDecrMult: "cera-decrMult",
+	ceraAimdIncrInterval: "cera-aimdIncrInterval",
+	ceraAimdDecrInterval: "cera-aimdDecrInterval",
 };
 
 /** Fill an empty, unfocused form field from the device's last known settings (write goes to `st`). */
@@ -213,7 +238,7 @@ function prefill(field: StField, value: string | number | undefined): void {
 	if (st[field]) return;                                     // the user (or a prior sync) already set it
 	if (document.activeElement?.id === FIELD_DNS[field]) return; // never clobber a field the user is typing in
 	if (value === undefined || value === "" || value == null) return;
-	st[field] = String(value);
+	(st as Record<StField, string>)[field] = String(value);
 }
 
 function applyStatus(status: Status): void {
@@ -265,6 +290,21 @@ function syncFromStatus(status: Status): void {
 	} else if (!st.audioSource && !touched.has("audio-source") && cfg?.audioSource && status.audioSources.some((a) => a.id === cfg.audioSource)) st.audioSource = cfg.audioSource;
 	if (!touched.has("audio-codec") && cfg?.audioCodec) st.audioCodec = cfg.audioCodec;
 	if (!touched.has("bitrate-overlay") && cfg) st.bitrateOverlay = !!cfg.bitrateOverlay;
+
+	// ceracoder settings exist only when the device runs the ceracoder encoder
+	const cera = status.ceracoder;
+	if (cera) {
+		prefill("ceraBalancer", cera.balancer);
+		prefill("ceraMinBitrate", cera.minBitrate);
+		prefill("ceraIncrStep", cera.adaptive.incrStep);
+		prefill("ceraDecrStep", cera.adaptive.decrStep);
+		prefill("ceraIncrInterval", cera.adaptive.incrInterval);
+		prefill("ceraDecrInterval", cera.adaptive.decrInterval);
+		prefill("ceraAimdIncrStep", cera.aimd.incrStep);
+		prefill("ceraDecrMult", cera.aimd.decrMult);
+		prefill("ceraAimdIncrInterval", cera.aimd.incrInterval);
+		prefill("ceraAimdDecrInterval", cera.aimd.decrInterval);
+	}
 }
 
 async function loadPipelines(): Promise<void> {
@@ -308,6 +348,26 @@ async function encoderStart(): Promise<void> {
 		if (!st.encHost || !st.encPort) return;
 		void act("encoder-start", "encoder.start", { ...common, host: st.encHost, port: st.encPort });
 	}
+}
+
+async function ceracoderApply(): Promise<void> {
+	if (!stateButtonEnabled("ceracoder-apply")) return;
+	void act("ceracoder-apply", "ceracoder.set", {
+		balancer: st.ceraBalancer,
+		minBitrate: optionalNumber(st.ceraMinBitrate),
+		adaptive: {
+			incrStep: optionalNumber(st.ceraIncrStep),
+			decrStep: optionalNumber(st.ceraDecrStep),
+			incrInterval: optionalNumber(st.ceraIncrInterval),
+			decrInterval: optionalNumber(st.ceraDecrInterval),
+		},
+		aimd: {
+			incrStep: optionalNumber(st.ceraAimdIncrStep),
+			decrMult: optionalNumber(st.ceraDecrMult),
+			incrInterval: optionalNumber(st.ceraAimdIncrInterval),
+			decrInterval: optionalNumber(st.ceraAimdDecrInterval),
+		},
+	});
 }
 
 async function srtlaStart(): Promise<void> {
@@ -602,6 +662,140 @@ const App: m.Component<{}, {}> = {
 										}),
 									)
 								: null,
+							status.ceracoder && (
+								m(
+									"div.cera",
+									{ class: "section", style: "margin: 10px 0" },
+									m(".head", { style: "font-weight: 600; margin-bottom: 6px" }, t("dev.cera_section")),
+									field(
+										t("dev.row.balancer"),
+										m(
+											"select",
+											{
+												id: "cera-balancer",
+												value: st.ceraBalancer,
+												onchange: (e: Event) => {
+													st.ceraBalancer = (e.target as HTMLSelectElement).value as CeraBalancer;
+												},
+											},
+											(["adaptive", "fixed", "aimd"] as CeraBalancer[]).map((b) =>
+												m("option", { key: b, value: b }, t(`dev.balancer.${b}`)),
+											),
+										),
+									),
+									field(
+										t("dev.field.min_bitrate"),
+										m("input", {
+											id: "cera-minBitrate",
+											type: "number",
+											min: 300,
+											max: 30000,
+											step: 100,
+											placeholder: "500",
+											value: st.ceraMinBitrate,
+											oninput: (e: Event) => (st.ceraMinBitrate = (e.target as HTMLInputElement).value),
+										}),
+									),
+									st.ceraBalancer === "adaptive" &&
+										field(
+											"adaptive",
+											m(
+												"div",
+												{},
+												m("input", {
+													id: "cera-incrStep",
+													type: "number",
+													min: 1,
+													max: 10000,
+													placeholder: "30",
+													title: t("dev.field.cera_incr_step"),
+													value: st.ceraIncrStep,
+													oninput: (e: Event) => (st.ceraIncrStep = (e.target as HTMLInputElement).value),
+												}),
+												m("input", {
+													id: "cera-decrStep",
+													type: "number",
+													min: 1,
+													max: 10000,
+													placeholder: "100",
+													title: t(`dev.field.cera_decr_step`),
+													value: st.ceraDecrStep,
+													oninput: (e: Event) => (st.ceraDecrStep = (e.target as HTMLInputElement).value),
+												}),
+												m("input", {
+													id: "cera-incrInterval",
+													type: "number",
+													min: 10,
+													max: 60000,
+													placeholder: "500",
+													title: t("dev.field.cera_incr_interval"),
+													value: st.ceraIncrInterval,
+													oninput: (e: Event) => (st.ceraIncrInterval = (e.target as HTMLInputElement).value),
+												}),
+												m("input", {
+													id: "cera-decrInterval",
+													type: "number",
+													min: 10,
+													max: 60000,
+													placeholder: "200",
+													title: t("dev.field.cera_decr_interval"),
+													value: st.ceraDecrInterval,
+													oninput: (e: Event) => (st.ceraDecrInterval = (e.target as HTMLInputElement).value),
+												}),
+											),
+										),
+									st.ceraBalancer === "aimd" &&
+										field(
+											"aimd",
+											m(
+												"div",
+												{},
+												m("input", {
+													id: "cera-aimdIncrStep",
+													type: "number",
+													min: 1,
+													max: 10000,
+													placeholder: "50",
+													title: t("dev.field.cera_incr_step"),
+													value: st.ceraAimdIncrStep,
+													oninput: (e: Event) => (st.ceraAimdIncrStep = (e.target as HTMLInputElement).value),
+												}),
+												m("input", {
+													id: "cera-decrMult",
+													type: "number",
+													min: 0,
+													max: 1,
+													step: 0.01,
+													placeholder: "0.75",
+													title: t(`dev.field.cera_decr_mult`),
+													value: st.ceraDecrMult,
+													oninput: (e: Event) => (st.ceraDecrMult = (e.target as HTMLInputElement).value),
+												}),
+												m("input", {
+													id: "cera-aimdIncrInterval",
+													type: "number",
+													min: 10,
+													max: 60000,
+													placeholder: "500",
+													title: t(`dev.field.cera_incr_interval`),
+													value: st.ceraAimdIncrInterval,
+													oninput: (e: Event) => (st.ceraAimdIncrInterval = (e.target as HTMLInputElement).value),
+												}),
+												m("input", {
+													id: "cera-aimdDecrInterval",
+													type: "number",
+													min: 10,
+													max: 60000,
+													placeholder: "200",
+													title: t(`dev.field.cera_decr_interval`),
+													value: st.ceraAimdDecrInterval,
+													oninput: (e: Event) => (st.ceraAimdDecrInterval = (e.target as HTMLInputElement).value),
+												}),
+											),
+										),
+									m("div.actions", m("button", { type: "button", class: "primary", disabled: !stateButtonEnabled(`ceracoder-apply`), onclick: () => void ceracoderApply() }, t(`dev.apply_cera`))),
+								)
+							),
 							m("div.break"),
 							pipeline?.asrc
 								? field(

@@ -44,7 +44,7 @@ For a local checkout with the bundled binaries, override their paths explicitly:
 
 ```sh
 sudo SRTLA_REMOTE_TOKEN=token \
-  BELACODER_BIN=./belacoder \
+  ENCODER_BIN=./belacoder \
   SRTLA_SEND_BIN=./srtla_send \
   bun client.ts --port 8085 \
   --remote ws://127.0.0.1:8090/device \
@@ -69,7 +69,7 @@ passes them to the command without requiring a persistent shell environment.
 | `--srtla-socket`          | `SRTLA_CONTROL_SOCKET` | `$TMPDIR/srtla_send.sock`        | srtla_send control socket (link stats, mode/quality); `""` disables it                                                                                                 |
 | `--debounce-ms`           |                        | `1500`                           | Interface event debounce                                                                                                                                               |
 | `--pipelines`             | `BELACODER_PIPELINES`  | `/usr/share/belacoder/pipelines` | Pipeline files, including subdirectories                                                                                                                               |
-| `--belacoder`             | `BELACODER_BIN`        | `belacoder`                      |                                                                                                                                                                        |
+| `--belacoder`             | `ENCODER_BIN`          | `belacoder`                      |                                                                                                                                                                        |
 |                           | `SRTLA_SEND_BIN`       | `srtla_send`                     |                                                                                                                                                                        |
 | `--bitrate-file`          |                        | `$TMPDIR/belacoder_br`           | belacoder bitrate file (re-read on SIGHUP)                                                                                                                             |
 | `--remote`                | `SRTLA_REMOTE_URL`     |                                  | Control server, e.g. `wss://ctl.example.com/device`                                                                                                                    |

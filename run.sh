@@ -1,2 +1,2 @@
-sudo REMOTE_TOKEN=token BELACODER_BIN=./ceracoder SRTLA_SEND_BIN=./srtla_send bun client.ts --port 8085 --remote ws://127.0.0.1:8090/device --role encoder --pipelines ./pipeline/
-sudo REMOTE_TOKEN=token BELACODER_BIN=./ceracoder SRTLA_SEND_BIN=./srtla_send bun client.ts --port 8086 --remote ws://127.0.0.1:8090/device --role relay --pipelines ./pipeline/
+sudo REMOTE_TOKEN=token ENCODER_BIN=./ceracoder SRTLA_SEND_BIN=./srtla_send bun client.ts --port 8085 --remote ws://127.0.0.1:8090/device --role encoder --pipelines ./pipeline/
+sudo REMOTE_TOKEN=token ENCODER_BIN=./ceracoder SRTLA_SEND_BIN=./srtla_send bun client.ts --port 8086 --remote ws://127.0.0.1:8090/device --role relay --pipelines ./pipeline/
