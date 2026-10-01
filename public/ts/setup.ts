@@ -189,7 +189,7 @@ const roleIcon = (shape: "encoder" | "relay" | "combined"): m.Vnode =>
 		"svg",
 		{
 			class: "role-icon",
-			viewbox: "0 0 24 24",
+			viewBox: "0 0 24 24",
 			width: "36",
 			height: "36",
 			fill: "none",
@@ -234,6 +234,7 @@ const roleCard = (value: Role, name: string, tagline: string, shape: "encoder" |
 		roleIcon(shape),
 		m("span.role-name", name),
 		m("span.role-tagline", tagline),
+		m("img", { src: "/img/" + shape + ".svg", alt: "", "aria-hidden": "true" })
 	);
 
 // -- One fieldset per step -----------------------------------------------------
@@ -254,7 +255,7 @@ function stepBody(key: StepKey): m.Vnode {
 				"fieldset.wizard-step",
 				{ "data-step": key },
 				m("h2.wiz-heading", "Identity and appearance"),
-				m("p.wiz-desc", "Give this device its name and look. The hostname identifies it on the control server and the header color themes its status page."),
+				m("p.wiz-desc", "Give this device its name and look. It is identified on the control server by a fixed UUID; the hostname is its display name and the header color themes its status page."),
 				m(
 					"label",
 					"Hostname",
@@ -365,7 +366,7 @@ function stepBody(key: StepKey): m.Vnode {
 				m(
 					"label.encoder-target",
 					{ hidden: state.role === "combined" },
-					"Relay host",
+					"Stream host",
 					m("input", {
 						name: "encoderHost",
 						placeholder: "192.168.1.10",
@@ -377,7 +378,7 @@ function stepBody(key: StepKey): m.Vnode {
 				m(
 					"label.encoder-target",
 					{ hidden: state.role === "combined" },
-					"Relay SRT port",
+					"Stream SRT port",
 					m("input", {
 						name: "encoderPort",
 						type: "number",

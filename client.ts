@@ -42,7 +42,7 @@
  *   bun srtla_relay.ts --port 8085
  *   bun srtla_relay.ts --role encoder  --pipelines /usr/share/belacoder/pipelines
  *   bun srtla_relay.ts --role combined --pipelines ./pipeline
- *   SRTLA_REMOTE_TOKEN=secret bun srtla_relay.ts --remote wss://ctl.example.com/device [--remote-id cam1]
+ *   SRTLA_REMOTE_TOKEN=secret bun srtla_relay.ts --remote wss://ctl.example.com/device
  *
  * Reload strategy (default `signal`):
  *   --srtla-reload=signal    send SIGHUP, srtla_send re-reads uplinks file

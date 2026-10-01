@@ -37,12 +37,17 @@ export interface Status {
 
 /** Sent only when the UI is served by the control server (server/) for a remote device. */
 export interface DeviceInfo {
+	/** Stable device uuid (the registry key on the control server) */
 	id: string;
 	role?: Role;
 	online: boolean;
 	connectedAt?: number;
 	lastSeen?: number;
 	address?: string;
+	/** Display name; hostnames change, the id does not */
+	hostname?: string;
+	/** Device header color, used for the list's heartbeat dot */
+	color?: string;
 }
 
 /** One row of the control server's `GET /api/devices`. */

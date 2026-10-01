@@ -11,14 +11,15 @@
  *     with `{ "type": "response", ... }`.
  *
  * On connect a hello is sent first:
- *   { "type": "hello", "id": "<device id>", "role": "relay|encoder|combined", "token"?: "<token>" }
+ *   { "type": "hello", "id": "<device uuid>", "role": "relay|encoder|combined",
+ *     "hostname": "<display name>", "color": "<header color>", "token"?: "<token>" }
  * The token is also sent as `Authorization: Bearer <token>` on the upgrade.
  *
  * Reconnects with exponential backoff; dead links are detected via ping/pong.
  * applyRemoteSettings() re-targets the link (and re-registers the device) at
  * runtime so settings saved in the UI apply without a process restart.
  */
-import { REMOTE_ID, REMOTE_INTERVAL, REMOTE_STATS_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
+import { REMOTE_INTERVAL, REMOTE_STATS_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
 import { addStatusSink, handleRequest, logHistoryEvent, statsEvent, statusEvent } from "./api";
 import { latestSrtlaStats } from "./srtlaControl";
 import { state } from "./state";
@@ -88,9 +89,10 @@ function connect(): void {
     if (stopped) return;
     reconnectTimer = null;
 
-    // The saved hostname/role are the live identity; the startup constants are
-    // the fallback (a hostname change therefore re-registers the device too)
-    const id = state.settings?.hostname ?? REMOTE_ID;
+    // The uuid is the device's stable identity on the control server (hostnames
+    // change); state.ts guarantees one is always assigned; hostname and color
+    // ride along in the hello as display parameters
+    const id = state.settings?.uuid ?? "";
     const role = state.settings?.role ?? ROLE;
     const headers: Record<string, string> = { "x-device-id": id, "x-device-role": role };
     if (target.token) headers.authorization = `Bearer ${target.token}`;
@@ -106,8 +108,10 @@ function connect(): void {
         touch();
         send(JSON.stringify({
             type: "hello",
-            id: state.settings?.hostname ?? REMOTE_ID,
-            role: state.settings?.role ?? ROLE,
+            id,
+            role,
+            hostname: state.settings?.hostname ?? "",
+            color: state.settings?.color ?? "",
             ...(state.encoder.config?.maxBitrate !== undefined
                 ? { maxBitrate: state.encoder.config.maxBitrate }
                 : {}),

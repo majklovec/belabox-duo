@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 140" width="960" height="140" font-family="Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <rect x="10" y="35" width="130" height="70" rx="10" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="75" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">VIDEO INPUT</text>
+  <text x="75" y="86" text-anchor="middle" fill="#64748b" font-size="11">HDMI / SDI</text>
+
+  <path d="M142 70 H180" stroke="#2563eb" stroke-width="2" marker-end="url(#ar3)"/>
+
+  <rect x="184" y="35" width="180" height="70" rx="10" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
+  <text x="274" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">CAPTURE + ENCODE</text>
+  <text x="274" y="86" text-anchor="middle" fill="#475569" font-size="11">H.264 / H.265 hardware</text>
+
+  <path d="M366 70 H404" stroke="#2563eb" stroke-width="2" marker-end="url(#ar3)"/>
+
+  <rect x="408" y="35" width="130" height="70" rx="10" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
+  <text x="473" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">SRT LOCAL</text>
+  <text x="473" y="86" text-anchor="middle" fill="#475569" font-size="10.5">127.0.0.1:9000</text>
+
+  <path d="M540 70 H578" stroke="#2563eb" stroke-width="2" marker-end="url(#ar3)"/>
+
+  <rect x="582" y="35" width="160" height="70" rx="10" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
+  <text x="662" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">SRTLA SENDER</text>
+  <text x="662" y="86" text-anchor="middle" fill="#475569" font-size="11">bonded uplinks</text>
+
+  <path d="M744 70 H782" stroke="#2563eb" stroke-width="2" marker-end="url(#ar3)"/>
+
+  <rect x="786" y="35" width="160" height="70" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="866" y="66" text-anchor="middle" fill="#334155" font-size="13" font-weight="700">REMOTE SERVER</text>
+  <text x="866" y="86" text-anchor="middle" fill="#64748b" font-size="11">SRTLA receiver</text>
+</svg>

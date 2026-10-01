@@ -1,4 +1,4 @@
-import { hostname, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { arg, argFail, argv, enumArg, flag, intArg } from "./args";
@@ -6,17 +6,17 @@ import { arg, argFail, argv, enumArg, flag, intArg } from "./args";
 export { argv };
 
 const TMP = tmpdir();
-const BOOTSTRAP_ID           = arg("--remote-id", process.env.SRTLA_REMOTE_ID ?? hostname());
-export const CONFIG_FILE     = arg("--config", "modems.json");
-export const STATE_FILE      = arg("--state", join(TMP, `${BOOTSTRAP_ID}_state.json`));
+export const CONFIG_FILE = arg("--config", "modems.json");
+// The uuid is auto-assigned once and lives in the state file (see state.ts); load it
+// and the saved startup settings from there instead of taking a command-line override.
+export const STATE_FILE = arg("--state", join(TMP, "srtla_state.json"));
 interface PersistedStartup {
-    settings?: { hostname?: string; role?: string; remoteUrl?: string; remoteToken?: string };
+    settings?: { uuid?: string; hostname?: string; role?: string; remoteUrl?: string; remoteToken?: string };
 }
 const persistedStartup = await Bun.file(STATE_FILE).json().catch(() => ({} as PersistedStartup)) as PersistedStartup;
-export const REMOTE_ID       = arg("--remote-id", process.env.SRTLA_REMOTE_ID ?? persistedStartup.settings?.hostname ?? BOOTSTRAP_ID);
 // Event log shown in the web UI; next to the state file so it persists wherever state does
-export const LOG_FILE        = arg("--log-file", join(dirname(STATE_FILE), `${REMOTE_ID}_log.json`));
-export const UPLINKS_FILE    = arg("--uplinks", join(TMP, `${REMOTE_ID}_srtla_ips.txt`));
+export const LOG_FILE     = arg("--log-file", join(dirname(STATE_FILE), "srtla_log.json"));
+export const UPLINKS_FILE = arg("--uplinks", join(TMP, "srtla_ips.txt"));
 export const DRY_RUN         = flag("--dry-run");
 export const API_PORT        = intArg("--port", 8085, 1, 65535);
 export const API_HOST        = arg("--host", "127.0.0.1");

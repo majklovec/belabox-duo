@@ -75,7 +75,6 @@ passes them to the command without requiring a persistent shell environment.
 | `--bitrate-file`            |                       | `$TMPDIR/belacoder_br`           | belacoder bitrate file (re-read on SIGHUP)                                             |
 | `--remote`                  | `SRTLA_REMOTE_URL`    |                                  | Control server, e.g. `wss://ctl.example.com/device`                                    |
 | `--remote-token`            | `SRTLA_REMOTE_TOKEN`  |                                  | Prefer the env var (keeps it out of `ps`)                                              |
-| `--remote-id`               | `SRTLA_REMOTE_ID`     | hostname                         | Device id shown on the server                                                          |
 | `--remote-interval`         |                       | `30`                             | Periodic status push in seconds (`0` = only on change)                                 |
 | `--remote-stats-interval`   |                       | `2`                              | srtla_send link stats push to the control server in seconds (`0` = off)                |
 | `--dry-run`                 |                       |                                  | Print `ip` / process actions instead of running them                                   |
@@ -112,7 +111,7 @@ devices behind NAT or on mobile networks can be managed.
 SRTLA_DEVICE_TOKEN=devsecret SRTLA_UI_PASSWORD=uipass bun server.ts --port 8090
 
 # on each device
-SRTLA_REMOTE_TOKEN=devsecret bun client.ts --role encoder --remote wss://ctl.example.com/device --remote-id cam1
+SRTLA_REMOTE_TOKEN=devsecret bun client.ts --role encoder --remote wss://ctl.example.com/device
 ```
 
 | Option                       | Env                                  | Notes                                                |
@@ -151,11 +150,15 @@ is at the top of [src/api.ts](src/api.ts). Methods that do not apply to the
 device's role are rejected with code 409.
 
 The cog in the device header opens a separate settings page. It uses
-`settings.get` and `settings.update` for the persistent hostname, role,
-control-server URL, remote token and header color. Saving settings re-dials the
-control server, so the device re-registers there (URL, token, hostname and role
-are all picked up live) without a service restart; the header color changes
-immediately. The local API surface follows the role the process started with,
+`settings.get` and `settings.update` for the persistent device uuid, hostname,
+role, control-server URL, remote token and header color. The uuid is the
+device's fixed identity on the control server — it is auto-assigned
+by the device, saved in the state file and loaded from it on start,
+and can never be changed (it survives hostname changes), and the server keeps the per-uuid parameters
+(display name, color, role) reported by the device in its hello. Saving
+settings re-dials the control server, so the device re-registers there (URL,
+token, hostname and role are all picked up live) without a service restart; the
+header color changes immediately. The local API surface follows the role the process started with,
 so a role change on this device itself takes effect on the next service
 restart. Stream
 settings (pipeline, bitrate, audio, targets and scheduler options) are saved

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 140" width="800" height="140" font-family="Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <rect x="10" y="35" width="140" height="70" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="80" y="66" text-anchor="middle" fill="#334155" font-size="13" font-weight="700">ENCODER</text>
+  <text x="80" y="86" text-anchor="middle" fill="#64748b" font-size="11">remote Orange Pi</text>
+
+  <path d="M152 70 H186" stroke="#2563eb" stroke-width="2" marker-end="url(#ar2)"/>
+
+  <rect x="190" y="35" width="160" height="70" rx="10" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
+  <text x="270" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">SRT LISTENER</text>
+  <text x="270" y="86" text-anchor="middle" fill="#475569" font-size="11">UDP :9000</text>
+
+  <path d="M352 70 H386" stroke="#2563eb" stroke-width="2" marker-end="url(#ar2)"/>
+
+  <rect x="390" y="35" width="180" height="70" rx="10" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
+  <text x="480" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">SRTLA SENDER</text>
+  <text x="480" y="86" text-anchor="middle" fill="#475569" font-size="11">bonded uplinks</text>
+
+  <path d="M572 70 H606" stroke="#2563eb" stroke-width="2" marker-end="url(#ar2)"/>
+
+  <rect x="610" y="35" width="160" height="70" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="690" y="66" text-anchor="middle" fill="#334155" font-size="13" font-weight="700">REMOTE SERVER</text>
+  <text x="690" y="86" text-anchor="middle" fill="#64748b" font-size="11">SRTLA receiver</text>
+</svg>

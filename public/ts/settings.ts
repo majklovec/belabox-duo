@@ -6,6 +6,8 @@ import type { Params } from "./services/rpc";
 import { RpcClient, socketUrl } from "./services/rpc";
 
 interface Settings {
+	/** Stable identity on the control server; hostnames change, the uuid does not */
+	uuid: string;
 	hostname: string;
 	role: string;
 	remoteUrl: string;

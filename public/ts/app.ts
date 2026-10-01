@@ -148,7 +148,7 @@ async function act<T = unknown>(buttonId: string | null, method: string, params?
 function renderDevice(info: DeviceInfo): void {
 	const wasOnline = st.device?.online;
 	st.device = info;
-	document.title = `${info.id} - Belabox Duo`;
+	document.title = `${info.hostname || info.id} - Belabox Duo`;
 	if (wasOnline !== undefined && wasOnline !== info.online && info.online) pipelinesLoaded.value = false;
 	if (!info.online) st.stats = null;
 	m.redraw();
@@ -622,7 +622,7 @@ const App: m.Component<{}, {}> = {
 							!combined && m("div.break"),
 							!combined &&
 								field(
-									"Relay host",
+									"Stream host",
 									m("input", {
 										id: "enc-host",
 										placeholder: "192.168.1.10",
@@ -633,7 +633,7 @@ const App: m.Component<{}, {}> = {
 								),
 							!combined &&
 								field(
-									"Relay SRT port",
+									"Stream SRT port",
 									m("input", {
 										id: "enc-port",
 										placeholder: "6000",
@@ -851,7 +851,7 @@ const App: m.Component<{}, {}> = {
 				title: [
 					st.device ? m("a", { href: "../../", title: "All devices" }, "←") : null,
 					" Belabox Duo ",
-					st.device && m("span.muted", st.device.id),
+					st.device && m("span.muted", st.device.hostname || st.device.id),
 				],
 				headerRight: [
 					m(

@@ -18,18 +18,23 @@
  *                          x-device-role: relay|encoder|combined)
  *   GET  /healthz          liveness (no auth)
  *
+ * Devices are keyed by a stable UUID (hostnames change); the per-device
+ * parameters (hostname, color, role) the server keeps for each uuid arrive in
+ * the device's hello frame:
+ *   { "type": "hello", "id": "<uuid>", "role": …, "hostname": …, "color": … }
+ *
  * Browser requests `{id, method, params}` are forwarded to the device with a
  * server-unique id; responses are routed back with the browser's id restored.
  * Device `event` frames (status, srtla.stats, …) fan out to all viewers of that
  * device; the last status and link stats are cached and replayed to new viewers. Viewers also receive
- * `{type:"event", event:"device", data:{id, online, …}}` on connect and whenever
- * the device connects or disconnects.
+ * `{type:"event", event:"device", data:{id, online, hostname, color, …}}` on
+ * connect and whenever the device connects or disconnects.
  * The device's event log (`log` events) is cached too, merged with this server's own
  * "Device online / offline" entries (in memory only), and replayed to new viewers as a reset.
  *
  * Auth:
  *   devices  shared token (--device-token / SRTLA_DEVICE_TOKEN) and/or a JSON
- *            file of per-device tokens (--devices devices.json: {"cam1": "token"})
+ *            file of per-device tokens (--devices devices.json: {"<device uuid>": "token"})
  *   browser  HTTP Basic (--ui-user / SRTLA_UI_USER, default "admin";
  *            --ui-password / SRTLA_UI_PASSWORD)
  *   --no-auth disables both (local testing only).
@@ -160,7 +165,10 @@ type WsData =
 type Socket = ServerWebSocket<WsData>;
 
 interface Device {
+    /** Stable uuid; the key of this entry. Hostnames change, so the id does not */
     id: string;
+    hostname?: string;        // display name, from the device's hello
+    color?: string;           // the device's header color, from the device's hello
     role?: Role;              // device type, from the upgrade header / hello / status
     ws: Socket | null;
     address?: string;
@@ -197,6 +205,8 @@ const deviceFor = (id: string): Device => {
 
 const deviceInfo = (d: Device): DeviceInfo => ({
     id: d.id,
+    hostname: d.hostname,
+    color: d.color,
     role: d.role,
     online: d.ws !== null,
     connectedAt: d.connectedAt,
@@ -303,11 +313,23 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
 
     if (msg.type === "hello") {
         if (msg.id !== d.id) console.warn(`[device ${d.id}] hello announced a different id (${String(msg.id)}) — ignored`);
+        let changed = false;
         const role = asRole(msg.role);
         if (role && role !== d.role) {
             d.role = role;
-            server.publish(viewersTopic(d.id), deviceEvent(d));
+            changed = true;
         }
+        // The per-uuid parameters the device reports about itself; a color change
+        // re-themes the list dot, a hostname change the display name
+        if (typeof msg.hostname === "string" && msg.hostname !== "") {
+            d.hostname = msg.hostname;
+            changed = true;
+        }
+        if (typeof msg.color === "string" && /^#[0-9a-fA-F]{6}$/.test(msg.color) && msg.color !== d.color) {
+            d.color = msg.color;
+            changed = true;
+        }
+        if (changed) server.publish(viewersTopic(d.id), deviceEvent(d));
     }
 }
 
@@ -393,6 +415,14 @@ const server = Bun.serve({
             const asset = assets.get(path.slice("/assets/".length));
             return asset
                 ? new Response(asset, { headers: { "cache-control": "public, max-age=31536000, immutable" } })
+                : new Response("Not found\n", { status: 404 });
+        }
+
+        // Role diagrams on the setup wizard (e.g. /img/encoder.svg)
+        if (/^\/img\/[a-zA-Z0-9_-]+\.svg$/.test(path)) {
+            const file = Bun.file(new URL(`./public${path}`, import.meta.url));
+            return (await file.exists())
+                ? new Response(file, { headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "no-cache" } })
                 : new Response("Not found\n", { status: 404 });
         }
 

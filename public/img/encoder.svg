@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 140" width="820" height="140" font-family="Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <rect x="10" y="35" width="140" height="70" rx="10" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="80" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">VIDEO INPUT</text>
+  <text x="80" y="86" text-anchor="middle" fill="#64748b" font-size="11">HDMI / SDI</text>
+
+  <path d="M152 70 H196" stroke="#2563eb" stroke-width="2" marker-end="url(#ar1)"/>
+
+  <rect x="200" y="35" width="200" height="70" rx="10" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
+  <text x="300" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">CAPTURE + ENCODE</text>
+  <text x="300" y="86" text-anchor="middle" fill="#475569" font-size="11">H.264 / H.265 hardware</text>
+
+  <path d="M402 70 H446" stroke="#2563eb" stroke-width="2" marker-end="url(#ar1)"/>
+
+  <rect x="450" y="35" width="150" height="70" rx="10" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
+  <text x="525" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">SRT SENDER</text>
+  <text x="525" y="86" text-anchor="middle" fill="#475569" font-size="11">caller mode</text>
+
+  <path d="M602 70 H646" stroke="#2563eb" stroke-width="2" marker-end="url(#ar1)"/>
+
+  <rect x="650" y="35" width="160" height="70" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="730" y="66" text-anchor="middle" fill="#334155" font-size="13" font-weight="700">RELAY</text>
+  <text x="730" y="86" text-anchor="middle" fill="#64748b" font-size="11">remote Orange Pi</text>
+</svg>

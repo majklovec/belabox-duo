@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { DRY_RUN, STATE_FILE } from "./config";
 import type { ModemConfig } from "./routing";
 import type { EncoderState } from "./encoder";
@@ -6,6 +7,8 @@ import type { SrtlaMode } from "./srtlaControl";
 
 /** Device settings that can be changed from the control UI and used on restart. */
 export interface DeviceSettings {
+    /** Stable identity; the device registers with the control server under this uuid */
+    uuid?: string;
     hostname?: string;
     role?: string;
     remoteUrl?: string;
@@ -35,7 +38,7 @@ export interface PersistentState {
 }
 
 const defaults = (): PersistentState => ({
-    settings: {},
+    settings: { uuid: randomUUID() },
     selection: {},
     srtla: { running: false },
     encoder: { running: false },
@@ -77,4 +80,14 @@ export async function completeSetup(): Promise<void> {
 }
 
 /** Shared mutable state; modules mutate its fields and call `saveState()`. */
-export const state: PersistentState = await loadState();
+const state: PersistentState = await loadState();
+
+// Hostnames change; the uuid is the device's permanent identity on the control server.
+// It is auto-assigned (defaults() / backfill for older state files), persisted here
+// and never changes afterwards.
+if (!state.settings?.uuid) {
+    state.settings = { ...state.settings, uuid: randomUUID() };
+    if (!DRY_RUN) await Bun.write(STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+export { state };

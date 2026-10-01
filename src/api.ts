@@ -42,6 +42,7 @@
  *
  * The same protocol is spoken over the outbound remote connection (see remote.ts).
  */
+import { randomUUID } from "node:crypto";
 import type { Server, ServerWebSocket } from "bun";
 import index from "../public/index.html";
 import settings from "../public/settings.html";
@@ -107,6 +108,15 @@ import { cancelAutostart, setAutostart, startCombined, stopCombined } from "./st
 
 const WS_PATH = "/ws";
 const STATUS_TOPIC = "status";
+
+// Role diagrams on the setup wizard (e.g. /img/encoder.svg)
+const IMG_PATH_RE = /^\/img\/[a-zA-Z0-9_-]+\.svg$/;
+async function svgResponse(path: string): Promise<Response> {
+	const file = Bun.file(new URL(`../public${path}`, import.meta.url));
+	return (await file.exists())
+		? new Response(file, { headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "no-cache" } })
+		: new Response("Not found\n", { status: 404 });
+}
 const BROADCAST_DEBOUNCE_MS = 250;
 
 type Params = Record<string, unknown>;
@@ -303,6 +313,8 @@ const methods: Record<string, Method> = {
 		if (!/^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(hostname)) {
 			throw new ApiError("hostname must contain only letters, numbers, dots and hyphens");
 		}
+		// The uuid is auto-assigned from the start (state.ts) and never changes afterwards
+		const uuid = state.settings?.uuid ?? randomUUID();
 		const color = requireString(p, "color");
 		if (!/^#[0-9a-fA-F]{6}$/.test(color)) {
 			throw new ApiError("color must be a six-digit hexadecimal color");
@@ -344,6 +356,7 @@ const methods: Record<string, Method> = {
 		state.autostart = p.autostart === true;
 		state.settings = {
 			...state.settings,
+			uuid,
 			hostname,
 			role,
 			color,
@@ -495,6 +508,7 @@ const methods: Record<string, Method> = {
 
 	"settings.get": () => ({
 		settings: {
+			uuid: state.settings?.uuid ?? "",
 			hostname: state.settings?.hostname ?? "",
 			role: state.settings?.role ?? "",
 			remoteUrl: state.settings?.remoteUrl ?? "",
@@ -507,6 +521,11 @@ const methods: Record<string, Method> = {
 
 	"settings.update": async (p) => {
 		const current = state.settings ?? {};
+		// The uuid is assigned at setup and immutable; the UI only ever echoes it back
+		if (p.uuid !== undefined && p.uuid !== current.uuid) {
+			throw new ApiError("The device uuid can't be changed");
+		}
+		const uuid = current.uuid;
 		const hostname = optionalSettingString(p, "hostname", current.hostname);
 		if (hostname !== undefined && !/^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(hostname)) {
 			throw new ApiError("hostname must contain only letters, numbers, dots and hyphens");
@@ -528,7 +547,7 @@ const methods: Record<string, Method> = {
 			throw new ApiError("color must be a six-digit hexadecimal color");
 		}
 		const remoteChanged = remoteUrl !== current.remoteUrl || remoteToken !== current.remoteToken;
-		state.settings = { ...current, hostname, role, remoteUrl, remoteToken, color };
+		state.settings = { ...current, uuid, hostname, role, remoteUrl, remoteToken, color };
 		await saveState();
 		// Every save re-registers the device on the control server — re-dialing to
 		// the (possibly new) URL so changed token/role/hostname are picked up live.
@@ -546,6 +565,7 @@ const methods: Record<string, Method> = {
 		}
 		return {
 			settings: {
+				uuid: uuid ?? "",
 				hostname: hostname ?? "",
 				role: role ?? "",
 				remoteUrl: remoteUrl ?? "",
@@ -770,10 +790,13 @@ function createApiServer(): void {
 		routes: setupRequired
 			? { "/": setup, "/settings/": settings, "/setup/": setup }
 			: { "/": index, "/settings/": settings, "/setup/": setup },
-		fetch(req, srv) {
+		async fetch(req, srv) {
 			const path = new URL(req.url).pathname;
 			if (path === "/settings") return Response.redirect("/settings/", 308);
 			if (path === "/setup") return Response.redirect("/setup/", 308);
+			if (IMG_PATH_RE.test(path)) {
+				return await svgResponse(path);
+			}
 			if (path !== WS_PATH) {
 				return new Response("Not found\n", { status: 404 });
 			}

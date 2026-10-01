@@ -52,7 +52,17 @@ function row(d: DeviceSummary): m.Vnode {
 	return m(
 		"tr",
 		null,
-		m("td", m("a.device", { href: `d/${encodeURIComponent(d.id)}/` }, d.id)),
+		// The dot wears the device's header color and beats while the link is up;
+		// the uuid is stable, the hostname is the display name (shown when present)
+		m(
+			"td",
+			m(
+				"a.device",
+				{ href: `d/${encodeURIComponent(d.id)}/`, title: d.id },
+				m("span.device-dot", { class: d.online ? "online" : "", style: d.color ? `background:${d.color};color:${d.color}` : "" }),
+				d.hostname || d.id,
+			),
+		),
 		m("td.muted", d.role ? roleTag(d.role) : "—"),
 		m("td", d.online ? badge("online", "on") : badge("offline", "off")),
 		m("td", d.online ? since(d.connectedAt) : `last seen ${since(d.lastSeen)}`),
