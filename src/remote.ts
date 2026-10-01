@@ -20,6 +20,7 @@
  * runtime so settings saved in the UI apply without a process restart.
  */
 import { REMOTE_INTERVAL, REMOTE_STATS_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
+import { asLanguage } from "./i18n";
 import { addStatusSink, handleRequest, logHistoryEvent, statsEvent, statusEvent } from "./api";
 import { latestSrtlaStats } from "./srtlaControl";
 import { state } from "./state";
@@ -112,6 +113,7 @@ function connect(): void {
             role,
             hostname: state.settings?.hostname ?? "",
             color: state.settings?.color ?? "",
+            language: asLanguage(state.settings?.language),
             ...(state.encoder.config?.maxBitrate !== undefined
                 ? { maxBitrate: state.encoder.config.maxBitrate }
                 : {}),

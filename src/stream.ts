@@ -10,6 +10,7 @@
 import { ROLE } from "./config";
 import { type EncoderConfig, encoderStatus, startEncoder, stopEncoder, validateEncoderConfig } from "./encoder";
 import { logEvent } from "./eventlog";
+import { t } from "./i18n";
 import { srtlaStatus, startSrtla, stopSrtla } from "./srtla";
 import { saveState, type StreamTarget, state } from "./state";
 
@@ -90,16 +91,16 @@ export function runAutostart(): void {
         try {
             if (await startSaved()) {
                 console.log("Autostart complete");
-                logEvent("info", "Autostart", "Stream resumed");
+                logEvent("info", "Autostart", t("log.stream_resumed"));
             } else {
                 console.log("Autostart enabled, but no previous stream settings to resume");
-                logEvent("warn", "Autostart", "No previous stream settings to resume");
+                logEvent("warn", "Autostart", t("log.no_stream_settings"));
             }
         } catch (err: unknown) {
             // Capture cards, receivers or uplinks may simply not be ready yet after boot
             const msg = err instanceof Error ? err.message : String(err);
             console.warn(`Autostart failed, retrying in ${AUTOSTART_RETRY_MS / 1000}s:`, msg);
-            logEvent("warn", "Autostart", `Start failed, retrying in ${AUTOSTART_RETRY_MS / 1000}s: ${msg}`);
+            logEvent("warn", "Autostart", t("log.stream_start_retry", AUTOSTART_RETRY_MS / 1000, msg));
             if (state.autostart) retryTimer = setTimeout(() => void attempt(), AUTOSTART_RETRY_MS);
         }
     };

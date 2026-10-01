@@ -58,7 +58,11 @@ export async function flushLog(): Promise<void> {
 }
 
 /** Record an event; a repeat of the latest entry bumps its counter instead of adding one. */
-export function logEvent(level: LogLevel, section: string, message: string): void {
+export function logEvent(
+    level: LogLevel,
+    section: string,
+    message: string,
+): void {
     const at = Date.now();
     const last = entries.at(-1);
     let entry: LogEntry;

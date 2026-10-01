@@ -2,12 +2,19 @@
  * Views are plain `m()` trees driven by per-page state; these helpers keep the markup
  * consistent between pages. */
 import m from "mithril";
+import { LanguageSelect } from "../i18n";
 import type { Child } from "../dom";
 
-/** <header> + <main> page skeleton. Child elements arrive in vnode.children. */
+/** <header> + <main> page skeleton. The header always carries the language selector on
+ * its right edge, followed by the page's own `headerRight` actions. */
 export const Page: m.Component<{ title: m.Children; headerRight?: m.Children }> = {
 	view: (v) => [
-		m("header", null, m("h1", v.attrs.title), v.attrs.headerRight && m("span.actions", v.attrs.headerRight)),
+		m(
+			"header",
+			null,
+			m("h1", v.attrs.title),
+			m("span.actions", LanguageSelect, v.attrs.headerRight),
+		),
 		m("main", v.children),
 	],
 };

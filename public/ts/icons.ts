@@ -1,5 +1,6 @@
 /* Device type and log level icons (inline SVG, stroked with the current text colour). */
 import m from "mithril";
+import { t } from "./i18n";
 import type { Role } from "../types";
 
 // 24×24 outline shapes: a video camera for the encoder, a broadcasting antenna for the relay.
@@ -37,7 +38,8 @@ const LEVEL_SHAPES = {
 
 export type Level = keyof typeof LEVEL_SHAPES;
 
-export const ROLE_LABEL: Record<Role, string> = { relay: "relay", encoder: "encoder", combined: "encoder + relay" };
+/** Translated role label ("relay" / "encoder" / "encoder + relay"). */
+export const roleLabel = (role: Role): string => t(`role.${role}`);
 
 function draw(parts: readonly (readonly [string, Record<string, string>])[], className: string): m.Vnode {
 	return m(
@@ -58,4 +60,4 @@ export function roleIcons(role: Role): m.Vnode[] {
 
 /** Icons followed by the role label, e.g. for a badge or table cell. */
 export const roleTag = (role: Role): m.Vnode =>
-	m("span", { class: "role", title: ROLE_LABEL[role] }, roleIcons(role));
+	m("span", { class: "role", title: roleLabel(role) }, roleIcons(role));

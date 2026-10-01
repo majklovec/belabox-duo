@@ -54,7 +54,9 @@ import { startApiServer } from "./src/api";
 import { HAS_RELAY, MONITOR, REMOTE_URL, ROLE, argv } from "./src/config";
 import { stopEncoder } from "./src/encoder";
 import { flushLog, logEvent } from "./src/eventlog";
+import { t } from "./src/i18n";
 import { startRemote, stopRemote } from "./src/remote";
+import { uiLanguage } from "./src/state";
 import { runAutostart } from "./src/stream";
 import { reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
 import { maybeStartSrtla, reloadSrtla, stopSrtla } from "./src/srtla";
@@ -67,7 +69,7 @@ async function main(): Promise<void> {
     const shutdown = async (signal: string) => {
         console.log(`\nReceived ${signal}, shutting down...`);
         // Before stopRemote so the control server still receives it
-        logEvent("info", "Service", `Stopped (${signal})`);
+        logEvent("info", "Service", t(uiLanguage(), "log.stopped_signal", signal));
         stopRemote();
         await stopInterfaceMonitor();
         await stopEncoder();
@@ -78,13 +80,13 @@ async function main(): Promise<void> {
     process.on("SIGINT",  () => void shutdown("SIGINT"));
     process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
-    logEvent("info", "Service", `Started (${ROLE})`);
+    logEvent("info", "Service", t(uiLanguage(), "log.started", ROLE));
     if (HAS_RELAY) {
         // 1. Prime routing + write uplinks file
         const result = await reconfigure();
         if (!result.ok) {
             console.error("Initial reconfigure failed:", result.error);
-            logEvent("error", "Interfaces", `Initial reconfigure failed: ${result.error}`);
+            logEvent("error", "Interfaces", t(uiLanguage(), "log.reconfigure_failed", result.error));
             await flushLog();
             process.exit(1);
         }

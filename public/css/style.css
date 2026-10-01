@@ -39,6 +39,20 @@ header {
   background: var(--header-color);
 }
 
+/* Language selector in the page header */
+.lang-select {
+  padding: 0.25rem 0.4rem;
+  margin-left: 0.6rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  max-width: 11rem;
+}
+.lang-select:focus {
+  outline-color: var(--accent);
+}
+
 .icon-link {
   display: inline-grid;
   place-items: center;

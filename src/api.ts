@@ -103,7 +103,8 @@ import {
 	srtlaControlState,
 } from "./srtlaControl";
 import type { SrtlaOptions } from "./state";
-import { completeSetup, onStateChange, saveState, setupRequired, state } from "./state";
+import { completeSetup, onStateChange, saveState, setupRequired, state, uiLanguage } from "./state";
+import { asLanguage, setCurrentLanguage, t, LANGUAGES } from "./i18n";
 import { cancelAutostart, setAutostart, startCombined, stopCombined } from "./stream";
 
 const WS_PATH = "/ws";
@@ -299,12 +300,16 @@ const methods: Record<string, Method> = {
 		required: setupRequired,
 		hostname: state.settings?.hostname ?? "",
 		color: state.settings?.color ?? "#0f1115",
+		language: uiLanguage(),
 		pipelines: await listPipelines(),
 		audioSources: await listAudioSources(),
 	}),
 
 	"setup.complete": async (p) => {
 		if (!setupRequired) throw new ApiError("Setup has already been completed", 409);
+		if (p.language !== undefined && !LANGUAGES.includes(p.language as (typeof LANGUAGES)[number])) {
+			throw new ApiError(`language must be one of ${LANGUAGES.join(", ")}`);
+		}
 		const role = requireString(p, "role");
 		if (!(ROLES as readonly string[]).includes(role)) {
 			throw new ApiError(`role must be one of ${ROLES.join(", ")}`);
@@ -362,7 +367,10 @@ const methods: Record<string, Method> = {
 			color,
 			remoteUrl,
 			remoteToken,
+			// Always persisted so the state file carries the UI language from day one
+			language: asLanguage(p.language),
 		};
+		setCurrentLanguage(state.settings!.language);
 		await completeSetup();
 		// Start (or re-target) the control-server link with the saved endpoint
 		if (remoteUrl) applyRemoteSettings(remoteUrl, remoteToken);
@@ -465,7 +473,7 @@ const methods: Record<string, Method> = {
 			throw new ApiError(errorMessage(e), 502);
 		}
 		if (!result.applied && srtlaStatus().running) {
-			logEvent("warn", "SRTLA", "No control socket; the setting applies on the next start");
+			logEvent("warn", "SRTLA", t("log.no_control_socket"));
 		}
 		return result;
 	},
@@ -515,6 +523,7 @@ const methods: Record<string, Method> = {
 			hasRemoteToken: !!state.settings?.remoteToken,
 			color: state.settings?.color ?? "#0f1115",
 			pipelineRepositories: state.settings?.pipelineRepositories ?? [],
+			language: uiLanguage(),
 		},
 		restartRequired: true,
 	}),
@@ -546,8 +555,13 @@ const methods: Record<string, Method> = {
 		if (color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(color)) {
 			throw new ApiError("color must be a six-digit hexadecimal color");
 		}
+		if (p.language !== undefined && !LANGUAGES.includes(p.language as (typeof LANGUAGES)[number])) {
+			throw new ApiError(`language must be one of ${LANGUAGES.join(", ")}`);
+		}
+		const language = asLanguage(p.language === undefined ? current.language : p.language);
 		const remoteChanged = remoteUrl !== current.remoteUrl || remoteToken !== current.remoteToken;
-		state.settings = { ...current, uuid, hostname, role, remoteUrl, remoteToken, color };
+		state.settings = { ...current, uuid, hostname, role, remoteUrl, remoteToken, color, language };
+		setCurrentLanguage(language);
 		await saveState();
 		// Every save re-registers the device on the control server — re-dialing to
 		// the (possibly new) URL so changed token/role/hostname are picked up live.
@@ -559,9 +573,9 @@ const methods: Record<string, Method> = {
 				u.username = u.password = "";
 				target = u.toString();
 			} catch { /* leave as-is */ }
-			logEvent("info", "Settings", `Settings saved; reconnecting to ${target}`);
+			logEvent("info", "Settings", t("log.settings_saved_reconnect", target));
 		} else {
-			logEvent("info", "Settings", "Settings saved");
+			logEvent("info", "Settings", t("mlog.done.settings_saved"));
 		}
 		return {
 			settings: {
@@ -572,6 +586,7 @@ const methods: Record<string, Method> = {
 				hasRemoteToken: !!remoteToken,
 				color: color ?? "#0f1115",
 				pipelineRepositories: state.settings.pipelineRepositories ?? [],
+				language,
 			},
 			restartRequired: true,
 		};
@@ -662,7 +677,7 @@ export async function handleRequest(raw: string | Buffer | ArrayBuffer | Uint8Ar
 		if (code >= 500) console.error(`API error (${method || "?"}):`, err);
 		if (logged) {
 			const { section, action } = methodLog(method);
-			logEvent("error", section, `${action} failed: ${errorMessage(err)}`);
+			logEvent("error", section, t("mlog.failed", action, errorMessage(err)));
 		}
 		return JSON.stringify({
 			type: "response", id, method, ok: false, error: errorMessage(err), code, ...(logged ? { logged } : {}),

@@ -3,6 +3,7 @@
  */
 import { DRY_RUN, RELOAD_MODE, SRTLA_SOCKET, UPLINKS_FILE } from "./config";
 import { logEvent } from "./eventlog";
+import { t } from "./i18n";
 import { type SrtlaOptions, saveState, state } from "./state";
 import {
     prepareSrtlaControl,
@@ -149,7 +150,7 @@ export async function startSrtla(
         srtlaProc = null;
         saveState().catch(() => {});
         if (!wanted) return;
-        logEvent("warn", "SRTLA", `srtla_send exited with code ${code}; restarting in ${RESTART_DELAY_MS / 1000}s`);
+        logEvent("warn", "SRTLA", t("log.srtla_exited", code, RESTART_DELAY_MS / 1000));
         scheduleRestart();
     });
 
@@ -169,7 +170,7 @@ function scheduleRestart(): void {
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             console.error("srtla_send restart failed:", msg);
-            logEvent("error", "SRTLA", `Restart failed: ${msg}`);
+            logEvent("error", "SRTLA", t("log.restart_failed", msg));
             scheduleRestart();
         }
     }, RESTART_DELAY_MS);

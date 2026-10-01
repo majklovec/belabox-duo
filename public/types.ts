@@ -5,6 +5,7 @@ import type { SrtlaState } from "../src/srtla";
 import type { EncoderState } from "../src/encoder";
 import type { SrtlaOptions, SrtlaTarget, StreamTarget } from "../src/state";
 import type { SrtlaControlState } from "../src/srtlaControl";
+import type { Language } from "../src/i18n";
 
 export type { EncoderState, StreamTarget };
 export type { AudioSource, Pipeline } from "../src/encoder";
@@ -48,6 +49,8 @@ export interface DeviceInfo {
 	hostname?: string;
 	/** Device header color, used for the list's heartbeat dot */
 	color?: string;
+	/** UI language the device was set to ("en" | "cs") */
+	language?: Language;
 }
 
 /** One row of the control server's `GET /api/devices`. */

@@ -4,6 +4,7 @@ import type { ModemConfig } from "./routing";
 import type { EncoderState } from "./encoder";
 import type { SrtlaState } from "./srtla";
 import type { SrtlaMode } from "./srtlaControl";
+import { DEFAULT_LANGUAGE, asLanguage, setCurrentLanguage, type Language } from "./i18n";
 
 /** Device settings that can be changed from the control UI and used on restart. */
 export interface DeviceSettings {
@@ -15,6 +16,8 @@ export interface DeviceSettings {
     remoteToken?: string;
     color?: string;
     pipelineRepositories?: string[];
+    /** UI language ("en" | "cs"); absent in state files from older versions, treated as "en". */
+    language?: Language;
 }
 
 /** srtla_send scheduler settings; applied live over the control socket and on every start. */
@@ -38,7 +41,7 @@ export interface PersistentState {
 }
 
 const defaults = (): PersistentState => ({
-    settings: { uuid: randomUUID() },
+    settings: { uuid: randomUUID(), language: DEFAULT_LANGUAGE },
     selection: {},
     srtla: { running: false },
     encoder: { running: false },
@@ -89,5 +92,19 @@ if (!state.settings?.uuid) {
     state.settings = { ...state.settings, uuid: randomUUID() };
     if (!DRY_RUN) await Bun.write(STATE_FILE, JSON.stringify(state, null, 2));
 }
-
 export { state };
+
+// Older state files have no language; normalize so it is always present in the file.
+if (state.settings?.language === undefined) {
+    state.settings = { ...state.settings, language: DEFAULT_LANGUAGE };
+    if (!DRY_RUN) await Bun.write(STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+// Seed the process-wide current language so t()/label() self-resolve to the
+// device's saved UI language from the first log entry onward.
+setCurrentLanguage(state.settings?.language);
+
+/** UI language as persisted in settings (defaults to "en"). */
+export function uiLanguage(): Language {
+    return asLanguage(state.settings?.language);
+}

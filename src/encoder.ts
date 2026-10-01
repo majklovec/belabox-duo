@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { BELACODER_BIN, BITRATE_FILE, DRY_RUN, PIPELINES_DIR } from "./config";
 import { logEvent } from "./eventlog";
+import { t } from "./i18n";
 import { notifyStateChange, saveState, state } from "./state";
 
 export const MIN_BITRATE_KBPS = 300;
@@ -236,7 +237,7 @@ function spawnBelacoder(cfg: EncoderConfig, pipelineFile: string): void {
         if (!wanted) return;
         // belacoder exits on SRT / capture failures; keep retrying like belaUI does
         console.warn(`belacoder exited with code ${code}; restarting in ${RESTART_DELAY_MS / 1000}s`);
-        logEvent("warn", "Encoder", `belacoder exited with code ${code}; restarting in ${RESTART_DELAY_MS / 1000}s`);
+        logEvent("warn", "Encoder", t("log.encoder_exited", code, RESTART_DELAY_MS / 1000));
         state.encoder.restarts = (state.encoder.restarts ?? 0) + 1;
         state.encoder.lastError ??= `belacoder exited with code ${code}`;
         notifyStateChange();
@@ -254,7 +255,7 @@ function scheduleRestart(cfg: EncoderConfig, pipelineFile: string): void {
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             console.error("belacoder restart failed:", msg);
-            logEvent("error", "Encoder", `Restart failed: ${msg}`);
+            logEvent("error", "Encoder", t("log.restart_failed", msg));
             scheduleRestart(cfg, pipelineFile);
         }
     }, RESTART_DELAY_MS);

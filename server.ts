@@ -49,6 +49,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { arg, argFail, flag, intArg } from "./src/args";
 import type { DeviceInfo, DeviceSummary, Role, SrtlaStats, SrtlaStatsEvent, Status } from "./public/types";
 import type { LogEntry, LogEvent, LogLevel } from "./src/logMessages";
+import { asLanguage, translate, type Language } from "./src/i18n";
 
 const PORT         = intArg("--port", 8090, 1, 65535);
 const HOST         = arg("--host", "0.0.0.0");
@@ -175,6 +176,7 @@ interface Device {
     id: string;
     hostname?: string;        // display name, from the device's hello
     color?: string;           // the device's header color, from the device's hello
+    language?: Language;      // UI language, from the device's hello
     role?: Role;              // device type, from the upgrade header / hello / status
     ws: Socket | null;
     address?: string;
@@ -213,6 +215,7 @@ const deviceInfo = (d: Device): DeviceInfo => ({
     id: d.id,
     hostname: d.hostname,
     color: d.color,
+    language: d.language,
     role: d.role,
     online: d.ws !== null,
     connectedAt: d.connectedAt,
@@ -334,6 +337,12 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
         if (typeof msg.color === "string" && /^#[0-9a-fA-F]{6}$/.test(msg.color) && msg.color !== d.color) {
             d.color = msg.color;
             changed = true;
+        }
+        if (msg.language === "en" || msg.language === "cs") {
+            if (msg.language !== d.language) {
+                d.language = msg.language;
+                changed = true;
+            }
         }
         if (changed) server.publish(viewersTopic(d.id), deviceEvent(d));
     }
@@ -480,7 +489,7 @@ const server = Bun.serve({
                 d.connectedAt = d.lastSeen = Date.now();
                 console.log(`[device ${d.id}] connected from ${data.address}`);
                 server.publish(viewersTopic(d.id), deviceEvent(d));
-                addServerLog(d, "info", `Online (${data.address})`);
+                addServerLog(d, "info", translate(d.language ?? "en", "srv.online", data.address));
                 return;
             }
             // Viewers of never-seen devices must not grow the registry
@@ -516,7 +525,7 @@ const server = Bun.serve({
             console.log(`[device ${d.id}] disconnected (${code}${reason ? `: ${reason}` : ""})`);
             failPending((p) => p.deviceId === d.id, "device disconnected", 503);
             server.publish(viewersTopic(d.id), deviceEvent(d));
-            addServerLog(d, "warn", `Offline (${code}${reason ? `: ${reason}` : ""})`);
+            addServerLog(d, "warn", translate(d.language ?? "en", "srv.offline", `${code}${reason ? `: ${reason}` : ""}`));
         },
     },
 });

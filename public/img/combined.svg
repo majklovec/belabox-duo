@@ -1,35 +1,152 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 140" width="960" height="140" font-family="Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 220" width="840" height="220" font-family="Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
   <defs>
-    <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0 0 L10 5 L0 10 Z" fill="#2563eb"/>
+    <linearGradient id="pcbC" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3aa06a"/><stop offset="0.45" stop-color="#2a8452"/><stop offset="1" stop-color="#1c6039"/>
+    </linearGradient>
+    <radialGradient id="hsC" cx="0.3" cy="0.3" r="1">
+      <stop offset="0" stop-color="#6a6a6a"/><stop offset="0.4" stop-color="#3a3a3a"/><stop offset="1" stop-color="#0f0f0f"/>
+    </radialGradient>
+    <marker id="arC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#7c8ba1"/>
     </marker>
   </defs>
 
-  <rect x="10" y="35" width="130" height="70" rx="10" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
-  <text x="75" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">VIDEO INPUT</text>
-  <text x="75" y="86" text-anchor="middle" fill="#64748b" font-size="11">HDMI / SDI</text>
+  <!-- CAMERA -->
+  <g transform="translate(55,110)">
+    <ellipse cx="0" cy="28" rx="34" ry="4" fill="#000" opacity="0.08"/>
+    <rect x="-32" y="-22" width="64" height="44" rx="6" fill="#2d3748" stroke="#1a202c" stroke-width="1.5"/>
+    <rect x="16" y="-22" width="16" height="44" rx="5" fill="#242e3d" stroke="#1a202c" stroke-width="1"/>
+    <rect x="-22" y="-32" width="18" height="12" rx="2" fill="#2d3748" stroke="#1a202c" stroke-width="1.2"/>
+    <rect x="-19" y="-30" width="12" height="6" rx="1" fill="#0f172a"/>
+    <rect x="6" y="-32" width="16" height="12" rx="2" fill="#4a5568" stroke="#1a202c" stroke-width="1.2"/>
+    <rect x="8" y="-30" width="12" height="6" rx="1" fill="#94a3b8" opacity="0.5"/>
+    <circle cx="0" cy="0" r="18" fill="#1a202c" stroke="#4a5568" stroke-width="1.5"/>
+    <circle cx="0" cy="0" r="13" fill="#0f172a"/>
+    <circle cx="0" cy="0" r="9" fill="#1e293b"/>
+    <circle cx="0" cy="0" r="6" fill="#0f172a"/>
+    <circle cx="-4" cy="-4" r="3.5" fill="#4a5568" opacity="0.7"/>
+    <circle cx="-2" cy="-6" r="1.5" fill="#94a3b8" opacity="0.5"/>
+    <circle cx="5" cy="5" r="2" fill="#334155" opacity="0.4"/>
+    <circle cx="24" cy="-12" r="3" fill="#ef4444"/>
+    <rect x="-28" y="-26" width="8" height="4" rx="1" fill="#64748b"/>
+  </g>
 
-  <path d="M142 70 H180" stroke="#2563eb" stroke-width="2" marker-end="url(#ar3)"/>
+  <!-- HDMI CABLE -->
+  <path d="M87 110 C 130 110, 165 100, 200 100" fill="none" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M87 110 C 130 110, 165 100, 200 100" fill="none" stroke="#334155" stroke-width="1.8" stroke-linecap="round"/>
+  <rect x="82" y="103" width="11" height="14" rx="2" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.8"/>
+  <rect x="84" y="106" width="7" height="8" rx="1" fill="#1c1c1c"/>
+  <rect x="194" y="93" width="11" height="14" rx="2" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.8"/>
+  <rect x="196" y="96" width="7" height="8" rx="1" fill="#1c1c1c"/>
+  <text x="143" y="126" text-anchor="middle" fill="#94a3b8" font-size="8.5" font-weight="600">HDMI</text>
 
-  <rect x="184" y="35" width="180" height="70" rx="10" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
-  <text x="274" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">CAPTURE + ENCODE</text>
-  <text x="274" y="86" text-anchor="middle" fill="#475569" font-size="11">H.264 / H.265 hardware</text>
+  <!-- ORANGE PI 5 PLUS -->
+  <g transform="translate(200,30)">
+    <rect x="3" y="4" width="200" height="140" rx="7" fill="#000" opacity="0.16"/>
+    <rect x="0" y="0" width="200" height="140" rx="7" fill="url(#pcbC)"/>
+    <rect x="0.5" y="0.5" width="199" height="139" rx="6.5" fill="none" stroke="#12492a" stroke-width="1"/>
+    <g stroke="#4cb47e" stroke-width="0.7" opacity="0.3" fill="none">
+      <path d="M16 20 H55"/><path d="M16 24 H48"/><path d="M16 28 H52"/>
+      <path d="M70 118 H100"/><path d="M70 122 H95"/><path d="M70 126 H105"/>
+      <path d="M176 20 V45"/><path d="M182 20 V45"/><path d="M188 20 V45"/>
+    </g>
+    <circle cx="9" cy="9" r="3.6" fill="#1a5c34" stroke="#0d3520" stroke-width="0.8"/>
+    <circle cx="191" cy="9" r="3.6" fill="#1a5c34" stroke="#0d3520" stroke-width="0.8"/>
+    <circle cx="9" cy="131" r="3.6" fill="#1a5c34" stroke="#0d3520" stroke-width="0.8"/>
+    <circle cx="191" cy="131" r="3.6" fill="#1a5c34" stroke="#0d3520" stroke-width="0.8"/>
+    <rect x="22" y="6" width="88" height="14" rx="2" fill="#0d0d0d"/>
+    <line x1="26" y1="11" x2="106" y2="11" stroke="#c9a227" stroke-width="1.5" stroke-dasharray="1.5 4.5"/>
+    <line x1="26" y1="16" x2="106" y2="16" stroke="#c9a227" stroke-width="1.5" stroke-dasharray="1.5 4.5"/>
+    <rect x="90" y="30" width="84" height="76" rx="3" fill="url(#hsC)"/>
+    <g stroke="#000" stroke-width="1.1" opacity="0.55">
+      <line x1="99" y1="33" x2="99" y2="103"/><line x1="108" y1="33" x2="108" y2="103"/>
+      <line x1="117" y1="33" x2="117" y2="103"/><line x1="126" y1="33" x2="126" y2="103"/>
+      <line x1="135" y1="33" x2="135" y2="103"/><line x1="144" y1="33" x2="144" y2="103"/>
+      <line x1="153" y1="33" x2="153" y2="103"/><line x1="162" y1="33" x2="162" y2="103"/>
+    </g>
+    <g stroke="#7a7a7a" stroke-width="0.6" opacity="0.8">
+      <line x1="100" y1="33" x2="100" y2="103"/><line x1="109" y1="33" x2="109" y2="103"/>
+      <line x1="118" y1="33" x2="118" y2="103"/><line x1="127" y1="33" x2="127" y2="103"/>
+      <line x1="136" y1="33" x2="136" y2="103"/><line x1="145" y1="33" x2="145" y2="103"/>
+      <line x1="154" y1="33" x2="154" y2="103"/><line x1="163" y1="33" x2="163" y2="103"/>
+    </g>
+    <rect x="90" y="30" width="84" height="76" rx="3" fill="none" stroke="#000" stroke-width="0.8"/>
+    <rect x="94" y="112" width="36" height="12" rx="1" fill="#141414"/>
+    <rect x="136" y="112" width="36" height="12" rx="1" fill="#141414"/>
+    <rect x="0" y="34" width="12" height="11" rx="1" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.5"/>
+    <rect x="0.5" y="36.5" width="5" height="6" fill="#1c1c1c"/>
+    <rect x="0" y="50" width="12" height="11" rx="1" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.5"/>
+    <rect x="0.5" y="52.5" width="5" height="6" fill="#1c1c1c"/>
+    <rect x="0" y="104" width="10" height="8" rx="2" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.5"/>
+    <rect x="0.5" y="106" width="4" height="4" rx="1.5" fill="#1c1c1c"/>
+    <rect x="188" y="30" width="12" height="15" rx="1" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.5"/>
+    <rect x="189" y="32" width="8" height="11" fill="#1c1c1c"/>
+    <rect x="188" y="49" width="12" height="15" rx="1" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.5"/>
+    <rect x="189" y="51" width="8" height="11" fill="#1c1c1c"/>
+    <rect x="189" y="74" width="11" height="11" rx="1" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.5"/>
+    <rect x="190.5" y="76" width="6" height="7" fill="#1c1c1c"/>
+    <rect x="189" y="90" width="11" height="11" rx="1" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.5"/>
+    <rect x="190.5" y="92" width="6" height="7" fill="#1c1c1c"/>
+    <rect x="24" y="30" width="14" height="8" rx="1" fill="#1a1a1a"/>
+    <rect x="24" y="44" width="10" height="6" rx="1" fill="#1a1a1a"/>
+    <rect x="24" y="56" width="16" height="8" rx="1" fill="#1a1a1a"/>
+    <rect x="24" y="72" width="12" height="6" rx="1" fill="#1a1a1a"/>
+    <circle cx="46" cy="34" r="3" fill="#2a2a2a"/>
+    <circle cx="46" cy="48" r="3" fill="#2a2a2a"/>
+    <circle cx="46" cy="62" r="3" fill="#2a2a2a"/>
+    <text x="18" y="135" font-size="6.5" font-weight="700" fill="#d8f0e2" letter-spacing="0.6" opacity="0.9">ORANGE PI 5 PLUS</text>
+  </g>
 
-  <path d="M366 70 H404" stroke="#2563eb" stroke-width="2" marker-end="url(#ar3)"/>
+  <!-- ETHERNET CABLES (Orange Pi → 2 modems) -->
+  <path d="M400 65 H475" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M400 65 H475" stroke="#334155" stroke-width="1.8" stroke-linecap="round"/>
+  <rect x="395" y="58" width="10" height="14" rx="2" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.8"/>
+  <rect x="397" y="61" width="6" height="8" rx="1" fill="#1c1c1c"/>
+  <rect x="470" y="58" width="10" height="14" rx="2" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.8"/>
+  <rect x="472" y="61" width="6" height="8" rx="1" fill="#1c1c1c"/>
 
-  <rect x="408" y="35" width="130" height="70" rx="10" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
-  <text x="473" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">SRT LOCAL</text>
-  <text x="473" y="86" text-anchor="middle" fill="#475569" font-size="10.5">127.0.0.1:9000</text>
+  <path d="M400 135 H475" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M400 135 H475" stroke="#334155" stroke-width="1.8" stroke-linecap="round"/>
+  <rect x="395" y="128" width="10" height="14" rx="2" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.8"/>
+  <rect x="397" y="131" width="6" height="8" rx="1" fill="#1c1c1c"/>
+  <rect x="470" y="128" width="10" height="14" rx="2" fill="#c8c8c8" stroke="#8a8a8a" stroke-width="0.8"/>
+  <rect x="472" y="131" width="6" height="8" rx="1" fill="#1c1c1c"/>
 
-  <path d="M540 70 H578" stroke="#2563eb" stroke-width="2" marker-end="url(#ar3)"/>
+  <!-- MODEM 1 -->
+  <g transform="translate(510, 65)">
+    <rect x="-33" y="-18" width="70" height="40" rx="5" fill="#000" opacity="0.08"/>
+    <rect x="-35" y="-20" width="70" height="40" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <rect x="-33" y="-18" width="66" height="8" rx="3" fill="#2d3748" opacity="0.6"/>
+    <circle cx="-20" cy="-6" r="2.2" fill="#22c55e"/>
+    <circle cx="-12" cy="-6" r="2.2" fill="#22c55e"/>
+    <circle cx="-4" cy="-6" r="2.2" fill="#f59e0b"/>
+    <circle cx="4" cy="-6" r="2.2" fill="#22c55e"/>
+    <circle cx="12" cy="-6" r="2.2" fill="#ef4444"/>
+    <rect x="-8" y="-28" width="16" height="10" rx="2" fill="#334155"/>
+    <rect x="-6" y="-30" width="12" height="4" rx="1" fill="#475569"/>
+  </g>
 
-  <rect x="582" y="35" width="160" height="70" rx="10" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
-  <text x="662" y="66" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="700">SRTLA SENDER</text>
-  <text x="662" y="86" text-anchor="middle" fill="#475569" font-size="11">bonded uplinks</text>
+  <!-- MODEM 2 -->
+  <g transform="translate(510, 135)">
+    <rect x="-33" y="-18" width="70" height="40" rx="5" fill="#000" opacity="0.08"/>
+    <rect x="-35" y="-20" width="70" height="40" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <rect x="-33" y="-18" width="66" height="8" rx="3" fill="#2d3748" opacity="0.6"/>
+    <circle cx="-20" cy="-6" r="2.2" fill="#22c55e"/>
+    <circle cx="-12" cy="-6" r="2.2" fill="#22c55e"/>
+    <circle cx="-4" cy="-6" r="2.2" fill="#f59e0b"/>
+    <circle cx="4" cy="-6" r="2.2" fill="#22c55e"/>
+    <circle cx="12" cy="-6" r="2.2" fill="#ef4444"/>
+    <rect x="-8" y="-28" width="16" height="10" rx="2" fill="#334155"/>
+    <rect x="-6" y="-30" width="12" height="4" rx="1" fill="#475569"/>
+  </g>
 
-  <path d="M744 70 H782" stroke="#2563eb" stroke-width="2" marker-end="url(#ar3)"/>
+  <!-- ARROWS TO SERVER -->
+  <path d="M545 65 C 580 65, 585 78, 610 82" fill="none" stroke="#7c8ba1" stroke-width="2" marker-end="url(#arC)"/>
+  <path d="M545 135 C 580 135, 585 122, 610 118" fill="none" stroke="#7c8ba1" stroke-width="2" marker-end="url(#arC)"/>
+  <text x="580" y="100" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600">SRTLA</text>
 
-  <rect x="786" y="35" width="160" height="70" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="866" y="66" text-anchor="middle" fill="#334155" font-size="13" font-weight="700">REMOTE SERVER</text>
-  <text x="866" y="86" text-anchor="middle" fill="#64748b" font-size="11">SRTLA receiver</text>
+  <!-- REMOTE SERVER -->
+  <rect x="620" y="50" width="190" height="100" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="715" y="94" text-anchor="middle" fill="#334155" font-size="13" font-weight="700">REMOTE SERVER</text>
+  <text x="715" y="114" text-anchor="middle" fill="#64748b" font-size="11">SRTLA receiver</text>
 </svg>
