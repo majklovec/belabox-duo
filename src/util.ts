@@ -12,6 +12,35 @@ export function textOf(data: unknown): string {
     return typeof data === "string" ? data : new TextDecoder().decode(new Uint8Array(data as ArrayBuffer));
 }
 
+/**
+ * Deterministic JSON for the persisted files: 2-space indent, trailing newline,
+ * and keys sorted alphabetically at each level (scalar properties first, objects
+ * after) so the config file diffs cleanly.
+ */
+export function stableStringify(value: unknown): string {
+    function fmt(v: unknown, indent: string): string {
+        const pad = indent + "  ";
+        if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
+        if (Array.isArray(v)) {
+            return v.length
+                ? `[\n${v.map((item) => `${pad}${fmt(item, pad)}`).join(",\n")}\n${indent}]`
+                : "[]";
+        }
+        const obj = v as Record<string, unknown>;
+        const keys = Object.keys(obj)
+            .filter((k) => obj[k] !== undefined)
+            .sort((a, b) => {
+                const aObj = obj[a] !== null && typeof obj[a] === "object";
+                const bObj = obj[b] !== null && typeof obj[b] === "object";
+                if (aObj !== bObj) return aObj ? 1 : -1;
+                return a.localeCompare(b);
+            });
+        if (!keys.length) return "{}";
+        return `{\n${keys.map((k) => `${pad}${JSON.stringify(k)}: ${fmt(obj[k], pad)}`).join(",\n")}\n${indent}}`;
+    }
+    return fmt(value, "") + "\n";
+}
+
 /** URL with credentials and query removed, for logging; invalid input comes back unchanged. */
 export function scrubUrl(url: string): string {
     try {

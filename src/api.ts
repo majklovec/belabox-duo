@@ -359,7 +359,7 @@ async function setupComplete(p: Params): Promise<object> {
 		color,
 		remoteUrl,
 		remoteToken,
-		// Always persisted so the state file carries the UI language from day one
+		// Always persisted so the config file carries the UI language from day one
 		language: asLanguage(p.language),
 	};
 	setCurrentLanguage(state.settings!.language);
@@ -798,7 +798,7 @@ function isOriginAllowed(req: Request): boolean {
 
 /**
  * Create the HTTP/WS server. The routes table is fixed per server instance:
- * while `setupRequired` (no state file) "/" serves the setup wizard instead
+ * while `setupRequired` (no config file) "/" serves the setup wizard instead
  * of the main UI, so a state change needs restartApiServer().
  */
 function createApiServer(): void {

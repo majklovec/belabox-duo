@@ -1,5 +1,5 @@
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 import { arg, argFail, argv, enumArg, flag, intArg } from "./args";
 import { REMOTE_URL_RE } from "./validate";
@@ -8,15 +8,16 @@ export { argv };
 
 const TMP = tmpdir();
 export const CONFIG_FILE = arg("--config", "modems.json");
-// The uuid is auto-assigned once and lives in the state file (see state.ts); load it
-// and the saved startup settings from there instead of taking a command-line override.
-export const STATE_FILE = arg("--state", join(TMP, "srtla_state.json"));
-interface PersistedStartup {
-    settings?: { uuid?: string; hostname?: string; role?: string; remoteUrl?: string; remoteToken?: string };
-}
-const persistedStartup = await Bun.file(STATE_FILE).json().catch(() => ({} as PersistedStartup)) as PersistedStartup;
-// Event log shown in the web UI; next to the state file so it persists wherever state does
-export const LOG_FILE     = arg("--log-file", join(dirname(STATE_FILE), "srtla_log.json"));
+// Permanent device parameters (settings, encoder config, srtla target); live
+// process state is memory-only and never persisted.
+export const DEVICE_CONFIG_FILE = arg("--device-config", join(TMP, "config.json"));
+// Startup values from the config file
+const deviceConfig = await Bun.file(DEVICE_CONFIG_FILE).json().catch(() => (null)) as Record<string, unknown> | null;
+const persisted =
+    (key: "uuid" | "hostname" | "role" | "remoteUrl" | "remoteToken"): string | undefined =>
+        deviceConfig?.[key] as string | undefined;
+// Event log shown in the web UI
+export const LOG_FILE     = arg("--log-file", join(TMP, "srtla_log.json"));
 export const UPLINKS_FILE = arg("--uplinks", join(TMP, "srtla_ips.txt"));
 export const DRY_RUN         = flag("--dry-run");
 export const API_PORT        = intArg("--port", 8085, 1, 65535);
@@ -25,8 +26,8 @@ export const API_HOST        = arg("--host", "127.0.0.1");
 export const ALLOWED_ORIGINS = arg("--allow-origin", "").split(",").map((o) => o.trim()).filter(Boolean);
 // Outbound control connection: status is pushed to and requests accepted from this server.
 // Token/URL may come from env to keep secrets out of the process list.
-export const REMOTE_URL      = arg("--remote", process.env.SRTLA_REMOTE_URL ?? persistedStartup.settings?.remoteUrl ?? "");
-export const REMOTE_TOKEN    = arg("--remote-token", process.env.SRTLA_REMOTE_TOKEN ?? persistedStartup.settings?.remoteToken ?? "");
+export const REMOTE_URL      = arg("--remote", process.env.SRTLA_REMOTE_URL ?? persisted("remoteUrl") ?? "");
+export const REMOTE_TOKEN    = arg("--remote-token", process.env.SRTLA_REMOTE_TOKEN ?? persisted("remoteToken") ?? "");
 export const REMOTE_INTERVAL = intArg("--remote-interval", 30);   // periodic status push, seconds (0 = off)
 export const REMOTE_STATS_INTERVAL = intArg("--remote-stats-interval", 2);   // srtla_send link stats push, seconds (0 = off)
 if (REMOTE_URL && !REMOTE_URL_RE.test(REMOTE_URL)) argFail("--remote", REMOTE_URL, "ws:// or wss:// URL");
@@ -39,7 +40,7 @@ export type Role             = (typeof ROLES)[number];
 export const ROLE: Role      = enumArg(
     "--role",
     ROLES,
-    (process.env.ROLE as Role | undefined) ?? (persistedStartup.settings?.role as Role | undefined) ?? "relay",
+    (process.env.ROLE as Role | undefined) ?? (persisted("role") as Role | undefined) ?? "relay",
 );
 if (!(ROLES as readonly string[]).includes(ROLE)) argFail("SRTLA_ROLE", ROLE, ROLES.join(" | "));
 export const HAS_RELAY       = ROLE === "relay" || ROLE === "combined";

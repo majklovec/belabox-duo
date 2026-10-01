@@ -10,7 +10,7 @@
  *   GET  /                 device list (server/public/devices.html)
  *   GET  /d/<id>/          relay UI for one device (../public/index.html); the
  *                          setup wizard (../public/setup.html) while the device
- *                          has no state file (status.setupRequired; ?ui=1 forces the UI)
+ *                          has no config file (status.setupRequired; ?ui=1 forces the UI)
  *   GET  /d/<id>/setup/    setup wizard for one device
  *   WS   /d/<id>/ws        browser ⇄ device; same protocol as the relay's local /ws
  *   GET  /api/devices      JSON list of known devices
@@ -461,7 +461,7 @@ const server = Bun.serve({
             if (!ID_RE.test(id)) return new Response("Invalid device id\n", { status: 400 });
             if (!m[2]) return Response.redirect(`/d/${encodeURIComponent(id)}/`, 308);
             if (!m[3]) {
-                // Devices without a state file serve the setup wizard instead of the UI
+                // Devices without a config file serve the setup wizard instead of the UI
                 if (deviceFor(id).status?.setupRequired && !new URL(req.url).searchParams.has("ui")) return htmlResponse(setupPage);
                 return htmlResponse(devicePage);
             }

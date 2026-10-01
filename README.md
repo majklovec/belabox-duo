@@ -62,7 +62,7 @@ passes them to the command without requiring a persistent shell environment.
 | `--role`                    | `SRTLA_ROLE`          | `relay`                          | `relay`, `encoder`, `combined`                                                         |
 | `--host`, `--port`          |                       | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on                                      |
 | `--allow-origin`            |                       |                                  | Extra browser origins for `/ws` (comma-separated, `*` = any)                           |
-| `--state`                   |                       | `$TMPDIR/srtla_state.json`       | Persist selection, last stream and autostart. **Use a persistent path in production.** |
+| `--device-config`           |                       | `$TMPDIR/config.json`            | Permanent device parameters (settings, encoder config, srtla target, autostart) — **use a persistent path in production** |
 | `--config`                  |                       | `modems.json`                    | Optional default bonding selection `{"modems": [...]}` or `{"ips": [...]}`             |
 | `--uplinks`                 |                       | `$TMPDIR/srtla_ips.txt`          | Uplinks file for `srtla_send`                                                          |
 | `--start-srtla`             |                       |                                  | relay/combined: start srtla_send with `<listenPort> <remoteHost> <remotePort>` on boot |
@@ -153,7 +153,7 @@ The cog in the device header opens a separate settings page. It uses
 `settings.get` and `settings.update` for the persistent device uuid, hostname,
 role, control-server URL, remote token and header color. The uuid is the
 device's fixed identity on the control server — it is auto-assigned
-by the device, saved in the state file and loaded from it on start,
+by the device, saved in the config file and loaded from it on start,
 and can never be changed (it survives hostname changes), and the server keeps the per-uuid parameters
 (display name, color, role) reported by the device in its hello. Saving
 settings re-dials the control server, so the device re-registers there (URL,

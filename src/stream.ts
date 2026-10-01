@@ -21,6 +21,9 @@ const AUTOSTART_RETRY_MS = 5_000;
 export async function startCombined(target: StreamTarget, cfg: EncoderConfig): Promise<void> {
     if (encoderStatus().running) throw new Error("already streaming");
     // Persist both halves of the requested stream before validation/startup.
+    // srtlaTarget is the canonical target the config file is projected from;
+    // stream mirrors it for the UI and for autostart.
+    state.srtlaTarget = target;
     state.stream = target;
     state.encoder = { running: false, config: cfg };
     await saveState();

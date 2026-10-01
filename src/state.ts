@@ -1,10 +1,23 @@
+/*
+ * Persistent storage:
+ *   config.json      permanent parameters only — device settings, encoder config,
+ *                     the srtla target (+ scheduler options and interface
+ *                     selection) and autostart. Stable key order, 2-space indent.
+ *   in memory        live process state — running flags, pids, counters. Never
+ *                     written to disk; a restarted process starts fresh.
+ *
+ * Modules mutate the merged in-memory `state` below and call `saveState()`,
+ * which persists the permanent part to the config file.
+ */
 import { randomUUID } from "node:crypto";
-import { DRY_RUN, STATE_FILE } from "./config";
-import type { ModemConfig } from "./routing";
-import type { EncoderState } from "./encoder";
-import type { SrtlaState } from "./srtla";
-import type { SrtlaMode } from "./srtlaControl";
+
+import { DRY_RUN, DEVICE_CONFIG_FILE } from "./config";
+import type { EncoderConfig, EncoderState } from "./encoder";
 import { DEFAULT_LANGUAGE, asLanguage, setCurrentLanguage, type Language } from "./i18n";
+import type { ModemConfig } from "./routing";
+import type { SrtlaMode } from "./srtlaControl";
+import type { SrtlaState } from "./srtla";
+import { stableStringify } from "./util";
 
 /** Device settings that can be changed from the control UI and used on restart. */
 export interface DeviceSettings {
@@ -16,7 +29,7 @@ export interface DeviceSettings {
     remoteToken?: string;
     color?: string;
     pipelineRepositories?: string[];
-    /** UI language ("en" | "cs"); absent in state files from older versions, treated as "en". */
+    /** UI language ("en" | "cs"); defaults to "en". */
     language?: Language;
 }
 
@@ -29,6 +42,32 @@ export interface StreamTarget { remoteHost: string; remotePort: string; listenPo
 /** Last srtla_send target (`srtla.start`), kept after stop for prefill and autostart. */
 export interface SrtlaTarget { listenPort: string; remoteHost: string; remotePort: string; }
 
+/** srtla section of the config file: target, scheduler options, interface selection. */
+export interface SrtlaConfig {
+    listenPort: string;
+    mode: SrtlaMode;
+    quality: boolean;
+    remoteHost: string;
+    remotePort: string;
+    selectedInterfaces: ModemConfig;
+}
+
+/** Permanent device parameters persisted to the config file (no process state). */
+export interface DeviceConfig {
+    autostart: boolean;
+    color: string;
+    hostname: string;
+    language: Language;
+    remoteUrl: string;
+    role: string;
+    uuid: string;
+    remoteToken?: string;
+    pipelineRepositories?: string[];
+    encoder?: EncoderConfig;
+    srtla: SrtlaConfig;
+}
+
+/** Merged in-memory view of config (persisted) + runtime (memory only). */
 export interface PersistentState {
     settings?: DeviceSettings;
     selection: ModemConfig;
@@ -47,13 +86,78 @@ const defaults = (): PersistentState => ({
     encoder: { running: false },
 });
 
-const stateFile = Bun.file(STATE_FILE);
-export let setupRequired = !(await stateFile.exists());
+const configFile = Bun.file(DEVICE_CONFIG_FILE);
+
+// A fresh device (no config file) shows the setup wizard first.
+export let setupRequired = !(await configFile.exists());
+
+// ----------------------------------------------------------------------
+// Projection between the merged in-memory state and the two files
+// ----------------------------------------------------------------------
+
+function projectConfig(s: PersistentState): DeviceConfig {
+    const settings = s.settings ?? {};
+    const target = s.srtlaTarget ?? s.stream ?? { listenPort: "", remoteHost: "", remotePort: "" };
+    const options = s.srtlaOptions ?? {};
+    const cfg: DeviceConfig = {
+        autostart: !!s.autostart,
+        color: settings.color ?? "#0f1115",
+        hostname: settings.hostname ?? "",
+        language: asLanguage(settings.language),
+        remoteUrl: settings.remoteUrl ?? "",
+        role: settings.role ?? "relay",
+        uuid: settings.uuid ?? "",
+        encoder: s.encoder.config,
+        srtla: {
+            listenPort: target.listenPort,
+            mode: options.mode ?? "enhanced",
+            quality: options.quality ?? false,
+            remoteHost: target.remoteHost,
+            remotePort: target.remotePort,
+            selectedInterfaces: s.selection ?? {},
+        },
+    };
+    if (settings.remoteToken) cfg.remoteToken = settings.remoteToken;
+    if (settings.pipelineRepositories?.length) cfg.pipelineRepositories = settings.pipelineRepositories;
+    return cfg;
+}
+
+function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
+    const section: Partial<SrtlaConfig> = cfg?.srtla ?? {};
+    const hasTarget = !!(section.listenPort || section.remoteHost || section.remotePort);
+    const target = hasTarget
+        ? { listenPort: section.listenPort ?? "", remoteHost: section.remoteHost ?? "", remotePort: section.remotePort ?? "" }
+        : undefined;
+    return {
+        settings: {
+            uuid: cfg?.uuid,
+            hostname: cfg?.hostname ?? "",
+            role: cfg?.role,
+            remoteUrl: cfg?.remoteUrl ?? "",
+            remoteToken: cfg?.remoteToken,
+            color: cfg?.color,
+            pipelineRepositories: cfg?.pipelineRepositories,
+            language: cfg?.language,
+        },
+        selection: section.selectedInterfaces ?? {},
+        srtla: { running: false },
+        srtlaTarget: target,
+        srtlaOptions: section.mode !== undefined || section.quality !== undefined
+            ? { mode: section.mode, quality: section.quality }
+            : undefined,
+        encoder: { running: false, config: cfg?.encoder },
+        stream: target,
+        autostart: cfg?.autostart,
+    };
+}
+
+// ----------------------------------------------------------------------
+// Load and save
+// ----------------------------------------------------------------------
 
 async function loadState(): Promise<PersistentState> {
-    if (!setupRequired) {
-        // Merge so state files from older versions gain new sections
-        try { return { ...defaults(), ...((await stateFile.json()) as Partial<PersistentState>) }; } catch {}
+    if (await configFile.exists()) {
+        return fromConfig(await configFile.json().catch(() => null));
     }
     return defaults();
 }
@@ -71,10 +175,16 @@ export function notifyStateChange(): void {
     for (const listener of listeners) listener();
 }
 
+let lastConfig = "";
+
+/** Persist the permanent parameters; no-op when they have not changed. */
 export async function saveState(): Promise<void> {
     notifyStateChange();
     if (DRY_RUN) return;
-    await Bun.write(STATE_FILE, JSON.stringify(state, null, 2));
+    const config = stableStringify(projectConfig(state));
+    if (config === lastConfig) return;
+    lastConfig = config;
+    await Bun.write(DEVICE_CONFIG_FILE, config);
 }
 
 export async function completeSetup(): Promise<void> {
@@ -86,18 +196,17 @@ export async function completeSetup(): Promise<void> {
 const state: PersistentState = await loadState();
 
 // Hostnames change; the uuid is the device's permanent identity on the control server.
-// It is auto-assigned (defaults() / backfill for older state files), persisted here
-// and never changes afterwards.
+// It is auto-assigned (defaults()) / backfilled here, persisted, and never changes.
 if (!state.settings?.uuid) {
     state.settings = { ...state.settings, uuid: randomUUID() };
-    if (!DRY_RUN) await Bun.write(STATE_FILE, JSON.stringify(state, null, 2));
+    await saveState();
 }
 export { state };
 
-// Older state files have no language; normalize so it is always present in the file.
+// Older config files have no language; normalize so it is always present.
 if (state.settings?.language === undefined) {
     state.settings = { ...state.settings, language: DEFAULT_LANGUAGE };
-    if (!DRY_RUN) await Bun.write(STATE_FILE, JSON.stringify(state, null, 2));
+    await saveState();
 }
 
 // Seed the process-wide current language so t()/label() self-resolve to the
