@@ -42,7 +42,7 @@ export const ROLE: Role      = enumArg(
     ROLES,
     (process.env.ROLE as Role | undefined) ?? (persisted("role") as Role | undefined) ?? "relay",
 );
-if (!(ROLES as readonly string[]).includes(ROLE)) argFail("SRTLA_ROLE", ROLE, ROLES.join(" | "));
+if (!(ROLES as readonly string[]).includes(ROLE)) argFail("BELABOX_ROLE", ROLE, ROLES.join(" | "));
 export const HAS_RELAY       = ROLE === "relay" || ROLE === "combined";
 export const HAS_ENCODER     = ROLE === "encoder" || ROLE === "combined";
 

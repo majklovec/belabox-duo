@@ -57,26 +57,26 @@ passes them to the command without requiring a persistent shell environment.
 
 ### Options
 
-| Option                      | Env                   | Default                          | Notes                                                                                  |
-| --------------------------- | --------------------- | -------------------------------- | -------------------------------------------------------------------------------------- |
-| `--role`                    | `SRTLA_ROLE`          | `relay`                          | `relay`, `encoder`, `combined`                                                         |
-| `--host`, `--port`          |                       | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on                                      |
-| `--allow-origin`            |                       |                                  | Extra browser origins for `/ws` (comma-separated, `*` = any)                           |
-| `--config`                  |                       | `$TMPDIR/config.json`            | Device config: permanent parameters (settings, encoder, srtla target, autostart) plus the `modems` bonding-selection section — **use a persistent path in production** |
-| `--uplinks`                 |                       | `$TMPDIR/srtla_ips.txt`          | Uplinks file for `srtla_send`                                                          |
-| `--start-srtla`             |                       |                                  | relay/combined: start srtla_send with `<listenPort> <remoteHost> <remotePort>` on boot |
-| `--srtla-reload`            |                       | `signal`                         | `signal` (SIGHUP) or `restart`                                                         |
-| `--srtla-socket`            | `SRTLA_CONTROL_SOCKET`| `$TMPDIR/srtla_send.sock`        | srtla_send control socket (link stats, mode/quality); `""` disables it                 |
-| `--debounce-ms`             |                       | `1500`                           | Interface event debounce                                                               |
-| `--pipelines`               | `BELACODER_PIPELINES` | `/usr/share/belacoder/pipelines` | Pipeline files, including subdirectories                                               |
-| `--belacoder`               | `BELACODER_BIN`       | `belacoder`                      |                                                                                        |
-|                             | `SRTLA_SEND_BIN`      | `srtla_send`                     |                                                                                        |
-| `--bitrate-file`            |                       | `$TMPDIR/belacoder_br`           | belacoder bitrate file (re-read on SIGHUP)                                             |
-| `--remote`                  | `SRTLA_REMOTE_URL`    |                                  | Control server, e.g. `wss://ctl.example.com/device`                                    |
-| `--remote-token`            | `SRTLA_REMOTE_TOKEN`  |                                  | Prefer the env var (keeps it out of `ps`)                                              |
-| `--remote-interval`         |                       | `30`                             | Periodic status push in seconds (`0` = only on change)                                 |
-| `--remote-stats-interval`   |                       | `2`                              | srtla_send link stats push to the control server in seconds (`0` = off)                |
-| `--dry-run`                 |                       |                                  | Print `ip` / process actions instead of running them                                   |
+| Option                    | Env                    | Default                          | Notes                                                                                                                                                                  |
+| ------------------------- | ---------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--role`                  | `BELABOX_ROLE`         | `relay`                          | `relay`, `encoder`, `combined`                                                                                                                                         |
+| `--host`, `--port`        |                        | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on                                                                                                                      |
+| `--allow-origin`          |                        |                                  | Extra browser origins for `/ws` (comma-separated, `*` = any)                                                                                                           |
+| `--config`                |                        | `$TMPDIR/config.json`            | Device config: permanent parameters (settings, encoder, srtla target, autostart) plus the `modems` bonding-selection section — **use a persistent path in production** |
+| `--uplinks`               |                        | `$TMPDIR/srtla_ips.txt`          | Uplinks file for `srtla_send`                                                                                                                                          |
+| `--start-srtla`           |                        |                                  | relay/combined: start srtla_send with `<listenPort> <remoteHost> <remotePort>` on boot                                                                                 |
+| `--srtla-reload`          |                        | `signal`                         | `signal` (SIGHUP) or `restart`                                                                                                                                         |
+| `--srtla-socket`          | `SRTLA_CONTROL_SOCKET` | `$TMPDIR/srtla_send.sock`        | srtla_send control socket (link stats, mode/quality); `""` disables it                                                                                                 |
+| `--debounce-ms`           |                        | `1500`                           | Interface event debounce                                                                                                                                               |
+| `--pipelines`             | `BELACODER_PIPELINES`  | `/usr/share/belacoder/pipelines` | Pipeline files, including subdirectories                                                                                                                               |
+| `--belacoder`             | `BELACODER_BIN`        | `belacoder`                      |                                                                                                                                                                        |
+|                           | `SRTLA_SEND_BIN`       | `srtla_send`                     |                                                                                                                                                                        |
+| `--bitrate-file`          |                        | `$TMPDIR/belacoder_br`           | belacoder bitrate file (re-read on SIGHUP)                                                                                                                             |
+| `--remote`                | `SRTLA_REMOTE_URL`     |                                  | Control server, e.g. `wss://ctl.example.com/device`                                                                                                                    |
+| `--remote-token`          | `SRTLA_REMOTE_TOKEN`   |                                  | Prefer the env var (keeps it out of `ps`)                                                                                                                              |
+| `--remote-interval`       |                        | `30`                             | Periodic status push in seconds (`0` = only on change)                                                                                                                 |
+| `--remote-stats-interval` |                        | `2`                              | srtla_send link stats push to the control server in seconds (`0` = off)                                                                                                |
+| `--dry-run`               |                        |                                  | Print `ip` / process actions instead of running them                                                                                                                   |
 
 ### Encoder pipelines
 
@@ -128,7 +128,7 @@ Run it behind a TLS reverse proxy: tokens and Basic auth need `wss://`/`https://
 ```sh
 sudo cp -r . /opt/srtla_relay
 sudo cp deploy/srtla-relay.service /etc/systemd/system/
-sudo cp deploy/srtla-relay.env /etc/default/srtla-relay   # set SRTLA_ROLE etc.
+sudo cp deploy/srtla-relay.env /etc/default/srtla-relay   # set BELABOX_ROLE etc.
 sudo systemctl enable --now srtla-relay
 
 # control server host
