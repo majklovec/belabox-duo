@@ -13,6 +13,7 @@ import { logEvent } from "./eventlog";
 import { t } from "./i18n";
 import { srtlaStatus, startSrtla, stopSrtla } from "./srtla";
 import { saveState, type StreamTarget, state } from "./state";
+import { errorMessage } from "./util";
 
 const AUTOSTART_RETRY_MS = 5_000;
 
@@ -98,7 +99,7 @@ export function runAutostart(): void {
             }
         } catch (err: unknown) {
             // Capture cards, receivers or uplinks may simply not be ready yet after boot
-            const msg = err instanceof Error ? err.message : String(err);
+            const msg = errorMessage(err);
             console.warn(`Autostart failed, retrying in ${AUTOSTART_RETRY_MS / 1000}s:`, msg);
             logEvent("warn", "Autostart", t("log.stream_start_retry", AUTOSTART_RETRY_MS / 1000, msg));
             if (state.autostart) retryTimer = setTimeout(() => void attempt(), AUTOSTART_RETRY_MS);

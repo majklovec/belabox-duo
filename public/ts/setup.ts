@@ -7,6 +7,8 @@ import type { Params } from "./services/rpc";
 import { RpcClient, socketUrl } from "./services/rpc";
 import { LANGUAGES, languageLabel, lang, setLanguage, t } from "./i18n";
 import type { AudioSource, Pipeline, Role } from "../types";
+import { errorMessage } from "../../src/util";
+import { HOSTNAME_RE } from "../../src/validate";
 
 interface SetupInfo {
 	required: boolean;
@@ -37,7 +39,6 @@ const stepVisible = (key: StepKey, role: Role | undefined): boolean => {
 	return true;
 };
 
-const HOSTNAME_RE = /^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/;
 const inRange = (value: string, min: number, max: number) => {
 	const n = Number(value);
 	return value !== "" && n >= min && n <= max;
@@ -140,7 +141,7 @@ rpc.on("open", () => {
 			m.redraw();
 		})
 		.catch((error: unknown) => {
-			state.message = error instanceof Error ? error.message : String(error);
+			state.message = errorMessage(error);
 			m.redraw();
 		});
 });
@@ -184,7 +185,7 @@ async function complete(): Promise<void> {
 		state.message = `${t("setup.saved")} ${t("setup.restart_required")}`;
 		m.redraw();
 	} catch (error: unknown) {
-		state.message = error instanceof Error ? error.message : String(error);
+		state.message = errorMessage(error);
 	} finally {
 		state.saving = false;
 		m.redraw();

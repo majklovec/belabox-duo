@@ -105,18 +105,14 @@ import type { SrtlaOptions } from "./state";
 import { completeSetup, onStateChange, saveState, setupRequired, state, uiLanguage } from "./state";
 import { asLanguage, setCurrentLanguage, t, LANGUAGES } from "./i18n";
 import { cancelAutostart, setAutostart, startCombined, stopCombined } from "./stream";
+import { errorMessage, scrubUrl, svgResponse, textOf } from "./util";
+import { COLOR_RE, HOSTNAME_RE, REMOTE_URL_RE } from "./validate";
 
 const WS_PATH = "/ws";
 const STATUS_TOPIC = "status";
 
 // Role diagrams on the setup wizard (e.g. /img/encoder.svg)
 const IMG_PATH_RE = /^\/img\/[a-zA-Z0-9_-]+\.svg$/;
-async function svgResponse(path: string): Promise<Response> {
-	const file = Bun.file(new URL(`../public${path}`, import.meta.url));
-	return (await file.exists())
-		? new Response(file, { headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "no-cache" } })
-		: new Response("Not found\n", { status: 404 });
-}
 const BROADCAST_DEBOUNCE_MS = 250;
 
 type Params = Record<string, unknown>;
@@ -127,9 +123,6 @@ class ApiError extends Error {
 		super(message);
 	}
 }
-
-const errorMessage = (err: unknown): string =>
-	err instanceof Error ? err.message : String(err);
 
 // ----------------------------------------------------------------------
 // Parameter validation
@@ -303,6 +296,141 @@ const modemAction =
 		return { modemIndex: index, action, ok: await fn(index) };
 	};
 
+/** First-run wizard: validate all fields, write the initial state and bring the role up. */
+async function setupComplete(p: Params): Promise<object> {
+	if (!setupRequired) throw new ApiError("Setup has already been completed", 409);
+	if (p.language !== undefined && !LANGUAGES.includes(p.language as (typeof LANGUAGES)[number])) {
+		throw new ApiError(`language must be one of ${LANGUAGES.join(", ")}`);
+	}
+	const role = requireString(p, "role");
+	if (!(ROLES as readonly string[]).includes(role)) {
+		throw new ApiError(`role must be one of ${ROLES.join(", ")}`);
+	}
+	const hostname = requireString(p, "hostname").trim();
+	if (!HOSTNAME_RE.test(hostname)) {
+		throw new ApiError("hostname must contain only letters, numbers, dots and hyphens");
+	}
+	// The uuid is auto-assigned from the start (state.ts) and never changes afterwards
+	const uuid = state.settings?.uuid ?? randomUUID();
+	const color = requireString(p, "color");
+	if (!COLOR_RE.test(color)) {
+		throw new ApiError("color must be a six-digit hexadecimal color");
+	}
+	const remoteUrl = optionalSettingString(p, "remoteUrl", undefined);
+	if (remoteUrl !== undefined && !REMOTE_URL_RE.test(remoteUrl)) {
+		throw new ApiError("remoteUrl must be a ws:// or wss:// URL");
+	}
+	const remoteToken = optionalSettingString(p, "remoteToken", undefined);
+
+	const hasEncoder = role !== "relay";
+	const hasRelay = role !== "encoder";
+	let relayTarget: { listenPort: string; remoteHost: string; remotePort: string } | undefined;
+	if (hasRelay) {
+		relayTarget = {
+			listenPort: requirePort(p, "listenPort"),
+			remoteHost: requireHost(p, "srtlaRemoteHost"),
+			remotePort: requirePort(p, "srtlaRemotePort"),
+		};
+		const mode = requireString(p, "srtlaMode");
+		if (!(SRTLA_MODES as readonly string[]).includes(mode)) {
+			throw new ApiError(`srtlaMode must be one of ${SRTLA_MODES.join(", ")}`);
+		}
+		if (typeof p.srtlaQuality !== "boolean") throw new ApiError("srtlaQuality must be a boolean");
+		state.srtlaOptions = { mode: mode as SrtlaMode, quality: p.srtlaQuality };
+		state.srtlaTarget = relayTarget;
+	}
+
+	if (hasEncoder) {
+		const encoderPort = role === "combined"
+			? relayTarget!.listenPort
+			: requirePort(p, "encoderPort");
+		const encoderHost = role === "combined"
+			? "127.0.0.1"
+			: requireHost(p, "encoderHost");
+		state.encoder = { running: false, config: parseEncoderConfig(p, encoderHost, encoderPort) };
+	}
+	if (role === "combined") state.stream = relayTarget;
+	state.autostart = p.autostart === true;
+	state.settings = {
+		...state.settings,
+		uuid,
+		hostname,
+		role,
+		color,
+		remoteUrl,
+		remoteToken,
+		// Always persisted so the state file carries the UI language from day one
+		language: asLanguage(p.language),
+	};
+	setCurrentLanguage(state.settings!.language);
+	await completeSetup();
+	// Start (or re-target) the control-server link with the saved endpoint
+	if (remoteUrl) applyRemoteSettings(remoteUrl, remoteToken);
+	// The routes table is fixed per server instance; swap the server once
+	// this response has been flushed (timers run after the microtask that sends it).
+	setTimeout(restartApiServer, 0);
+	return { completed: true, restartRequired: true };
+}
+
+/** Partial update of the persisted settings; the device uuid is immutable. */
+async function updateSettings(p: Params): Promise<object> {
+	const current = state.settings ?? {};
+	// The uuid is assigned at setup and immutable; the UI only ever echoes it back
+	if (p.uuid !== undefined && p.uuid !== current.uuid) {
+		throw new ApiError("The device uuid can't be changed");
+	}
+	const uuid = current.uuid;
+	const hostname = optionalSettingString(p, "hostname", current.hostname);
+	if (hostname !== undefined && !HOSTNAME_RE.test(hostname)) {
+		throw new ApiError("hostname must contain only letters, numbers, dots and hyphens");
+	}
+	const role = optionalSettingString(p, "role", current.role);
+	if (role !== undefined && !(ROLES as readonly string[]).includes(role)) {
+		throw new ApiError(`role must be one of ${ROLES.join(", ")}`);
+	}
+	const remoteUrl = optionalSettingString(p, "remoteUrl", current.remoteUrl);
+	if (remoteUrl !== undefined && !REMOTE_URL_RE.test(remoteUrl)) {
+		throw new ApiError("remoteUrl must be a ws:// or wss:// URL");
+	}
+	if (p.remoteToken !== undefined && typeof p.remoteToken !== "string") {
+		throw new ApiError("remoteToken must be a string");
+	}
+	const remoteToken = p.remoteToken === undefined ? current.remoteToken : String(p.remoteToken).trim() || undefined;
+	const color = optionalSettingString(p, "color", current.color);
+	if (color !== undefined && !COLOR_RE.test(color)) {
+		throw new ApiError("color must be a six-digit hexadecimal color");
+	}
+	if (p.language !== undefined && !LANGUAGES.includes(p.language as (typeof LANGUAGES)[number])) {
+		throw new ApiError(`language must be one of ${LANGUAGES.join(", ")}`);
+	}
+	const language = asLanguage(p.language === undefined ? current.language : p.language);
+	const remoteChanged = remoteUrl !== current.remoteUrl || remoteToken !== current.remoteToken;
+	state.settings = { ...current, uuid, hostname, role, remoteUrl, remoteToken, color, language };
+	setCurrentLanguage(language);
+	await saveState();
+	// Every save re-registers the device on the control server — re-dialing to
+	// the (possibly new) URL so changed token/role/hostname are picked up live.
+	if (remoteUrl || remoteChanged) {
+		applyRemoteSettings(remoteUrl ?? "", remoteToken);
+		logEvent("info", "Settings", t("log.settings_saved_reconnect", scrubUrl(remoteUrl!)));
+	} else {
+		logEvent("info", "Settings", t("mlog.done.settings_saved"));
+	}
+	return {
+		settings: {
+			uuid: uuid ?? "",
+			hostname: hostname ?? "",
+			role: role ?? "",
+			remoteUrl: remoteUrl ?? "",
+			hasRemoteToken: !!remoteToken,
+			color: color ?? "#0f1115",
+			pipelineRepositories: state.settings.pipelineRepositories ?? [],
+			language,
+		},
+		restartRequired: true,
+	};
+}
+
 const methods: Record<string, Method> = {
 	status: buildStatus,
 
@@ -315,80 +443,7 @@ const methods: Record<string, Method> = {
 		audioSources: await listAudioSources(),
 	}),
 
-	"setup.complete": async (p) => {
-		if (!setupRequired) throw new ApiError("Setup has already been completed", 409);
-		if (p.language !== undefined && !LANGUAGES.includes(p.language as (typeof LANGUAGES)[number])) {
-			throw new ApiError(`language must be one of ${LANGUAGES.join(", ")}`);
-		}
-		const role = requireString(p, "role");
-		if (!(ROLES as readonly string[]).includes(role)) {
-			throw new ApiError(`role must be one of ${ROLES.join(", ")}`);
-		}
-		const hostname = requireString(p, "hostname").trim();
-		if (!/^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(hostname)) {
-			throw new ApiError("hostname must contain only letters, numbers, dots and hyphens");
-		}
-		// The uuid is auto-assigned from the start (state.ts) and never changes afterwards
-		const uuid = state.settings?.uuid ?? randomUUID();
-		const color = requireString(p, "color");
-		if (!/^#[0-9a-fA-F]{6}$/.test(color)) {
-			throw new ApiError("color must be a six-digit hexadecimal color");
-		}
-		const remoteUrl = optionalSettingString(p, "remoteUrl", undefined);
-		if (remoteUrl !== undefined && !/^wss?:\/\/.+/.test(remoteUrl)) {
-			throw new ApiError("remoteUrl must be a ws:// or wss:// URL");
-		}
-		const remoteToken = optionalSettingString(p, "remoteToken", undefined);
-
-		const hasEncoder = role !== "relay";
-		const hasRelay = role !== "encoder";
-		let relayTarget: { listenPort: string; remoteHost: string; remotePort: string } | undefined;
-		if (hasRelay) {
-			relayTarget = {
-				listenPort: requirePort(p, "listenPort"),
-				remoteHost: requireHost(p, "srtlaRemoteHost"),
-				remotePort: requirePort(p, "srtlaRemotePort"),
-			};
-			const mode = requireString(p, "srtlaMode");
-			if (!(SRTLA_MODES as readonly string[]).includes(mode)) {
-				throw new ApiError(`srtlaMode must be one of ${SRTLA_MODES.join(", ")}`);
-			}
-			if (typeof p.srtlaQuality !== "boolean") throw new ApiError("srtlaQuality must be a boolean");
-			state.srtlaOptions = { mode: mode as SrtlaMode, quality: p.srtlaQuality };
-			state.srtlaTarget = relayTarget;
-		}
-
-		if (hasEncoder) {
-			const encoderPort = role === "combined"
-				? relayTarget!.listenPort
-				: requirePort(p, "encoderPort");
-			const encoderHost = role === "combined"
-				? "127.0.0.1"
-				: requireHost(p, "encoderHost");
-			state.encoder = { running: false, config: parseEncoderConfig(p, encoderHost, encoderPort) };
-		}
-		if (role === "combined") state.stream = relayTarget;
-		state.autostart = p.autostart === true;
-		state.settings = {
-			...state.settings,
-			uuid,
-			hostname,
-			role,
-			color,
-			remoteUrl,
-			remoteToken,
-			// Always persisted so the state file carries the UI language from day one
-			language: asLanguage(p.language),
-		};
-		setCurrentLanguage(state.settings!.language);
-		await completeSetup();
-		// Start (or re-target) the control-server link with the saved endpoint
-		if (remoteUrl) applyRemoteSettings(remoteUrl, remoteToken);
-		// The routes table is fixed per server instance; swap the server once
-		// this response has been flushed (timers run after the microtask that sends it).
-		setTimeout(restartApiServer, 0);
-		return { completed: true, restartRequired: true };
-	},
+	"setup.complete": setupComplete,
 
 	"interfaces.list": async () => ({ interfaces: await detectInterfaces() }),
 
@@ -538,69 +593,7 @@ const methods: Record<string, Method> = {
 		restartRequired: true,
 	}),
 
-	"settings.update": async (p) => {
-		const current = state.settings ?? {};
-		// The uuid is assigned at setup and immutable; the UI only ever echoes it back
-		if (p.uuid !== undefined && p.uuid !== current.uuid) {
-			throw new ApiError("The device uuid can't be changed");
-		}
-		const uuid = current.uuid;
-		const hostname = optionalSettingString(p, "hostname", current.hostname);
-		if (hostname !== undefined && !/^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(hostname)) {
-			throw new ApiError("hostname must contain only letters, numbers, dots and hyphens");
-		}
-		const role = optionalSettingString(p, "role", current.role);
-		if (role !== undefined && !(ROLES as readonly string[]).includes(role)) {
-			throw new ApiError(`role must be one of ${ROLES.join(", ")}`);
-		}
-		const remoteUrl = optionalSettingString(p, "remoteUrl", current.remoteUrl);
-		if (remoteUrl !== undefined && !/^wss?:\/\/.+/.test(remoteUrl)) {
-			throw new ApiError("remoteUrl must be a ws:// or wss:// URL");
-		}
-		if (p.remoteToken !== undefined && typeof p.remoteToken !== "string") {
-			throw new ApiError("remoteToken must be a string");
-		}
-		const remoteToken = p.remoteToken === undefined ? current.remoteToken : String(p.remoteToken).trim() || undefined;
-		const color = optionalSettingString(p, "color", current.color);
-		if (color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(color)) {
-			throw new ApiError("color must be a six-digit hexadecimal color");
-		}
-		if (p.language !== undefined && !LANGUAGES.includes(p.language as (typeof LANGUAGES)[number])) {
-			throw new ApiError(`language must be one of ${LANGUAGES.join(", ")}`);
-		}
-		const language = asLanguage(p.language === undefined ? current.language : p.language);
-		const remoteChanged = remoteUrl !== current.remoteUrl || remoteToken !== current.remoteToken;
-		state.settings = { ...current, uuid, hostname, role, remoteUrl, remoteToken, color, language };
-		setCurrentLanguage(language);
-		await saveState();
-		// Every save re-registers the device on the control server — re-dialing to
-		// the (possibly new) URL so changed token/role/hostname are picked up live.
-		if (remoteUrl || remoteChanged) {
-			applyRemoteSettings(remoteUrl ?? "", remoteToken);
-			let target = remoteUrl!;
-			try {
-				const u = new URL(remoteUrl!);
-				u.username = u.password = "";
-				target = u.toString();
-			} catch { /* leave as-is */ }
-			logEvent("info", "Settings", t("log.settings_saved_reconnect", target));
-		} else {
-			logEvent("info", "Settings", t("mlog.done.settings_saved"));
-		}
-		return {
-			settings: {
-				uuid: uuid ?? "",
-				hostname: hostname ?? "",
-				role: role ?? "",
-				remoteUrl: remoteUrl ?? "",
-				hasRemoteToken: !!remoteToken,
-				color: color ?? "#0f1115",
-				pipelineRepositories: state.settings.pipelineRepositories ?? [],
-				language,
-			},
-			restartRequired: true,
-		};
-	},
+	"settings.update": updateSettings,
 
 	"pipelines.repositories.add": async (p) => {
 		const repository = requireString(p, "repository").trim();
@@ -656,7 +649,7 @@ export async function handleRequest(raw: string | Buffer | ArrayBuffer | Uint8Ar
 	try {
 		let msg: unknown;
 		try {
-			msg = JSON.parse(typeof raw === "string" ? raw : new TextDecoder().decode(raw));
+			msg = JSON.parse(textOf(raw));
 		} catch {
 			throw new ApiError("Invalid JSON");
 		}

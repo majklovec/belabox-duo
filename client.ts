@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /*
- * srtla_relay.ts
+ * client.ts
  *
  * Detects network interfaces suitable for SRTLA bonding, sets up
  * source-based routing tables, writes the uplinks file required by
@@ -38,11 +38,11 @@
  *   combined   belacoder → local srtla_send → bonded uplinks; one Start for both
  *
  * Usage:
- *   bun srtla_relay.ts [--config modems.json] [--dry-run]
- *   bun srtla_relay.ts --port 8085
- *   bun srtla_relay.ts --role encoder  --pipelines /usr/share/belacoder/pipelines
- *   bun srtla_relay.ts --role combined --pipelines ./pipeline
- *   SRTLA_REMOTE_TOKEN=secret bun srtla_relay.ts --remote wss://ctl.example.com/device
+ *   bun client.ts [--config modems.json] [--dry-run]
+ *   bun client.ts --port 8085
+ *   bun client.ts --role encoder  --pipelines /usr/share/belacoder/pipelines
+ *   bun client.ts --role combined --pipelines ./pipeline
+ *   SRTLA_REMOTE_TOKEN=secret bun client.ts --remote wss://ctl.example.com/device
  *
  * Reload strategy (default `signal`):
  *   --srtla-reload=signal    send SIGHUP, srtla_send re-reads uplinks file

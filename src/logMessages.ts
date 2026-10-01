@@ -8,6 +8,9 @@
  */
 import { t } from "./i18n";
 
+/** Cap shared by every view of the event log (device, control server, UI). */
+export const LOG_MAX = 200;
+
 export type LogLevel = "info" | "warn" | "error";
 
 export interface LogEntry {

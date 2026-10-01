@@ -5,7 +5,10 @@ import { DRY_RUN, RELOAD_MODE, SRTLA_SOCKET, UPLINKS_FILE } from "./config";
 import { logEvent } from "./eventlog";
 import { t } from "./i18n";
 import { type SrtlaOptions, saveState, state } from "./state";
+import { Supervisor } from "./supervisor";
+import { errorMessage } from "./util";
 import {
+    type SrtlaCapabilities,
     prepareSrtlaControl,
     rpc,
     srtlaCapabilities,
@@ -25,19 +28,19 @@ export interface SrtlaState {
     reloadCount?: number;
 }
 
-let srtlaProc: Bun.Subprocess | null = null;
+const RESTART_DELAY_MS = 2_000;
+
+const supervisor = new Supervisor("SRTLA", RESTART_DELAY_MS, onSrtlaExit);
+// Args of the last start() call, replayed by the restart timer.
 let srtlaArgs: [string, string, string] | null = null;
 
 let dryRunActive = false;   // --dry-run has no process to track
-let wanted = false;         // srtla_send should be running; unexpected exits are restarted
-let restartTimer: ReturnType<typeof setTimeout> | null = null;
-const RESTART_DELAY_MS = 2_000;
 
-const isRunning = (): boolean => DRY_RUN ? dryRunActive : srtlaProc !== null && srtlaProc.exitCode === null;
+const isRunning = (): boolean => DRY_RUN ? dryRunActive : supervisor.running;
 
 export function srtlaStatus(): SrtlaState {
     if (isRunning()) return state.srtla;
-    if (state.srtla.running && srtlaProc === null && !DRY_RUN) return { ...state.srtla, running: false };
+    if (state.srtla.running && !supervisor.running && !DRY_RUN) return { ...state.srtla, running: false };
     return { running: false };
 }
 
@@ -50,14 +53,14 @@ function signalSrtlaReload(): boolean {
         console.log("[DRY-RUN] SIGHUP srtla_send");
         return true;
     }
-    const pid = isRunning() ? srtlaProc?.pid : undefined;
+    const pid = isRunning() ? supervisor.pid : undefined;
     if (!pid) return false;
     try {
         process.kill(pid, "SIGHUP");
         console.log(`Sent SIGHUP to srtla_send (pid ${pid})`);
         return true;
     } catch (err: unknown) {
-        console.warn(`Failed to signal srtla_send: ${err instanceof Error ? err.message : String(err)}`);
+        console.warn(`Failed to signal srtla_send: ${errorMessage(err)}`);
         return false;
     }
 }
@@ -116,6 +119,28 @@ export async function startSrtla(
         return s;
     }
 
+    await supervisor.start(() => spawnSrtla(bin, listenPort, remoteHost, remotePort, caps));
+
+    const s: SrtlaState = {
+        running: true,
+        pid: supervisor.pid,
+        listenPort, remoteHost, remotePort,
+        startedAt: Date.now(),
+        reloadCount: state.srtla.reloadCount ?? 0,
+    };
+    state.srtla = s;
+    await saveState();
+
+    return s;
+}
+
+function spawnSrtla(
+    bin: string,
+    listenPort: string,
+    remoteHost: string,
+    remotePort: string,
+    caps: SrtlaCapabilities,
+): Bun.Subprocess {
     const opts = state.srtlaOptions ?? {};
     const control = !!SRTLA_SOCKET && caps.controlSocket;
     const flags: string[] = [];
@@ -128,64 +153,24 @@ export async function startSrtla(
         [bin, ...flags, listenPort, remoteHost, remotePort, UPLINKS_FILE],
         { stdout: "inherit", stderr: "inherit", stdin: "inherit" }
     );
-    srtlaProc = proc;
-    wanted = true;
     if (control) startSrtlaControl(SRTLA_SOCKET);
-
-    const s: SrtlaState = {
-        running: true,
-        pid: proc.pid,
-        listenPort, remoteHost, remotePort,
-        startedAt: Date.now(),
-        reloadCount: state.srtla.reloadCount ?? 0,
-    };
-    state.srtla = s;
-    await saveState();
-
-    proc.exited.then((code) => {
-        console.log(`srtla_send exited with code ${code}`);
-        if (srtlaProc !== proc) return;   // already replaced by a restart
-        stopSrtlaControl();
-        state.srtla = { running: false, reloadCount: state.srtla.reloadCount };
-        srtlaProc = null;
-        saveState().catch(() => {});
-        if (!wanted) return;
-        logEvent("warn", "SRTLA", t("log.srtla_exited", code, RESTART_DELAY_MS / 1000));
-        scheduleRestart();
-    });
-
-    return s;
+    return proc;
 }
 
 /** srtla_send died on its own (e.g. all uplinks lost): keep retrying like belaUI does. */
-function scheduleRestart(): void {
-    const args = srtlaArgs;
-    if (!args || restartTimer) return;
-    console.warn(`srtla_send stopped unexpectedly; restarting in ${RESTART_DELAY_MS / 1000}s`);
-    restartTimer = setTimeout(async () => {
-        restartTimer = null;
-        if (!wanted || isRunning()) return;
-        try {
-            await startSrtla(...args);
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.error("srtla_send restart failed:", msg);
-            logEvent("error", "SRTLA", t("log.restart_failed", msg));
-            scheduleRestart();
-        }
-    }, RESTART_DELAY_MS);
+function onSrtlaExit(code: number | null): void {
+    console.log(`srtla_send exited with code ${code}`);
+    stopSrtlaControl();
+    state.srtla = { running: false, reloadCount: state.srtla.reloadCount };
+    saveState().catch(() => {});
+    if (!supervisor.wanted) return;
+    logEvent("warn", "SRTLA", t("log.srtla_exited", code, RESTART_DELAY_MS / 1000));
+    supervisor.scheduleRestart();
 }
 
 export async function stopSrtla(): Promise<void> {
-    wanted = false;   // before killing, so the exit handler does not restart it
-    if (restartTimer) clearTimeout(restartTimer);
-    restartTimer = null;
-    if (srtlaProc && isRunning()) {
-        srtlaProc.kill("SIGTERM");
-        await srtlaProc.exited;
-    }
+    await supervisor.stop();
     stopSrtlaControl();
-    srtlaProc = null;
     dryRunActive = false;
     state.srtla = { ...state.srtla, running: false };
     await saveState();

@@ -1,5 +1,6 @@
 import { join, basename, dirname, relative, resolve, sep } from "node:path";
 import { mkdir, mkdtemp, rename, rm } from "node:fs/promises";
+import { REPO_RE } from "./validate";
 
 const GITHUB_API = "https://api.github.com";
 const RAW_BASE = "https://raw.githubusercontent.com";
@@ -51,7 +52,7 @@ function authHeaders(token?: string): Record<string, string> {
 }
 
 function parseRepository(authorRepo: string): [string, string] {
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(authorRepo)) {
+  if (!REPO_RE.test(authorRepo)) {
     throw new Error('Repository must be in "author/repository" format');
   }
   return authorRepo.split("/") as [string, string];

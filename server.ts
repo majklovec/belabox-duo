@@ -49,7 +49,10 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { arg, argFail, flag, intArg } from "./src/args";
 import type { DeviceInfo, DeviceSummary, Role, SrtlaStats, SrtlaStatsEvent, Status } from "./public/types";
 import type { LogEntry, LogEvent, LogLevel } from "./src/logMessages";
+import { LOG_MAX } from "./src/logMessages";
 import { asLanguage, translate, type Language } from "./src/i18n";
+import { svgResponse } from "./src/util";
+import { COLOR_RE } from "./src/validate";
 
 const PORT         = intArg("--port", 8090, 1, 65535);
 const HOST         = arg("--host", "0.0.0.0");
@@ -63,12 +66,12 @@ const STALE_DEVICE_MS  = 5 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 30 * 1000;
 
 const REQUEST_TIMEOUT_MS = 60_000;
-const LOG_MAX = 200;
 
 const ID_RE = /^[\w.-]{1,64}$/;
 const ROLES: readonly Role[] = ["relay", "encoder", "combined"];
 const asRole = (v: unknown): Role | undefined => (ROLES as readonly unknown[]).includes(v) ? (v as Role) : undefined;
 const viewersTopic = (id: string) => `viewers:${id}`;
+const IMG_PATH_RE = /^\/img\/[a-zA-Z0-9_-]+\.svg$/;
 
 // ----------------------------------------------------------------------
 // Auth
@@ -334,7 +337,7 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
             d.hostname = msg.hostname;
             changed = true;
         }
-        if (typeof msg.color === "string" && /^#[0-9a-fA-F]{6}$/.test(msg.color) && msg.color !== d.color) {
+        if (typeof msg.color === "string" && COLOR_RE.test(msg.color) && msg.color !== d.color) {
             d.color = msg.color;
             changed = true;
         }
@@ -434,12 +437,7 @@ const server = Bun.serve({
         }
 
         // Role diagrams on the setup wizard (e.g. /img/encoder.svg)
-        if (/^\/img\/[a-zA-Z0-9_-]+\.svg$/.test(path)) {
-            const file = Bun.file(new URL(`./public${path}`, import.meta.url));
-            return (await file.exists())
-                ? new Response(file, { headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "no-cache" } })
-                : new Response("Not found\n", { status: 404 });
-        }
+        if (IMG_PATH_RE.test(path)) return svgResponse(path);
 
         const settingsMatch = path.match(/^\/d\/([^/]+)\/settings(\/)?$/);
         if (settingsMatch) {

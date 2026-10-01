@@ -13,6 +13,7 @@ import {
 import { ip } from "./exec";
 import { detectModems, type ModemInfo, modemNetworkIface } from "./modems";
 import { notifyStateChange, saveState, state } from "./state";
+import { errorMessage, readLines } from "./util";
 
 const VIRTUAL_PREFIXES = [
 	"lo",
@@ -85,12 +86,14 @@ export async function detectInterfaces(): Promise<Iface[]> {
 
 	const modems = await detectModems();
 	const modemByIface = new Map<string, ModemInfo>();
-	for (const m of modems) {
-		const ifName = await modemNetworkIface(m);
-		if (ifName) modemByIface.set(ifName, m);
-	}
+	await Promise.all(
+		modems.map(async (m) => {
+			const ifName = await modemNetworkIface(m);
+			if (ifName) modemByIface.set(ifName, m);
+		}),
+	);
 
-	const result: Iface[] = [];
+	const entries: Iface[] = [];
 	for (const line of res.stdout.toString().split("\n").filter(Boolean)) {
 		const parts = line.split(/\s+/);
 		const iface = parts[1];
@@ -99,11 +102,13 @@ export async function detectInterfaces(): Promise<Iface[]> {
 		const [addr, prefixStr] = cidr.split("/");
 		const prefix = parseInt(prefixStr, 10);
 		if (iface === "lo" || isVirtual(iface)) continue;
-
-		const entry: Iface = { iface, ip: addr, prefix, cidr };
-		const speed = await linkSpeed(iface);
+		entries.push({ iface, ip: addr, prefix, cidr });
+	}
+	// Enrich in parallel; the array order (and thus the API order) is stable.
+	await Promise.all(entries.map(async (entry) => {
+		const speed = await linkSpeed(entry.iface);
 		if (speed) entry.speed = speed;
-		const modem = modemByIface.get(iface);
+		const modem = modemByIface.get(entry.iface);
 		if (modem) {
 			entry.modemIndex = modem.index;
 			entry.modemPath = modem.path;
@@ -114,9 +119,8 @@ export async function detectInterfaces(): Promise<Iface[]> {
 				modem.registrationState?.includes("registered") ?? false;
 			entry.connectionState = modem.state;
 		}
-		result.push(entry);
-	}
-	return result;
+	}));
+	return entries;
 }
 
 async function getGateway(iface: string): Promise<string | null> {
@@ -340,7 +344,7 @@ export async function reconfigure(): Promise<ReconfigureResult> {
 			uplinksFile: UPLINKS_FILE,
 			ips: [],
 			changed: false,
-			error: err instanceof Error ? err.message : String(err),
+			error: errorMessage(err),
 		};
 	}
 }
@@ -391,10 +395,7 @@ async function runReconcile(reason: string): Promise<void> {
 			console.log("[monitor] no change to uplinks file — skipping reload");
 		}
 	} catch (err: unknown) {
-		console.error(
-			"[monitor] error:",
-			err instanceof Error ? err.message : String(err),
-		);
+		console.error("[monitor] error:", errorMessage(err));
 	} finally {
 		monitorBusy = false;
 		if (monitorPending) {
@@ -402,23 +403,6 @@ async function runReconcile(reason: string): Promise<void> {
 			scheduleReconcile("queued follow-up");
 		}
 	}
-}
-
-async function* readLines(
-	stream: ReadableStream<Uint8Array>,
-): AsyncGenerator<string> {
-	const decoder = new TextDecoder();
-	let buffer = "";
-	for await (const chunk of stream) {
-		buffer += decoder.decode(chunk, { stream: true });
-		let nl: number;
-		// biome-ignore lint/suspicious/noAssignInExpressions: Just bcs I am lazy
-		while ((nl = buffer.indexOf("\n")) !== -1) {
-			yield buffer.slice(0, nl);
-			buffer = buffer.slice(nl + 1);
-		}
-	}
-	if (buffer) yield buffer;
 }
 
 // IPv4 address changes, link up/down, route changes
@@ -449,9 +433,8 @@ export function startInterfaceMonitor(onChange?: UplinksChangedHandler): void {
 
 	(async () => {
 		try {
-			for await (const raw of readLines(proc.stdout)) {
-				const line = raw.trim();
-				if (line && RELEVANT_EVENT.test(line) && !isSelfGeneratedEvent(line)) {
+			for await (const line of readLines(proc.stdout)) {
+				if (RELEVANT_EVENT.test(line) && !isSelfGeneratedEvent(line)) {
 					scheduleReconcile(line.slice(0, 120));
 				}
 			}
@@ -465,9 +448,8 @@ export function startInterfaceMonitor(onChange?: UplinksChangedHandler): void {
 	// Log stderr as warnings (netlink permission issues etc.)
 	(async () => {
 		try {
-			for await (const raw of readLines(proc.stderr)) {
-				const text = raw.trim();
-				if (text) console.warn(`[monitor:stderr] ${text}`);
+			for await (const line of readLines(proc.stderr)) {
+				console.warn(`[monitor:stderr] ${line}`);
 			}
 		} catch {}
 	})();

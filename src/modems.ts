@@ -40,35 +40,35 @@ export async function detectModems(): Promise<ModemInfo[]> {
     const out = await run("mmcli", ["-L"], true);
     if (!out) return [];
     const list = parseModemList(out);
-    const modems: ModemInfo[] = [];
+    // Query the details of all modems in parallel; list order is preserved.
+    return await Promise.all(list.map((m) => modemDetails(m)));
+}
 
-    for (const { index, path, label } of list) {
-        const detail = await run("mmcli", ["-m", String(index)], true);
-        const info: ModemInfo = { index, path, state: "unknown", powerState: "unknown", model: label };
-        const grab = (re: RegExp): string | undefined => {
-            const m = detail.match(re);
-            return m ? m[1].trim() : undefined;
-        };
-        info.state             = grab(/^\s*state:\s*(.+)$/m) ?? "unknown";
-        info.powerState        = grab(/^\s*power state:\s*(.+)$/m) ?? "unknown";
-        info.model             = grab(/^\s*model:\s*(.+)$/m) ?? info.model;
-        info.manufacturer      = grab(/^\s*manufacturer:\s*(.+)$/m);
-        info.imei              = grab(/^\s*imei:\s*(.+)$/m);
-        info.primaryPort       = grab(/^\s*primary port:\s*(.+)$/m);
-        info.deviceId          = grab(/^\s*device id:\s*(.+)$/m);
-        info.simPath           = grab(/^\s*sim:\s*(.+)$/m);
-        info.operatorName      = grab(/^\s*operator name:\s*(.+)$/m);
-        info.registrationState = grab(/^\s*registration:\s*(.+)$/m);
-        const signalStr = grab(/^\s*signal quality:\s*(.+)$/m);
-        if (signalStr) {
-            const m = signalStr.match(/(\d+)/);
-            if (m) info.signalQuality = parseInt(m[1], 10);
-        }
-        const techStr = grab(/^\s*access tech:\s*(.+)$/m);
-        if (techStr) info.accessTech = techStr;
-        modems.push(info);
+async function modemDetails({ index, path, label }: { index: number; path: string; label: string }): Promise<ModemInfo> {
+    const detail = await run("mmcli", ["-m", String(index)], true);
+    const info: ModemInfo = { index, path, state: "unknown", powerState: "unknown", model: label };
+    const grab = (re: RegExp): string | undefined => {
+        const m = detail.match(re);
+        return m ? m[1].trim() : undefined;
+    };
+    info.state             = grab(/^\s*state:\s*(.+)$/m) ?? "unknown";
+    info.powerState        = grab(/^\s*power state:\s*(.+)$/m) ?? "unknown";
+    info.model             = grab(/^\s*model:\s*(.+)$/m) ?? info.model;
+    info.manufacturer      = grab(/^\s*manufacturer:\s*(.+)$/m);
+    info.imei              = grab(/^\s*imei:\s*(.+)$/m);
+    info.primaryPort       = grab(/^\s*primary port:\s*(.+)$/m);
+    info.deviceId          = grab(/^\s*device id:\s*(.+)$/m);
+    info.simPath           = grab(/^\s*sim:\s*(.+)$/m);
+    info.operatorName      = grab(/^\s*operator name:\s*(.+)$/m);
+    info.registrationState = grab(/^\s*registration:\s*(.+)$/m);
+    const signalStr = grab(/^\s*signal quality:\s*(.+)$/m);
+    if (signalStr) {
+        const m = signalStr.match(/(\d+)/);
+        if (m) info.signalQuality = parseInt(m[1], 10);
     }
-    return modems;
+    const techStr = grab(/^\s*access tech:\s*(.+)$/m);
+    if (techStr) info.accessTech = techStr;
+    return info;
 }
 
 export async function modemNetworkIface(modem: ModemInfo): Promise<string | null> {

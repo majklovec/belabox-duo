@@ -5,15 +5,15 @@ import { Card, Page, badge, definitionList, field, checkField } from "./componen
 import { byId, type Child, formatBitrate, since } from "./dom";
 import { type Level, levelIcon, roleTag } from "./icons";
 import { t } from "./i18n";
-import { type LogEntry, type LogEvent, label, methodLog } from "../../src/logMessages";
+import { LOG_MAX, type LogEntry, type LogEvent, label, methodLog } from "../../src/logMessages";
 import type { ModemInfo } from "../../src/modems";
 import type { DeviceInfo, Pipeline, Role, SrtlaLinkStats, SrtlaStats, SrtlaStatsEvent, Status } from "../types";
 import { RpcClient, RpcError, socketUrl } from "./services/rpc";
+import { errorMessage } from "../../src/util";
 import type { Params } from "./services/rpc";
 
 const STATS_STALE_MS = 5_000;
 const LEVEL_KEY: Record<Level, string> = { info: "log.level.info", warn: "log.level.warning", error: "log.level.error" };
-const LOG_MAX = 200;
 
 // ----------------------------------------------------------------------
 // Log
@@ -128,7 +128,7 @@ async function act<T = unknown>(buttonId: string | null, method: string, params?
 	} catch (err) {
 		if (!(err instanceof RpcError && err.logged)) {
 			const { section, action } = methodLog(method);
-			log("error", section, t("mlog.failed", label(action), err instanceof Error ? err.message : String(err)));
+			log("error", section, t("mlog.failed", label(action), errorMessage(err)));
 		}
 		return undefined;
 	} finally {

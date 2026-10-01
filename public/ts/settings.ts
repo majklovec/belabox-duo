@@ -5,6 +5,7 @@ import { Card, Page, badge, field } from "./components/ui";
 import { byId } from "./dom";
 import type { Params } from "./services/rpc";
 import { RpcClient, socketUrl } from "./services/rpc";
+import { errorMessage } from "../../src/util";
 
 interface Settings {
 	/** Stable identity on the control server; hostnames change, the uuid does not */
@@ -61,7 +62,7 @@ async function load(): Promise<void> {
 		state.repositories = result.settings.pipelineRepositories;
 		document.documentElement.style.setProperty("--header-color", result.settings.color);
 	} catch (error: unknown) {
-		state.message = error instanceof Error ? error.message : String(error);
+		state.message = errorMessage(error);
 	}
 	m.redraw();
 }
@@ -87,7 +88,7 @@ async function save(): Promise<void> {
 		// reconnect re-fetches fresh settings (hostname, role, color, …).
 		rpc.reconnect();
 	} catch (error: unknown) {
-		state.message = error instanceof Error ? error.message : String(error);
+		state.message = errorMessage(error);
 	} finally {
 		state.saving = false;
 		m.redraw();
@@ -109,7 +110,7 @@ async function addRepository(): Promise<void> {
 		state.repository = "";
 		state.repoMessage = t("set.repo_imported", response.result.files);
 	} catch (error: unknown) {
-		state.repoMessage = error instanceof Error ? error.message : String(error);
+		state.repoMessage = errorMessage(error);
 	} finally {
 		state.repoBusy = false;
 		m.redraw();
@@ -124,7 +125,7 @@ async function removeRepository(repository: string): Promise<void> {
 		state.repositories = result.repositories;
 		state.repoMessage = t("set.repo_removed", repository);
 	} catch (error: unknown) {
-		state.repoMessage = error instanceof Error ? error.message : String(error);
+		state.repoMessage = errorMessage(error);
 	}
 	m.redraw();
 }
@@ -138,7 +139,7 @@ async function updateAllRepositories(): Promise<void> {
 		const files = response.results.reduce((total, r) => total + r.files, 0);
 		state.repoMessage = t("set.repo_updated_all", response.results.length, files);
 	} catch (error: unknown) {
-		state.repoMessage = error instanceof Error ? error.message : String(error);
+		state.repoMessage = errorMessage(error);
 	} finally {
 		state.repoBusy = false;
 		m.redraw();

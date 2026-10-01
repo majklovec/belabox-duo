@@ -6,6 +6,7 @@
  */
 import type { Socket } from "bun";
 import { rmSync } from "node:fs";
+import { errorMessage, textOf } from "./util";
 
 export const SRTLA_MODES = ["classic", "enhanced"] as const;
 export type SrtlaMode = (typeof SRTLA_MODES)[number];
@@ -203,10 +204,10 @@ async function connect(): Promise<void> {
                     console.log(`srtla_send control socket connected (${path})`);
                     notifyChange();
                     rpc("subscribe", { topic: "stats" }).catch((err: unknown) =>
-                        console.warn(`srtla_send stats subscribe failed: ${err instanceof Error ? err.message : String(err)}`));
+                        console.warn(`srtla_send stats subscribe failed: ${errorMessage(err)}`));
                 },
                 data(_s, chunk) {
-                    buffer += chunk.toString();
+                    buffer += textOf(chunk);
                     let nl: number;
                     while ((nl = buffer.indexOf("\n")) >= 0) {
                         const line = buffer.slice(0, nl).trim();

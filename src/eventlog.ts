@@ -3,9 +3,9 @@
  * Kept in memory, capped at LOG_MAX entries and written to LOG_FILE shortly after changes.
  */
 import { LOG_FILE } from "./config";
-import type { LogEntry, LogLevel } from "./logMessages";
+import { LOG_MAX, type LogEntry, type LogLevel } from "./logMessages";
+import { errorMessage } from "./util";
 
-const LOG_MAX = 200;
 const SAVE_DELAY_MS = 1_000;
 
 async function loadLog(): Promise<LogEntry[]> {
@@ -37,7 +37,7 @@ async function save(): Promise<void> {
     try {
         await Bun.write(LOG_FILE, JSON.stringify(entries));
     } catch (err: unknown) {
-        console.warn(`Cannot write ${LOG_FILE}: ${err instanceof Error ? err.message : String(err)}`);
+        console.warn(`Cannot write ${LOG_FILE}: ${errorMessage(err)}`);
     }
 }
 

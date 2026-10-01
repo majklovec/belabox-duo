@@ -17,6 +17,8 @@ import { BELACODER_BIN, BITRATE_FILE, DRY_RUN, PIPELINES_DIR } from "./config";
 import { logEvent } from "./eventlog";
 import { t } from "./i18n";
 import { notifyStateChange, saveState, state } from "./state";
+import { Supervisor } from "./supervisor";
+import { errorMessage, readLines } from "./util";
 
 export const MIN_BITRATE_KBPS = 300;
 export const MAX_BITRATE_KBPS = 30_000;
@@ -75,7 +77,7 @@ export async function listPipelines(): Promise<Pipeline[]> {
     try {
         entries = await readdir(pipelinesRoot, { recursive: true, withFileTypes: true });
     } catch (err: unknown) {
-        console.warn(`Cannot read pipelines from ${pipelinesRoot}: ${err instanceof Error ? err.message : String(err)}`);
+        console.warn(`Cannot read pipelines from ${pipelinesRoot}: ${errorMessage(err)}`);
         return [];
     }
     const files = entries
@@ -174,12 +176,10 @@ export async function resolvePipeline(id: string): Promise<string> {
 // ----------------------------------------------------------------------
 // Process management
 // ----------------------------------------------------------------------
-let proc: Bun.Subprocess<"ignore", "inherit", "pipe"> | null = null;
-let wanted = false;
-let restartTimer: ReturnType<typeof setTimeout> | null = null;
+const supervisor = new Supervisor("Encoder", RESTART_DELAY_MS, onBelacoderExit);
 
 export function encoderStatus(): EncoderState {
-    if (wanted) return state.encoder;
+    if (supervisor.wanted) return state.encoder;
     return { running: false, config: state.encoder.config, lastError: state.encoder.lastError };
 }
 
@@ -195,27 +195,11 @@ async function writeBitrateFile(kbps: number): Promise<void> {
 // belacoder logs a lot; keep the last line that looks like a problem for the UI
 const ERROR_LINE = /error|fail|stall|unable|cannot|could not/i;
 
-async function pumpStderr(stream: ReadableStream<Uint8Array>): Promise<void> {
-    const decoder = new TextDecoder();
-    let buffer = "";
-    for await (const chunk of stream) {
-        buffer += decoder.decode(chunk, { stream: true });
-        let nl: number;
-        while ((nl = buffer.indexOf("\n")) !== -1) {
-            const line = buffer.slice(0, nl).trim();
-            buffer = buffer.slice(nl + 1);
-            if (!line) continue;
-            console.error(`[belacoder] ${line}`);
-            if (ERROR_LINE.test(line) && state.encoder.lastError !== line) {
-                state.encoder.lastError = line;
-                logEvent("error", "Encoder", line);
-                notifyStateChange();
-            }
-        }
-    }
-}
-
-function spawnBelacoder(cfg: EncoderConfig, pipelineFile: string): void {
+/**
+ * belacoder exits on SRT / capture failures; keep retrying like belaUI does.
+ * The starter re-runs the full start sequence against the given target.
+ */
+function spawnBelacoder(cfg: EncoderConfig, pipelineFile: string): Bun.Subprocess {
     const args = [
         pipelineFile, cfg.host, cfg.port,
         "-d", String(cfg.delay),
@@ -226,43 +210,37 @@ function spawnBelacoder(cfg: EncoderConfig, pipelineFile: string): void {
     console.log(`Starting ${BELACODER_BIN} ${args.join(" ")}`);
 
     const p = Bun.spawn([BELACODER_BIN, ...args], { stdin: "ignore", stdout: "inherit", stderr: "pipe" });
-    proc = p;
     state.encoder.pid = p.pid;
-    void pumpStderr(p.stderr).catch(() => {});
 
-    p.exited.then((code) => {
-        if (proc !== p) return;
-        proc = null;
-        state.encoder.pid = undefined;
-        if (!wanted) return;
-        // belacoder exits on SRT / capture failures; keep retrying like belaUI does
-        console.warn(`belacoder exited with code ${code}; restarting in ${RESTART_DELAY_MS / 1000}s`);
-        logEvent("warn", "Encoder", t("log.encoder_exited", code, RESTART_DELAY_MS / 1000));
-        state.encoder.restarts = (state.encoder.restarts ?? 0) + 1;
-        state.encoder.lastError ??= `belacoder exited with code ${code}`;
-        notifyStateChange();
-        scheduleRestart(cfg, pipelineFile);
-    });
+    // Surface the noisy stderr in the console and keep the last problem line for the UI.
+    void pumpStderr(p.stderr).catch(() => {});
+    return p;
 }
 
-function scheduleRestart(cfg: EncoderConfig, pipelineFile: string): void {
-    restartTimer = setTimeout(() => {
-        restartTimer = null;
-        if (!wanted) return;
-        try {
-            spawnBelacoder(cfg, pipelineFile);
+async function pumpStderr(stream: ReadableStream<Uint8Array>): Promise<void> {
+    for await (const line of readLines(stream)) {
+        console.error(`[belacoder] ${line}`);
+        if (ERROR_LINE.test(line) && state.encoder.lastError !== line) {
+            state.encoder.lastError = line;
+            logEvent("error", "Encoder", line);
             notifyStateChange();
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.error("belacoder restart failed:", msg);
-            logEvent("error", "Encoder", t("log.restart_failed", msg));
-            scheduleRestart(cfg, pipelineFile);
         }
-    }, RESTART_DELAY_MS);
+    }
+}
+
+function onBelacoderExit(code: number | null): void {
+    state.encoder.pid = undefined;
+    if (!supervisor.wanted) return;
+    logEvent("warn", "Encoder", t("log.encoder_exited", code, RESTART_DELAY_MS / 1000));
+    state.encoder.restarts = (state.encoder.restarts ?? 0) + 1;
+    state.encoder.lastError ??= `belacoder exited with code ${code}`;
+    notifyStateChange();
+    console.warn(`belacoder exited with code ${code}; restarting in ${RESTART_DELAY_MS / 1000}s`);
+    supervisor.scheduleRestart();
 }
 
 export async function startEncoder(cfg: EncoderConfig): Promise<EncoderState> {
-    if (wanted) throw new Error("encoder is already running");
+    if (supervisor.wanted) throw new Error("encoder is already running");
     // Keep the complete draft configuration even when validation or process
     // startup fails, so the UI can restore it on the next attempt.
     state.encoder = { running: false, config: cfg };
@@ -273,33 +251,23 @@ export async function startEncoder(cfg: EncoderConfig): Promise<EncoderState> {
     state.encoder = { running: true, config: cfg, startedAt: Date.now(), restarts: 0 };
     if (DRY_RUN) {
         console.log(`[DRY-RUN] ${BELACODER_BIN} ${pipelineFile} ${cfg.host} ${cfg.port}`);
+        supervisor.markWanted();
     } else {
         try {
-            spawnBelacoder(cfg, pipelineFile);
+            await supervisor.start(() => spawnBelacoder(cfg, pipelineFile));
         } catch (err: unknown) {
-            const msg = `Cannot start ${BELACODER_BIN}: ${err instanceof Error ? err.message : String(err)}`;
+            const msg = `Cannot start ${BELACODER_BIN}: ${errorMessage(err)}`;
             state.encoder = { running: false, config: cfg, lastError: msg };
             await saveState();
             throw new Error(msg);
         }
     }
-    wanted = true;
     await saveState();
     return state.encoder;
 }
 
 export async function stopEncoder(): Promise<void> {
-    wanted = false;
-    if (restartTimer) clearTimeout(restartTimer);
-    restartTimer = null;
-    const p = proc;
-    if (p && p.exitCode === null) {
-        p.kill("SIGTERM");
-        const killer = setTimeout(() => p.kill("SIGKILL"), STOP_TIMEOUT_MS);
-        await p.exited;
-        clearTimeout(killer);
-    }
-    proc = null;
+    await supervisor.stop(STOP_TIMEOUT_MS);
     state.encoder = { running: false, config: state.encoder.config };
     await saveState();
 }
@@ -308,7 +276,7 @@ export async function stopEncoder(): Promise<void> {
 export async function setEncoderBitrate(kbps: number): Promise<EncoderState> {
     await writeBitrateFile(kbps);
     if (state.encoder.config) state.encoder.config = { ...state.encoder.config, maxBitrate: kbps };
-    if (proc && proc.exitCode === null) proc.kill("SIGHUP");
+    if (supervisor.running) supervisor.pid && process.kill(supervisor.pid, "SIGHUP");
     await saveState();
     return encoderStatus();
 }

@@ -20,6 +20,7 @@
  * runtime so settings saved in the UI apply without a process restart.
  */
 import { REMOTE_INTERVAL, REMOTE_STATS_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
+import { errorMessage, scrubUrl, textOf } from "./util";
 import { asLanguage } from "./i18n";
 import { addStatusSink, handleRequest, logHistoryEvent, statsEvent, statusEvent } from "./api";
 import { latestSrtlaStats } from "./srtlaControl";
@@ -47,16 +48,7 @@ let removeSink: (() => void) | null = null;
 const isOpen = (): boolean => ws !== null && ws.readyState === WebSocket.OPEN;
 
 // Never log the token-bearing parts of the URL
-const safeUrl = (): string => {
-    try {
-        const u = new URL(target.url);
-        u.username = u.password = "";
-        u.search = "";
-        return u.toString();
-    } catch {
-        return "(invalid url)";
-    }
-};
+const safeUrl = (): string => scrubUrl(target.url);
 
 function send(msg: string): void {
     if (isOpen()) ws?.send(msg);
@@ -66,7 +58,7 @@ async function sendStatus(): Promise<void> {
     try {
         send(await statusEvent());
     } catch (err: unknown) {
-        console.error("[remote] status failed:", err instanceof Error ? err.message : String(err));
+        console.error("[remote] status failed:", errorMessage(err));
     }
 }
 
@@ -140,7 +132,7 @@ function connect(): void {
     sock.addEventListener("message", async (ev) => {
         touch();
         const { data } = ev as unknown as { data: string | ArrayBuffer };
-        const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+        const text = textOf(data);
         if (!isRequest(text)) return;
         send(await handleRequest(text));
     });

@@ -2,6 +2,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { arg, argFail, argv, enumArg, flag, intArg } from "./args";
+import { REMOTE_URL_RE } from "./validate";
 
 export { argv };
 
@@ -28,7 +29,7 @@ export const REMOTE_URL      = arg("--remote", process.env.SRTLA_REMOTE_URL ?? p
 export const REMOTE_TOKEN    = arg("--remote-token", process.env.SRTLA_REMOTE_TOKEN ?? persistedStartup.settings?.remoteToken ?? "");
 export const REMOTE_INTERVAL = intArg("--remote-interval", 30);   // periodic status push, seconds (0 = off)
 export const REMOTE_STATS_INTERVAL = intArg("--remote-stats-interval", 2);   // srtla_send link stats push, seconds (0 = off)
-if (REMOTE_URL && !/^wss?:\/\//.test(REMOTE_URL)) argFail("--remote", REMOTE_URL, "ws:// or wss:// URL");
+if (REMOTE_URL && !REMOTE_URL_RE.test(REMOTE_URL)) argFail("--remote", REMOTE_URL, "ws:// or wss:// URL");
 
 // relay: receives SRT and bonds it out via srtla_send
 // encoder: belacoder → SRT to a relay (no bonding, routing or modems)

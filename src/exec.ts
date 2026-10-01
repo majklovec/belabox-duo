@@ -1,5 +1,6 @@
 import { $ } from "bun";
 import { DRY_RUN } from "./config";
+import { errorMessage } from "./util";
 
 export async function run(cmd: string, args: string[], ignoreError = false): Promise<string> {
     if (DRY_RUN && !cmd.includes("mmcli") && !cmd.includes("nmcli")) {
@@ -11,7 +12,7 @@ export async function run(cmd: string, args: string[], ignoreError = false): Pro
         return out.trim();
     } catch (err: unknown) {
         if (ignoreError) return "";
-        const message = err instanceof Error ? err.message : String(err);
+        const message = errorMessage(err);
         const stderr = err && typeof err === "object" && "stderr" in err && err.stderr instanceof Uint8Array
             ? new TextDecoder().decode(err.stderr)
             : "";
