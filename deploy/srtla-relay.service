@@ -12,7 +12,7 @@ EnvironmentFile=/etc/default/srtla-relay
 # The config file lives under /var/lib so device settings, last stream and
 # autostart survive reboots
 StateDirectory=srtla-relay
-ExecStart=/usr/local/bin/bun srtla_relay.ts --device-config /var/lib/srtla-relay/config.json $SRTLA_ARGS
+ExecStart=/usr/local/bin/bun srtla_relay.ts --config /var/lib/srtla-relay/config.json $SRTLA_ARGS
 # SIGTERM to bun only: it stops belacoder / srtla_send itself, then systemd cleans up
 KillMode=mixed
 Restart=always

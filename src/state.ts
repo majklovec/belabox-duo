@@ -1,8 +1,8 @@
 /*
  * Persistent storage:
  *   config.json      permanent parameters only — device settings, encoder config,
- *                     the srtla target (+ scheduler options and interface
- *                     selection) and autostart. Stable key order, 2-space indent.
+ *                     the srtla target (+ scheduler options), the modems bonding
+ *                     selection and autostart. Stable key order, 2-space indent.
  *   in memory        live process state — running flags, pids, counters. Never
  *                     written to disk; a restarted process starts fresh.
  *
@@ -11,7 +11,7 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { DRY_RUN, DEVICE_CONFIG_FILE } from "./config";
+import { CONFIG_FILE, DRY_RUN } from "./config";
 import type { EncoderConfig, EncoderState } from "./encoder";
 import { DEFAULT_LANGUAGE, asLanguage, setCurrentLanguage, type Language } from "./i18n";
 import type { ModemConfig } from "./routing";
@@ -42,14 +42,13 @@ export interface StreamTarget { remoteHost: string; remotePort: string; listenPo
 /** Last srtla_send target (`srtla.start`), kept after stop for prefill and autostart. */
 export interface SrtlaTarget { listenPort: string; remoteHost: string; remotePort: string; }
 
-/** srtla section of the config file: target, scheduler options, interface selection. */
+/** srtla section of the config file: target and scheduler options. */
 export interface SrtlaConfig {
     listenPort: string;
     mode: SrtlaMode;
     quality: boolean;
     remoteHost: string;
     remotePort: string;
-    selectedInterfaces: ModemConfig;
 }
 
 /** Permanent device parameters persisted to the config file (no process state). */
@@ -64,6 +63,8 @@ export interface DeviceConfig {
     remoteToken?: string;
     pipelineRepositories?: string[];
     encoder?: EncoderConfig;
+    /** Bonding selection (old modems.json). */
+    modems?: ModemConfig;
     srtla: SrtlaConfig;
 }
 
@@ -86,7 +87,7 @@ const defaults = (): PersistentState => ({
     encoder: { running: false },
 });
 
-const configFile = Bun.file(DEVICE_CONFIG_FILE);
+const configFile = Bun.file(CONFIG_FILE);
 
 // A fresh device (no config file) shows the setup wizard first.
 export let setupRequired = !(await configFile.exists());
@@ -108,13 +109,13 @@ function projectConfig(s: PersistentState): DeviceConfig {
         role: settings.role ?? "relay",
         uuid: settings.uuid ?? "",
         encoder: s.encoder.config,
+        modems: s.selection ?? {},
         srtla: {
             listenPort: target.listenPort,
             mode: options.mode ?? "enhanced",
             quality: options.quality ?? false,
             remoteHost: target.remoteHost,
             remotePort: target.remotePort,
-            selectedInterfaces: s.selection ?? {},
         },
     };
     if (settings.remoteToken) cfg.remoteToken = settings.remoteToken;
@@ -139,7 +140,7 @@ function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
             pipelineRepositories: cfg?.pipelineRepositories,
             language: cfg?.language,
         },
-        selection: section.selectedInterfaces ?? {},
+        selection: cfg?.modems ?? {},
         srtla: { running: false },
         srtlaTarget: target,
         srtlaOptions: section.mode !== undefined || section.quality !== undefined
@@ -184,7 +185,7 @@ export async function saveState(): Promise<void> {
     const config = stableStringify(projectConfig(state));
     if (config === lastConfig) return;
     lastConfig = config;
-    await Bun.write(DEVICE_CONFIG_FILE, config);
+    await Bun.write(CONFIG_FILE, config);
 }
 
 export async function completeSetup(): Promise<void> {

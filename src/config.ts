@@ -7,12 +7,12 @@ import { REMOTE_URL_RE } from "./validate";
 export { argv };
 
 const TMP = tmpdir();
-export const CONFIG_FILE = arg("--config", "modems.json");
-// Permanent device parameters (settings, encoder config, srtla target); live
-// process state is memory-only and never persisted.
-export const DEVICE_CONFIG_FILE = arg("--device-config", join(TMP, "config.json"));
+// Device config: permanent parameters (settings, encoder, srtla target,
+// autostart) plus the `modems` bonding-selection section; live process state
+// is memory-only and never persisted.
+export const CONFIG_FILE = arg("--config", join(TMP, "config.json"));
 // Startup values from the config file
-const deviceConfig = await Bun.file(DEVICE_CONFIG_FILE).json().catch(() => (null)) as Record<string, unknown> | null;
+const deviceConfig = await Bun.file(CONFIG_FILE).json().catch(() => (null)) as Record<string, unknown> | null;
 const persisted =
     (key: "uuid" | "hostname" | "role" | "remoteUrl" | "remoteToken"): string | undefined =>
         deviceConfig?.[key] as string | undefined;

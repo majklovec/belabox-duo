@@ -4,7 +4,6 @@
  */
 import { readFile } from "node:fs/promises";
 import {
-	CONFIG_FILE,
 	DEBOUNCE_MS,
 	DRY_RUN,
 	MONITOR,
@@ -141,16 +140,6 @@ function getNetwork(ipAddr: string, prefix: number): string {
 // ----------------------------------------------------------------------
 // Selection
 // ----------------------------------------------------------------------
-async function loadModemConfigFile(): Promise<ModemConfig | null> {
-	const file = Bun.file(CONFIG_FILE);
-	if (!(await file.exists())) return null;
-	try {
-		return (await file.json()) as ModemConfig;
-	} catch {
-		return null;
-	}
-}
-
 function filterByConfig(list: Iface[], cfg: ModemConfig): Iface[] {
 	if (cfg.modems?.length)
 		return list.filter((i) => cfg.modems?.includes(i.iface));
@@ -164,8 +153,6 @@ export async function resolveSelection(all: Iface[]): Promise<Iface[]> {
 		(runtime.modems && runtime.modems.length > 0) ||
 		(runtime.ips && runtime.ips.length > 0);
 	if (hasRuntime) return filterByConfig(all, runtime);
-	const fromFile = await loadModemConfigFile();
-	if (fromFile) return filterByConfig(all, fromFile);
 	return all;
 }
 

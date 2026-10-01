@@ -62,8 +62,7 @@ passes them to the command without requiring a persistent shell environment.
 | `--role`                    | `SRTLA_ROLE`          | `relay`                          | `relay`, `encoder`, `combined`                                                         |
 | `--host`, `--port`          |                       | `127.0.0.1`, `8085`              | Local web UI and WebSocket API (`/ws`), always on                                      |
 | `--allow-origin`            |                       |                                  | Extra browser origins for `/ws` (comma-separated, `*` = any)                           |
-| `--device-config`           |                       | `$TMPDIR/config.json`            | Permanent device parameters (settings, encoder config, srtla target, autostart) — **use a persistent path in production** |
-| `--config`                  |                       | `modems.json`                    | Optional default bonding selection `{"modems": [...]}` or `{"ips": [...]}`             |
+| `--config`                  |                       | `$TMPDIR/config.json`            | Device config: permanent parameters (settings, encoder, srtla target, autostart) plus the `modems` bonding-selection section — **use a persistent path in production** |
 | `--uplinks`                 |                       | `$TMPDIR/srtla_ips.txt`          | Uplinks file for `srtla_send`                                                          |
 | `--start-srtla`             |                       |                                  | relay/combined: start srtla_send with `<listenPort> <remoteHost> <remotePort>` on boot |
 | `--srtla-reload`            |                       | `signal`                         | `signal` (SIGHUP) or `restart`                                                         |

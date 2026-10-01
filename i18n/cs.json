@@ -11,7 +11,7 @@
   "dev.badge.restarting": "obnovuje se",
   "dev.badge.srtla_send_down": "srtla_send dolů",
   "dev.badge.stopped": "zastaveno",
-  "dev.badge.streaming": "převádí",
+  "dev.badge.streaming": "enkoduje",
   "dev.card.encoder": "Enkodér",
   "dev.card.interfaces": "Rozhraní",
   "dev.card.log": "Log",

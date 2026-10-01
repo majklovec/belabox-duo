@@ -56,8 +56,10 @@ import { COLOR_RE } from "./src/validate";
 
 const PORT         = intArg("--port", 8090, 1, 65535);
 const HOST         = arg("--host", "0.0.0.0");
+
 const DEVICE_TOKEN = arg("--device-token", process.env.SRTLA_DEVICE_TOKEN ?? "");
 const DEVICES_FILE = arg("--devices");
+
 const UI_USER      = arg("--ui-user", process.env.SRTLA_UI_USER ?? "admin");
 const UI_PASSWORD  = arg("--ui-password", process.env.SRTLA_UI_PASSWORD ?? "");
 const NO_AUTH      = flag("--no-auth");

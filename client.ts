@@ -38,7 +38,7 @@
  *   combined   belacoder → local srtla_send → bonded uplinks; one Start for both
  *
  * Usage:
- *   bun client.ts [--config modems.json] [--dry-run]
+ *   bun client.ts [--config /path/to/config.json] [--dry-run]
  *   bun client.ts --port 8085
  *   bun client.ts --role encoder  --pipelines /usr/share/belacoder/pipelines
  *   bun client.ts --role combined --pipelines ./pipeline
