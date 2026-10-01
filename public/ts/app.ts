@@ -221,7 +221,7 @@ function syncFromStatus(status: Status): void {
 			if (value !== undefined) prefill(`srtla-${key}`, { value: st[key] }, value as string | number);
 		}
 	} else {
-		prefill("srtla-listenPort", { value: st.listenPort }, s.listenPort);
+		prefill("srt-listenPort", { value: st.listenPort }, s.listenPort);
 		prefill("srtla-remoteHost", { value: st.remoteHost }, s.remoteHost);
 		prefill("srtla-remotePort", { value: st.remotePort }, s.remotePort);
 	}
@@ -516,9 +516,8 @@ const App: m.Component<{}, {}> = {
 							: e.pid || !e.restarts
 								? badge(t("dev.badge.streaming"), "on")
 								: badge(t("dev.badge.restarting"), "warn");
-					const target = combined
-						? srtla.remoteHost && `${srtla.remoteHost}:${srtla.remotePort} ${t("dev.target_via_srtla_send")}`
-						: cfg && `${cfg.host}:${cfg.port}`;
+					// Combi devices stream into their own srtla_send, so the target row is hidden for them
+					const target = cfg && `${cfg.host}:${cfg.port}`;
 					const pipeline = selectedPipeline();
 					const asrc = status.audioSources.find((a) => a.id === st.audioSource);
 					return m(
@@ -527,7 +526,7 @@ const App: m.Component<{}, {}> = {
 						definitionList([
 							[t("dev.row.state"), state],
 							[t("dev.row.pipeline"), cfg?.pipeline],
-							[t("dev.row.target"), e.running ? target : null],
+							...(!combined ? ([[t("dev.row.target"), e.running ? target : null]] as [string, Child][]) : []),
 							[t("dev.row.bitrate"), cfg ? t("dev.max_kbps", cfg.maxBitrate) : null],
 							[t("dev.row.latency"), cfg ? t("dev.latency_audio", cfg.latency, cfg.delay) : null],
 							[t("dev.row.audio"), cfg ? `${asrc?.name ?? cfg.audioSource ?? t("dev.audio_pipeline_default")}, ${(cfg.audioCodec ?? "aac").toUpperCase()}` : null],
@@ -550,16 +549,29 @@ const App: m.Component<{}, {}> = {
 							),
 							field(
 								t("dev.field.max_bitrate"),
-								m("input", {
-									id: "enc-maxBitrate",
-									type: "number",
-									min: 300,
-									max: 30000,
-									step: 100,
-									placeholder: "5000",
-									value: st.maxBitrate,
-									oninput: (e: Event) => (st.maxBitrate = (e.target as HTMLInputElement).value),
-								}),
+								m(
+									"div.actions",
+									m("input", {
+										id: "enc-maxBitrate",
+										type: "number",
+										min: 300,
+										max: 30000,
+										step: 100,
+										placeholder: "5000",
+										value: st.maxBitrate,
+										oninput: (e: Event) => (st.maxBitrate = (e.target as HTMLInputElement).value),
+									}),
+									m(
+										"button",
+										{
+											type: "button",
+											class: "secondary",
+											disabled: !stateButtonEnabled("encoder-bitrate"),
+											onclick: () => void act("encoder-bitrate", "encoder.bitrate", { maxBitrate: optionalNumber(st.maxBitrate) }),
+										},
+										t("dev.apply_bitrate"),
+									),
+								),
 							),
 							pipeline?.overlay
 								? checkField(
@@ -665,30 +677,23 @@ const App: m.Component<{}, {}> = {
 									oninput: (e: Event) => (st.streamid = (e.target as HTMLInputElement).value),
 								}),
 							),
-							m(
-								"div.actions",
-								m("button", { type: "submit", disabled: !stateButtonEnabled("encoder-start") }, t("ui.start")),
+							!combined &&
+								m("div.break"),
+							!combined &&
 								m(
-									"button",
-									{
-										type: "button",
-										class: "danger",
-										disabled: !stateButtonEnabled("encoder-stop"),
-										onclick: () => void act("encoder-stop", role === "combined" ? "stream.stop" : "encoder.stop"),
-									},
-									t("ui.stop"),
+									"div.actions",
+									m("button", { type: "submit", disabled: !stateButtonEnabled("encoder-start") }, t("ui.start")),
+									m(
+										"button",
+										{
+											type: "button",
+											class: "danger",
+											disabled: !stateButtonEnabled("encoder-stop"),
+											onclick: () => void act("encoder-stop", "encoder.stop"),
+										},
+										t("ui.stop"),
+									),
 								),
-								m(
-									"button",
-									{
-										type: "button",
-										class: "secondary",
-										disabled: !stateButtonEnabled("encoder-bitrate"),
-										onclick: () => void act("encoder-bitrate", "encoder.bitrate", { maxBitrate: optionalNumber(st.maxBitrate) }),
-									},
-									t("dev.apply_bitrate"),
-								),
-							),
 						),
 					);
 				}
@@ -702,7 +707,7 @@ const App: m.Component<{}, {}> = {
 						{ title: t("dev.card.srtla") },
 						definitionList([
 							[t("dev.row.state"), s.running ? badge(t("dev.row_state_running"), "on") : badge(t("dev.badge.stopped"), "off")],
-							[t("dev.row.target"), srtlaTarget(s, role)],
+							//[t("dev.row.target"), srtlaTarget(s, role)],
 							[t("dev.row.started"), s.running ? since(s.startedAt) : null],
 							[t("dev.reloads"), t("dev.reloads_detail", s.reloadCount ?? 0, since(s.lastReloadAt), status.monitor.reloadMode)],
 							[t("dev.monitor"), status.monitor.running ? badge(t("dev.monitor_watching"), "on") : badge(t("ui.off"), "warn")],
@@ -710,26 +715,26 @@ const App: m.Component<{}, {}> = {
 						]),
 						m(
 							"form",
-							{ onsubmit: (e: Event) => { e.preventDefault(); void srtlaStart(); } },
+							{ onsubmit: (e: Event) => { e.preventDefault(); void (combined ? encoderStart() : srtlaStart()); } },
 							!combined &&
 								field(
 									t("dev.field.srt_listen_port"),
 									m("input", {
-										id: "srtla-listenPort",
+										id: "srt-listenPort",
 										placeholder: "6000",
 										required: true,
 										value: st.listenPort,
 										oninput: (e: Event) => (st.listenPort = (e.target as HTMLInputElement).value),
 									}),
 								),
-							combined && " ⇨ ",
+							combined ? "" : " ⇨ ",
 							field(
 								t("dev.field.remote_host"),
 								m("input", {
 									id: "srtla-remoteHost",
 									placeholder: "rec.example.com",
 									required: true,
-									value: st.remoteHost,
+									value: s.remoteHost,
 									oninput: (e: Event) => (st.remoteHost = (e.target as HTMLInputElement).value),
 								}),
 							),
@@ -739,17 +744,27 @@ const App: m.Component<{}, {}> = {
 									id: "srtla-remotePort",
 									placeholder: "5000",
 									required: true,
-									value: st.remotePort,
+									value: s.remotePort,
 									oninput: (e: Event) => (st.remotePort = (e.target as HTMLInputElement).value),
 								}),
 							),
-							!combined &&
-								m(
-									"div.actions",
-									m("button", { type: "submit", disabled: !stateButtonEnabled("srtla-start") }, t("ui.start")),
-									m("button", { type: "button", class: "danger", disabled: !stateButtonEnabled("srtla-stop"), onclick: () => void act("srtla-stop", "srtla.stop") }, t("ui.stop")),
-									m("button", { type: "button", disabled: !stateButtonEnabled("srtla-reload"), onclick: () => void act("srtla-reload", "srtla.reload") }, t("ui.reload")),
-								),
+							m("div.break"),
+							combined
+								? m(
+										"div.actions",
+										m("button", { type: "submit", disabled: !stateButtonEnabled("encoder-start") }, t("ui.start")),
+										m(
+											"button",
+											{ type: "button", class: "danger", disabled: !stateButtonEnabled("encoder-stop"), onclick: () => void act("encoder-stop", "stream.stop") },
+											t("ui.stop"),
+										),
+									)
+								: m(
+										"div.actions",
+										m("button", { type: "submit", disabled: !stateButtonEnabled("srtla-start") }, t("ui.start")),
+										m("button", { type: "button", class: "danger", disabled: !stateButtonEnabled("srtla-stop"), onclick: () => void act("srtla-stop", "srtla.stop") }, t("ui.stop")),
+										m("button", { type: "button", disabled: !stateButtonEnabled("srtla-reload"), onclick: () => void act("srtla-reload", "srtla.reload") }, t("ui.reload")),
+									),
 						),
 						m(
 							"form",
