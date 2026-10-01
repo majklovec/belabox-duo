@@ -4,14 +4,15 @@ import m from "mithril";
 import { Card, Page, badge, definitionList, field, checkField } from "./components/ui";
 import { byId, type Child, formatBitrate, since } from "./dom";
 import { type Level, levelIcon, roleTag } from "./icons";
-import { type LogEntry, type LogEvent, methodLog } from "../../src/logMessages";
+import { t } from "./i18n";
+import { type LogEntry, type LogEvent, label, methodLog } from "../../src/logMessages";
 import type { ModemInfo } from "../../src/modems";
 import type { DeviceInfo, Pipeline, Role, SrtlaLinkStats, SrtlaStats, SrtlaStatsEvent, Status } from "../types";
 import { RpcClient, RpcError, socketUrl } from "./services/rpc";
 import type { Params } from "./services/rpc";
 
 const STATS_STALE_MS = 5_000;
-const LEVEL_LABEL: Record<Level, string> = { info: "INFO", warn: "WARNING", error: "ERROR" };
+const LEVEL_KEY: Record<Level, string> = { info: "log.level.info", warn: "log.level.warning", error: "log.level.error" };
 const LOG_MAX = 200;
 
 // ----------------------------------------------------------------------
@@ -127,7 +128,7 @@ async function act<T = unknown>(buttonId: string | null, method: string, params?
 	} catch (err) {
 		if (!(err instanceof RpcError && err.logged)) {
 			const { section, action } = methodLog(method);
-			log("error", section, `${action} failed: ${err instanceof Error ? err.message : String(err)}`);
+			log("error", section, t("mlog.failed", label(action), err instanceof Error ? err.message : String(err)));
 		}
 		return undefined;
 	} finally {
@@ -148,7 +149,7 @@ async function act<T = unknown>(buttonId: string | null, method: string, params?
 function renderDevice(info: DeviceInfo): void {
 	const wasOnline = st.device?.online;
 	st.device = info;
-	document.title = `${info.hostname || info.id} - Belabox Duo`;
+	document.title = `${info.hostname || info.id} ${t("ui.title_suffix")}`;
 	if (wasOnline !== undefined && wasOnline !== info.online && info.online) pipelinesLoaded.value = false;
 	if (!info.online) st.stats = null;
 	m.redraw();
@@ -163,7 +164,7 @@ rpc.on("open", () => {
 	st.socketOpen = true;
 	pipelinesLoaded.value = false;
 	void loadAppearance();
-	if (st.connectionLost) log("info", "Connection", "Reconnected");
+	if (st.connectionLost) log("info", label("Connection"), t("dev.reconnected"));
 	st.connectionLost = false;
 	m.redraw();
 });
@@ -171,7 +172,7 @@ rpc.on("close", () => {
 	// Only once per outage, not on every reconnect attempt
 	if (st.socketOpen) {
 		st.connectionLost = true;
-		log("warn", "Connection", "Lost, reconnecting…");
+		log("warn", label("Connection"), t("dev.lost_reconnecting"));
 	}
 	st.socketOpen = false;
 	st.stats = null;
@@ -327,7 +328,7 @@ async function toggleIface(iface: string): Promise<void> {
 }
 
 async function modemAction(method: string, index: number): Promise<void> {
-	if (method === "modems.reset" && !confirm(`Reset modem #${index}?`)) return;
+	if (method === "modems.reset" && !confirm(t("dev.reset_confirm", index))) return;
 	const key = `modem:${method}:${index}`;
 	if (busy.has(key)) return;
 	busy.add(key);
@@ -356,36 +357,36 @@ async function setAutostart(enabled: boolean): Promise<void> {
 // ----------------------------------------------------------------------
 function connBadge(): m.Vnode {
 	const [text, kind]: [string, "" | "off" | "on" | "warn"] = !st.socketOpen
-		? ["disconnected", "off"]
+		? [t("dev.disconnected"), "off"]
 		: st.device && !st.device.online
-			? ["device offline", "warn"]
-			: ["connected", "on"];
+			? [t("dev.device_offline"), "warn"]
+			: [t("dev.connected"), "on"];
 	return badge(text, kind);
 }
 
 function srtlaTarget(s: Status["state"]["srtla"], role: Role): Child {
 	if (!s.remoteHost) return null;
 	// On combined devices the listen port is an internal belacoder → srtla_send detail
-	return `${s.remoteHost}:${s.remotePort}${role === "combined" ? "" : ` (listen ${s.listenPort})`}`;
+	return `${s.remoteHost}:${s.remotePort}${role === "combined" ? "" : ` ${t("dev.listen_port", s.listenPort)}`}`;
 }
 
 function controlBadge(status: Status): Child {
 	const c = status.srtlaControl;
-	if (c?.connected) return badge("connected", "on");
-	if (c?.supported) return badge("connecting", "warn");
+	if (c?.connected) return badge(t("dev.connected"), "on");
+	if (c?.supported) return badge(t("dev.control_connecting"), "warn");
 	return m(
 		"span.muted",
-		{ title: "srtla_send without --control-socket: no link stats" },
-		"unavailable",
+		{ title: t("dev.control_unavailable_title") },
+		t("dev.control_unavailable"),
 	);
 }
 
 function linkState(l: SrtlaLinkStats): m.Vnode {
-	if (l.timed_out) return badge("timed out", "off");
-	if (!l.connected) return badge("connecting", "warn");
-	if (l.stall_gated) return badge("stalled", "warn");
-	if (l.weak) return m("span", { title: l.weak_reason ?? "" }, badge("weak", "warn"));
-	return badge(l.sole_carrier ? "sole carrier" : "up", "on");
+	if (l.timed_out) return badge(t("dev.link_timed_out"), "off");
+	if (!l.connected) return badge(t("dev.control_connecting"), "warn");
+	if (l.stall_gated) return badge(t("dev.link_stalled"), "warn");
+	if (l.weak) return m("span", { title: l.weak_reason ?? "" }, badge(t("dev.link_weak"), "warn"));
+	return badge(l.sole_carrier ? t("dev.link_sole") : t("dev.link_up"), "on");
 }
 
 /** Link columns for an interface; srtla_send links are matched to interfaces by source IP. */
@@ -399,24 +400,24 @@ function linkCells(l: SrtlaLinkStats | undefined, total: number): m.Vnode[] {
 			m(
 				"span",
 				null,
-				m("meter.share", { min: 0, max: 1, value: share, title: `${Math.round(share * 100)}% of total` }),
+				m("meter.share", { min: 0, max: 1, value: share, title: t("dev.link_share_title", Math.round(share * 100), Math.round(l.rtt_min_ms)) }),
 				formatBitrate(l.bitrate_bytes_per_sec),
 			),
 			"num",
 		),
-		cell(l.connected ? `${Math.round(l.rtt_ms)} ms` : "—", "num", `min ${Math.round(l.rtt_min_ms)} ms`),
+		cell(l.connected ? `${Math.round(l.rtt_ms)} ms` : "—", "num", t("dev.link_min_rtt", Math.round(l.rtt_min_ms))),
 		cell(`${l.in_flight} / ${l.window}`, "num"),
 		cell(l.nak_count, "num"),
 		cell(`${((l.cc_loss_permille ?? 0) / 10).toFixed(1)}%`, "num"),
 		cell(
 			l.quality_multiplier !== undefined ? `×${l.quality_multiplier.toFixed(2)}` : "—",
 			"num",
-			l.base_score !== undefined ? `score ${l.base_score}` : "",
+			l.base_score !== undefined ? t("dev.link_score", l.base_score) : "",
 		),
 	];
 }
 
-const formatSpeed = (mbps: number) => (mbps >= 1000 ? `${mbps / 1000} Gb/s` : `${mbps} Mb/s`);
+const formatSpeed = (mbps: number) => (mbps >= 1000 ? t("dev.unit_gbs", mbps / 1000) : t("dev.unit_mbs", mbps));
 
 function signal(quality?: number): Child {
 	if (quality === undefined) return "—";
@@ -432,7 +433,7 @@ function pipelineOptions(): m.Children {
 		if (group) nodes.push(m("optgroup", { key: group, label: group }, options));
 		else nodes.push(...options);
 	}
-	if (!nodes.length) nodes.push(m("option", { value: "", disabled: true }, `No pipelines in ${st.pipelineDir}`));
+	if (!nodes.length) nodes.push(m("option", { value: "", disabled: true }, `${t("dev.no_pipelines", st.pipelineDir)} ${t("dev.no_pipelines_hint")}`));
 	return nodes;
 }
 
@@ -465,23 +466,23 @@ function modemCard(modem: ModemInfo): m.Vnode {
 		m(
 			"h3",
 			null,
-			m("span", `#${modem.index} ${[modem.manufacturer, modem.model].filter(Boolean).join(" ") || "Modem"}`),
+			m("span", `#${modem.index} ${[modem.manufacturer, modem.model].filter(Boolean).join(" ") || t("dev.modem_fallback")}`),
 			badge(modem.state, connected ? "on" : modem.state === "disabled" || modem.state === "failed" ? "off" : "warn"),
 		),
 		definitionList([
-			["Signal", signal(modem.signalQuality)],
-			["Operator", modem.operatorName],
-			["Tech", modem.accessTech],
-			["Registration", modem.registrationState],
-			["Power", modem.powerState],
-			["IMEI", modem.imei],
+			[t("dev.signal"), signal(modem.signalQuality)],
+			[t("dev.operator"), modem.operatorName],
+			[t("dev.tech"), modem.accessTech],
+			[t("dev.registration"), modem.registrationState],
+			[t("dev.power"), modem.powerState],
+			[t("dev.imei"), modem.imei],
 		]),
 		m(
 			"div.actions",
-			button("Enable", "modems.enable"),
-			button("Disable", "modems.disable"),
-			connected ? button("Disconnect", "modems.disconnect") : button("Connect", "modems.connect"),
-			button("Reset", "modems.reset", "danger"),
+			button(t("ui.enable"), "modems.enable"),
+			button(t("ui.disable"), "modems.disable"),
+			connected ? button(t("ui.disconnect"), "modems.disconnect") : button(t("ui.connect"), "modems.connect"),
+			button(t("ui.reset"), "modems.reset", "danger"),
 		),
 	);
 }
@@ -509,35 +510,35 @@ const App: m.Component<{}, {}> = {
 					const cfg = e.config;
 					const srtla = status.state.srtla;
 					const state = !e.running
-						? badge("stopped", "off")
+						? badge(t("dev.badge.stopped"), "off")
 						: combined && !srtla.running
-							? badge("srtla_send down", "warn")
+							? badge(t("dev.badge.srtla_send_down"), "warn")
 							: e.pid || !e.restarts
-								? badge("streaming", "on")
-								: badge("restarting", "warn");
+								? badge(t("dev.badge.streaming"), "on")
+								: badge(t("dev.badge.restarting"), "warn");
 					const target = combined
-						? srtla.remoteHost && `${srtla.remoteHost}:${srtla.remotePort} via srtla_send`
+						? srtla.remoteHost && `${srtla.remoteHost}:${srtla.remotePort} ${t("dev.target_via_srtla_send")}`
 						: cfg && `${cfg.host}:${cfg.port}`;
 					const pipeline = selectedPipeline();
 					const asrc = status.audioSources.find((a) => a.id === st.audioSource);
 					return m(
 						Card,
-						{ title: "Encoder" },
+						{ title: t("dev.card.encoder") },
 						definitionList([
-							["State", state],
-							["Pipeline", cfg?.pipeline],
-							["Target", e.running ? target : null],
-							["Bitrate", cfg ? `max ${cfg.maxBitrate} kbps` : null],
-							["Latency", cfg ? `${cfg.latency} ms (audio delay ${cfg.delay} ms)` : null],
-							["Audio", cfg ? `${asrc?.name ?? cfg.audioSource ?? "Pipeline default"}, ${(cfg.audioCodec ?? "aac").toUpperCase()}` : null],
-							["Started", e.running ? since(e.startedAt) : null],
-							["Restarts", e.running ? (e.restarts ?? 0) : null],
+							[t("dev.row.state"), state],
+							[t("dev.row.pipeline"), cfg?.pipeline],
+							[t("dev.row.target"), e.running ? target : null],
+							[t("dev.row.bitrate"), cfg ? t("dev.max_kbps", cfg.maxBitrate) : null],
+							[t("dev.row.latency"), cfg ? t("dev.latency_audio", cfg.latency, cfg.delay) : null],
+							[t("dev.row.audio"), cfg ? `${asrc?.name ?? cfg.audioSource ?? t("dev.audio_pipeline_default")}, ${(cfg.audioCodec ?? "aac").toUpperCase()}` : null],
+							[t("dev.row.started"), e.running ? since(e.startedAt) : null],
+							[t("dev.row.restarts"), e.running ? (e.restarts ?? 0) : null],
 						]),
 						m(
 							"form",
 							{ onsubmit: (e: Event) => { e.preventDefault(); void encoderStart(); } },
 							field(
-								"Pipeline",
+								t("dev.row.pipeline"),
 								m("select", {
 									required: true,
 									value: st.pipeline,
@@ -548,7 +549,7 @@ const App: m.Component<{}, {}> = {
 								}, pipelineOptions()),
 							),
 							field(
-								"Max bitrate (kbps)",
+								t("dev.field.max_bitrate"),
 								m("input", {
 									id: "enc-maxBitrate",
 									type: "number",
@@ -562,7 +563,7 @@ const App: m.Component<{}, {}> = {
 							),
 							pipeline?.overlay
 								? checkField(
-										"Bitrate overlay",
+										t("dev.field.bitrate_overlay"),
 										m("input", {
 											type: "checkbox",
 											checked: st.bitrateOverlay,
@@ -576,7 +577,7 @@ const App: m.Component<{}, {}> = {
 							m("div.break"),
 							pipeline?.asrc
 								? field(
-										"Audio source",
+										t("dev.field.audio_source"),
 										m(
 											"select",
 											{
@@ -592,7 +593,7 @@ const App: m.Component<{}, {}> = {
 								: null,
 							pipeline?.acodec
 								? field(
-										"Audio codec",
+										t("dev.field.audio_codec"),
 										m(
 											"select",
 											{
@@ -608,7 +609,7 @@ const App: m.Component<{}, {}> = {
 									)
 								: null,
 							field(
-								"Audio delay (ms)",
+								t("dev.field.audio_delay"),
 								m("input", {
 									id: "enc-delay",
 									type: "number",
@@ -622,7 +623,7 @@ const App: m.Component<{}, {}> = {
 							!combined && m("div.break"),
 							!combined &&
 								field(
-									"Stream host",
+									t("dev.field.stream_host"),
 									m("input", {
 										id: "enc-host",
 										placeholder: "192.168.1.10",
@@ -633,7 +634,7 @@ const App: m.Component<{}, {}> = {
 								),
 							!combined &&
 								field(
-									"Stream SRT port",
+									t("dev.field.stream_srt_port"),
 									m("input", {
 										id: "enc-port",
 										placeholder: "6000",
@@ -643,7 +644,7 @@ const App: m.Component<{}, {}> = {
 									}),
 								),
 							field(
-								"SRT latency (ms)",
+								t("dev.field.srt_latency"),
 								m("input", {
 									id: "enc-latency",
 									type: "number",
@@ -656,17 +657,17 @@ const App: m.Component<{}, {}> = {
 								}),
 							),
 							field(
-								"Stream ID",
+								t("dev.field.stream_id"),
 								m("input", {
 									id: "enc-streamid",
-									placeholder: "optional",
+									placeholder: t("ui.optional"),
 									value: st.streamid,
 									oninput: (e: Event) => (st.streamid = (e.target as HTMLInputElement).value),
 								}),
 							),
 							m(
 								"div.actions",
-								m("button", { type: "submit", disabled: !stateButtonEnabled("encoder-start") }, "Start"),
+								m("button", { type: "submit", disabled: !stateButtonEnabled("encoder-start") }, t("ui.start")),
 								m(
 									"button",
 									{
@@ -675,7 +676,7 @@ const App: m.Component<{}, {}> = {
 										disabled: !stateButtonEnabled("encoder-stop"),
 										onclick: () => void act("encoder-stop", role === "combined" ? "stream.stop" : "encoder.stop"),
 									},
-									"Stop",
+									t("ui.stop"),
 								),
 								m(
 									"button",
@@ -685,7 +686,7 @@ const App: m.Component<{}, {}> = {
 										disabled: !stateButtonEnabled("encoder-bitrate"),
 										onclick: () => void act("encoder-bitrate", "encoder.bitrate", { maxBitrate: optionalNumber(st.maxBitrate) }),
 									},
-									"Apply bitrate",
+									t("dev.apply_bitrate"),
 								),
 							),
 						),
@@ -698,21 +699,21 @@ const App: m.Component<{}, {}> = {
 					const s = status.state.srtla;
 					return m(
 						Card,
-						{ title: "SRTLA" },
+						{ title: t("dev.card.srtla") },
 						definitionList([
-							["State", s.running ? badge("running", "on") : badge("stopped", "off")],
-							["Target", srtlaTarget(s, role)],
-							["Started", s.running ? since(s.startedAt) : null],
-							["Reloads", `${s.reloadCount ?? 0} (last ${since(s.lastReloadAt)}, mode ${status.monitor.reloadMode})`],
-							["Monitor", status.monitor.running ? badge("watching", "on") : badge("off", "warn")],
-							["Control", s.running ? controlBadge(status) : null],
+							[t("dev.row.state"), s.running ? badge(t("dev.row_state_running"), "on") : badge(t("dev.badge.stopped"), "off")],
+							[t("dev.row.target"), srtlaTarget(s, role)],
+							[t("dev.row.started"), s.running ? since(s.startedAt) : null],
+							[t("dev.reloads"), t("dev.reloads_detail", s.reloadCount ?? 0, since(s.lastReloadAt), status.monitor.reloadMode)],
+							[t("dev.monitor"), status.monitor.running ? badge(t("dev.monitor_watching"), "on") : badge(t("ui.off"), "warn")],
+							[t("dev.control"), s.running ? controlBadge(status) : null],
 						]),
 						m(
 							"form",
 							{ onsubmit: (e: Event) => { e.preventDefault(); void srtlaStart(); } },
 							!combined &&
 								field(
-									"SRT Listen port",
+									t("dev.field.srt_listen_port"),
 									m("input", {
 										id: "srtla-listenPort",
 										placeholder: "6000",
@@ -723,7 +724,7 @@ const App: m.Component<{}, {}> = {
 								),
 							combined && " ⇨ ",
 							field(
-								"SRTLA Remote host",
+								t("dev.field.remote_host"),
 								m("input", {
 									id: "srtla-remoteHost",
 									placeholder: "rec.example.com",
@@ -733,7 +734,7 @@ const App: m.Component<{}, {}> = {
 								}),
 							),
 							field(
-								"SRTLA Remote port",
+								t("dev.field.remote_port"),
 								m("input", {
 									id: "srtla-remotePort",
 									placeholder: "5000",
@@ -745,16 +746,16 @@ const App: m.Component<{}, {}> = {
 							!combined &&
 								m(
 									"div.actions",
-									m("button", { type: "submit", disabled: !stateButtonEnabled("srtla-start") }, "Start"),
-									m("button", { type: "button", class: "danger", disabled: !stateButtonEnabled("srtla-stop"), onclick: () => void act("srtla-stop", "srtla.stop") }, "Stop"),
-									m("button", { type: "button", disabled: !stateButtonEnabled("srtla-reload"), onclick: () => void act("srtla-reload", "srtla.reload") }, "Reload"),
+									m("button", { type: "submit", disabled: !stateButtonEnabled("srtla-start") }, t("ui.start")),
+									m("button", { type: "button", class: "danger", disabled: !stateButtonEnabled("srtla-stop"), onclick: () => void act("srtla-stop", "srtla.stop") }, t("ui.stop")),
+									m("button", { type: "button", disabled: !stateButtonEnabled("srtla-reload"), onclick: () => void act("srtla-reload", "srtla.reload") }, t("ui.reload")),
 								),
 						),
 						m(
 							"form",
 							{ class: "inline options", onsubmit: (e: Event) => e.preventDefault() },
 							field(
-								"Scheduler",
+								t("dev.scheduler"),
 								m(
 									"select",
 									{
@@ -762,19 +763,19 @@ const App: m.Component<{}, {}> = {
 										value: srtlaModeValue(),
 										onchange: (e: Event) => void setSrtlaOption("mode", (e.target as HTMLSelectElement).value),
 									},
-									m("option", { value: "enhanced" }, "Enhanced"),
-									m("option", { value: "classic" }, "Classic"),
+									m("option", { value: "enhanced" }, t("dev.scheduler_enhanced")),
+									m("option", { value: "classic" }, t("dev.scheduler_classic")),
 								),
 							),
 							checkField(
-								"Quality scoring",
+								t("dev.quality_scoring"),
 								m("input", {
 									type: "checkbox",
 									checked: srtlaQualityValue(),
 									disabled: busy.has("srtla-quality") || srtlaModeValue() === "classic",
 									onchange: (e: Event) => void setSrtlaOption("quality", (e.target as HTMLInputElement).checked),
 								}),
-								{ title: "Score links by RTT, loss and NAKs (enhanced scheduler only)" },
+								{ title: t("dev.quality_scoring_title") },
 							),
 						),
 					);
@@ -789,7 +790,7 @@ const App: m.Component<{}, {}> = {
 					const links = new Map((live?.links ?? []).map((l) => [l.ip, l]));
 					const total = live ? live.links.reduce((sum, l) => sum + (l.bitrate_bytes_per_sec || 0), 0) : 0;
 					const rows = status.interfaces.map((i) => {
-						const sub = [i.cidr, i.modemIndex !== undefined ? `modem #${i.modemIndex}` : null].filter(Boolean).join(" · ");
+						const sub = [i.cidr, i.modemIndex !== undefined ? t("dev.iface_modem", i.modemIndex) : null].filter(Boolean).join(" · ");
 						const network = [i.operatorName, i.accessTech].filter(Boolean).join(" · ");
 						return m(
 							"tr",
@@ -800,7 +801,7 @@ const App: m.Component<{}, {}> = {
 									type: "checkbox",
 									checked: selected.has(i.iface),
 									disabled: togglingIfaces.has(i.iface),
-									title: "Include in bond",
+									title: t("dev.include_in_bond"),
 									onchange: () => void toggleIface(i.iface),
 								}),
 							),
@@ -813,10 +814,10 @@ const App: m.Component<{}, {}> = {
 					return m(
 						Card,
 						{
-							title: "Interfaces",
+							title: t("dev.card.interfaces"),
 							headActions: [
-								st.stats && stale && badge(`stale, ${since(st.statsAt)}`, "warn"),
-								m("button", { type: "button", disabled: inFlight.has("reconfigure"), onclick: () => void act("reconfigure", "reconfigure") }, "Reconfigure"),
+								st.stats && stale && badge(t("dev.stale", since(st.statsAt)), "warn"),
+								m("button", { type: "button", disabled: inFlight.has("reconfigure"), onclick: () => void act("reconfigure", "reconfigure") }, t("ui.reconfigure")),
 							],
 						},
 						m(
@@ -826,20 +827,20 @@ const App: m.Component<{}, {}> = {
 								"thead",
 								m(
 									"tr",
-									m("th", "Bond"),
-									m("th", "Interface"),
-									m("th", "Signal"),
-									m("th", "Network"),
-									m("th.link-col", "Link"),
-									m("th.link-col", "Bitrate"),
+									m("th", t("dev.th.bond")),
+									m("th", t("dev.th.interface")),
+									m("th", t("dev.signal")),
+									m("th", t("dev.th.network")),
+									m("th.link-col", t("dev.th.link")),
+									m("th.link-col", t("mgmt.th_bitrate")),
 									m("th.link-col", "RTT"),
-									m("th.link-col", { title: "Packets in flight / congestion window" }, "In flight"),
-									m("th.link-col", "NAKs"),
-									m("th.link-col", "Loss"),
-									m("th.link-col", "Quality"),
+									m("th.link-col", { title: t("dev.th.in_flight_title") }, t("dev.th.in_flight")),
+									m("th.link-col", t("dev.th.naks")),
+									m("th.link-col", t("dev.th.loss")),
+									m("th.link-col", t("dev.th.quality")),
 								),
 							),
-							rows.length ? rows : m("tr", m("td", { colspan: 11, class: "muted" }, "No interfaces detected")),
+							rows.length ? rows : m("tr", m("td", { colspan: 11, class: "muted" }, t("dev.no_interfaces"))),
 						),
 					);
 				}
@@ -849,27 +850,27 @@ const App: m.Component<{}, {}> = {
 			Page,
 			{
 				title: [
-					st.device ? m("a", { href: "../../", title: "All devices" }, "←") : null,
-					" Belabox Duo ",
+					st.device ? m("a", { href: "../../", title: t("dev.all_devices_title") }, "←") : null,
+					` ${t("dev.title")} `,
 					st.device && m("span.muted", st.device.hostname || st.device.id),
 				],
 				headerRight: [
 					m(
 						"label.check",
-						{ title: "Resume the last stream when the service starts" },
+						{ title: t("dev.autostart_title") },
 						m("input", {
 							type: "checkbox",
 							checked: status?.state.autostart ?? false,
 							disabled: !status || st.autostartBusy,
 							onchange: (e: Event) => void setAutostart((e.target as HTMLInputElement).checked),
 						}),
-						" Autostart",
+						` ${t("ui.autostart")}`,
 					),
 					status && m("span.badge", roleTag(role)),
 					connBadge(),
 					m(
 						"a.icon-link",
-						{ href: "settings/", title: "Settings", "aria-label": "Settings" },
+						{ href: "settings/", title: t("set.title"), "aria-label": t("set.title") },
 						m("svg",
 							{ "aria-hidden": "true", viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", stroke: "currentColor", "stroke-width": "2" },
 							m("circle", { cx: 12, cy: 12, r: 3 }),
@@ -887,22 +888,22 @@ const App: m.Component<{}, {}> = {
 				hasRelay &&
 				m(
 					Card,
-					{ title: "Modems" },
+					{ title: t("dev.card.modems") },
 					status.modems.length
 						? m("div.grid", status.modems.map(modemCard))
-						: m("p.muted", "No modems found (ModemManager)."),
+					: m("p.muted", t("dev.no_modems")),
 				),
 			m(
 				Card,
-				{ title: "Log" },
+				{ title: t("dev.card.log") },
 				m("code", { id: "log" }, logRowsSorted().map((e) =>
 					m(
 						"li",
 						{ key: logKey(e), class: `log-${e.level}` },
 						levelIcon(e.level),
 						formatLogTime(e.at),
-						m("span.log-level", LEVEL_LABEL[e.level]),
-						m("span.log-section", e.section),
+						m("span.log-level", t(LEVEL_KEY[e.level])),
+						m("span.log-section", label(e.section)),
 						m("span.log-message", e.message),
 						m("span.log-count", (e.count ?? 1) > 1 ? `×${e.count}` : null),
 					),

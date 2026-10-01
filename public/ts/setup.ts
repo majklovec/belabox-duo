@@ -21,13 +21,13 @@ type StepKey = "language" | "role" | "identity" | "control" | "encoder" | "relay
 
 const STEPS: { key: StepKey; title: string | (() => string); sub: string | (() => string) }[] = [
 	// The language step is a live function so switching it re-renders the stepper in the new language.
-	{ key: "language", title: () => t("setup.step.language"), sub: () => t("setup.step.language_sub") },
-	{ key: "role", title: "Role", sub: "Relay, encoder or both" },
-	{ key: "identity", title: "Identity", sub: "Name and color" },
-	{ key: "control", title: "Control server", sub: "Optional" },
-	{ key: "encoder", title: "Encoder", sub: "Pipeline and SRT" },
-	{ key: "relay", title: "Relay", sub: "SRTLA settings" },
-	{ key: "finish", title: "Review", sub: "Save configuration" },
+	{ key: "language", title: () => t("ui.language_label"), sub: () => t("setup.step.language_sub") },
+	{ key: "role", title: () => t("set.role"), sub: () => t("setup.step.role_sub") },
+	{ key: "identity", title: () => t("setup.step.identity"), sub: () => t("setup.step.identity_sub") },
+	{ key: "control", title: () => t("setup.step.control"), sub: () => t("setup.step.control_sub") },
+	{ key: "encoder", title: () => t("setup.step.encoder"), sub: () => t("setup.step.encoder_sub") },
+	{ key: "relay", title: () => t("setup.step.relay"), sub: () => t("setup.step.relay_sub") },
+	{ key: "finish", title: () => t("setup.step.review"), sub: () => t("setup.save") },
 ];
 
 // A step applies only for roles where it makes sense
@@ -252,11 +252,11 @@ function stepBody(key: StepKey): m.Vnode {
 			return m(
 				"fieldset.wizard-step",
 				{ "data-step": key },
-				m("h2.wiz-heading", t("setup.language")),
+				m("h2.wiz-heading", t("ui.language_label")),
 				m("p.wiz-desc", t("setup.language_desc")),
 				m(
 					"label",
-					t("setup.language"),
+					t("ui.language_label"),
 					m(
 						"select",
 						{
@@ -276,33 +276,33 @@ function stepBody(key: StepKey): m.Vnode {
 			return m(
 				"fieldset.wizard-step",
 				{ "data-step": key },
-				m("h2.wiz-heading", "Device role"),
-				m("p.wiz-desc", "Choose how this device streams. The role is applied after the configuration is saved."),
-				roleCard("encoder", "Encoder", "Captures a GStreamer pipeline and sends it over SRT", "encoder"),
-				roleCard("relay", "Relay", "Receives streams and forwards them with SRTLA", "relay"),
-				roleCard("combined", "Combined", "Encodes and relays in a single service", "combined"),
+				m("h2.wiz-heading", t("set.role")),
+				m("p.wiz-desc", t("setup.step.role_sub")),
+				roleCard("encoder", t("setup.role.encoder"), t("setup.role.encoder_tag"), "encoder"),
+				roleCard("relay", t("setup.step.relay"), t("setup.role.relay_tag"), "relay"),
+				roleCard("combined", t("setup.role.combined"), t("setup.role.combined_tag"), "combined"),
 			);
 		case "identity":
 			return m(
 				"fieldset.wizard-step",
 				{ "data-step": key },
-				m("h2.wiz-heading", "Identity and appearance"),
-				m("p.wiz-desc", "Give this device its name and look. It is identified on the control server by a fixed UUID; the hostname is its display name and the header color themes its status page."),
+				m("h2.wiz-heading", t("setup.identity")),
+				m("p.wiz-desc", t("setup.identity_desc")),
 				m(
 					"label",
-					"Hostname",
+					t("setup.hostname"),
 					m("input", {
 						name: "hostname",
 						required: true,
 						pattern: "[A-Za-z0-9][A-Za-z0-9.-]{0,62}",
-						title: "Letters, digits, dots and dashes; must start with a letter or digit, max 63 chars",
+						title: t("setup.hostname_title"),
 						value: state.hostname,
 						oninput: (e: Event) => (state.hostname = (e.target as HTMLInputElement).value),
 					}),
 				),
 				m(
 					"label",
-					"Header color",
+					t("set.color"),
 					m("input", {
 						name: "color",
 						type: "color",
@@ -318,11 +318,11 @@ function stepBody(key: StepKey): m.Vnode {
 			return m(
 				"fieldset.wizard-step",
 				{ "data-step": key },
-				m("h2.wiz-heading", "Control server"),
-				m("p.wiz-desc", "Optional. Register this device with the central control server for unified monitoring. Leave both fields empty to skip."),
+				m("h2.wiz-heading", t("setup.step.control")),
+				m("p.wiz-desc", t("setup.control_desc")),
 				m(
 					"label",
-					"Control server URL",
+					t("set.remote_url"),
 					m("input", {
 						name: "remoteUrl",
 						placeholder: "wss://control.example/device",
@@ -332,7 +332,7 @@ function stepBody(key: StepKey): m.Vnode {
 				),
 				m(
 					"label",
-					"Remote token",
+					t("setup.control_token"),
 					m("input", {
 						name: "remoteToken",
 						type: "password",
@@ -346,11 +346,11 @@ function stepBody(key: StepKey): m.Vnode {
 			return m(
 				"fieldset.wizard-step",
 				{ "data-step": key },
-				m("h2.wiz-heading", "Encoder"),
-				m("p.wiz-desc", "Pick the pipeline to capture from and configure the SRT output that is sent to the relay."),
+				m("h2.wiz-heading", t("setup.step.encoder")),
+				m("p.wiz-desc", t("setup.encoder_desc")),
 				m(
 					"label",
-					"Pipeline",
+					t("dev.row.pipeline"),
 					m(
 						"select",
 						{ name: "pipeline", required: true, value: state.pipeline, onchange: (e: Event) => (state.pipeline = (e.target as HTMLSelectElement).value) },
@@ -359,7 +359,7 @@ function stepBody(key: StepKey): m.Vnode {
 				),
 				m(
 					"label",
-					"Max bitrate (kbps)",
+					t("dev.field.max_bitrate"),
 					m("input", {
 						name: "maxBitrate",
 						type: "number",
@@ -373,7 +373,7 @@ function stepBody(key: StepKey): m.Vnode {
 				),
 				m(
 					"label",
-					"Audio source",
+					t("dev.field.audio_source"),
 					m(
 						"select",
 						{ name: "audioSource", required: true, value: state.audioSource, onchange: (e: Event) => (state.audioSource = (e.target as HTMLSelectElement).value) },
@@ -382,7 +382,7 @@ function stepBody(key: StepKey): m.Vnode {
 				),
 				m(
 					"label",
-					"Audio codec",
+					t("dev.field.audio_codec"),
 					m(
 						"select",
 						{ name: "audioCodec", value: state.audioCodec, onchange: (e: Event) => (state.audioCodec = (e.target as HTMLSelectElement).value) },
@@ -392,13 +392,13 @@ function stepBody(key: StepKey): m.Vnode {
 				),
 				m(
 					"label",
-					"Audio delay (ms)",
+					t("dev.field.audio_delay"),
 					m("input", { name: "delay", type: "number", min: -2000, max: 2000, value: state.delay, oninput: (e: Event) => (state.delay = (e.target as HTMLInputElement).value) }),
 				),
 				m(
 					"label.encoder-target",
 					{ hidden: state.role === "combined" },
-					"Stream host",
+					t("dev.field.stream_host"),
 					m("input", {
 						name: "encoderHost",
 						placeholder: "192.168.1.10",
@@ -410,7 +410,7 @@ function stepBody(key: StepKey): m.Vnode {
 				m(
 					"label.encoder-target",
 					{ hidden: state.role === "combined" },
-					"Stream SRT port",
+					t("dev.field.stream_srt_port"),
 					m("input", {
 						name: "encoderPort",
 						type: "number",
@@ -423,7 +423,7 @@ function stepBody(key: StepKey): m.Vnode {
 				),
 				m(
 					"label",
-					"SRT latency (ms)",
+					t("dev.field.srt_latency"),
 					m("input", {
 						name: "latency",
 						type: "number",
@@ -435,7 +435,7 @@ function stepBody(key: StepKey): m.Vnode {
 						oninput: (e: Event) => (state.latency = (e.target as HTMLInputElement).value),
 					}),
 				),
-				m("label", "Stream ID", m("input", { name: "streamid", placeholder: "optional", value: state.streamid, oninput: (e: Event) => (state.streamid = (e.target as HTMLInputElement).value) })),
+				m("label", t("dev.field.stream_id"), m("input", { name: "streamid", placeholder: t("ui.optional"), value: state.streamid, oninput: (e: Event) => (state.streamid = (e.target as HTMLInputElement).value) })),
 				m(
 					"label.check",
 					m("input", {
@@ -444,18 +444,18 @@ function stepBody(key: StepKey): m.Vnode {
 						checked: state.bitrateOverlay,
 						onchange: (e: Event) => (state.bitrateOverlay = (e.target as HTMLInputElement).checked),
 					}),
-					" Bitrate overlay",
+					` ${t("dev.field.bitrate_overlay")}`,
 				),
 			);
 		case "relay":
 			return m(
 				"fieldset.wizard-step",
 				{ "data-step": key },
-				m("h2.wiz-heading", "Relay"),
-				m("p.wiz-desc", "Choose the local SRT port encoders connect to, and the SRTLA endpoint streams are forwarded to."),
+				m("h2.wiz-heading", t("setup.step.relay")),
+				m("p.wiz-desc", t("setup.relay_desc")),
 				m(
 					"label",
-					"SRT listen port",
+					t("dev.field.srt_listen_port"),
 					m("input", {
 						name: "listenPort",
 						type: "number",
@@ -468,7 +468,7 @@ function stepBody(key: StepKey): m.Vnode {
 				),
 				m(
 					"label",
-					"SRTLA remote host",
+					t("dev.field.remote_host"),
 					m("input", {
 						name: "srtlaRemoteHost",
 						placeholder: "rec.example.com",
@@ -479,7 +479,7 @@ function stepBody(key: StepKey): m.Vnode {
 				),
 				m(
 					"label",
-					"SRTLA remote port",
+					t("dev.field.remote_port"),
 					m("input", {
 						name: "srtlaRemotePort",
 						type: "number",
@@ -492,7 +492,7 @@ function stepBody(key: StepKey): m.Vnode {
 				),
 				m(
 					"label",
-					"Scheduler",
+					t("dev.scheduler"),
 					m(
 						"select",
 						{
@@ -500,8 +500,8 @@ function stepBody(key: StepKey): m.Vnode {
 							value: state.srtlaMode,
 							onchange: (e: Event) => (state.srtlaMode = (e.target as HTMLSelectElement).value),
 						},
-						m("option", { value: "enhanced" }, "Enhanced"),
-						m("option", { value: "classic" }, "Classic"),
+						m("option", { value: "enhanced" }, t("dev.scheduler_enhanced")),
+						m("option", { value: "classic" }, t("dev.scheduler_classic")),
 					),
 				),
 				m(
@@ -512,15 +512,15 @@ function stepBody(key: StepKey): m.Vnode {
 						checked: state.srtlaQuality,
 						onchange: (e: Event) => (state.srtlaQuality = (e.target as HTMLInputElement).checked),
 					}),
-					" Quality scoring",
+					` ${t("dev.quality_scoring")}`,
 				),
 			);
 		case "finish":
 			return m(
 				"fieldset.wizard-step",
 				{ "data-step": key },
-				m("h2.wiz-heading", "Review"),
-				m("p.wiz-desc", "Review your choices with Back, then save the configuration."),
+				m("h2.wiz-heading", t("setup.step.review")),
+				m("p.wiz-desc", t("setup.review_desc")),
 				m(
 					"label.check",
 					m("input", {
@@ -529,7 +529,7 @@ function stepBody(key: StepKey): m.Vnode {
 						checked: state.autostart,
 						onchange: (e: Event) => (state.autostart = (e.target as HTMLInputElement).checked),
 					}),
-					" Start the saved stream automatically after restart",
+					` ${t("setup.autostart")}`,
 				),
 			);
 	}
@@ -573,9 +573,10 @@ const App: m.Component<{}, {}> = {
 	view: () =>
 		m(
 			Page,
-			{ title: t("setup.title"), headerRight: badge(state.connected ? "connected" : "disconnected", state.connected ? "on" : "off") },
+			{ title: t("setup.title"), headerRight: badge(state.connected ? t("dev.connected") : t("dev.disconnected"), state.connected ? "on" : "off") },
 			m("section.card", null, state.loaded ? wizard() : m("p.muted", t("setup.loading"))),
 		),
 };
 
+document.title = t("setup.title");
 m.mount(byId("app"), App);

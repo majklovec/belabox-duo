@@ -23,5 +23,5 @@ export const since = (ts?: number) => {
 
 export function formatBitrate(bytesPerSec: number): string {
 	const kbps = (bytesPerSec * 8) / 1000;
-	return kbps >= 1000 ? `${(kbps / 1000).toFixed(2)} Mbps` : `${Math.round(kbps)} kbps`;
+	return kbps >= 1000 ? `${(kbps / 1000).toFixed(2)} ${t("dev.unit_mbps")}` : `${Math.round(kbps)} ${t("dev.unit_kbps")}`;
 }
