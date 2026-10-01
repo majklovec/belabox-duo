@@ -28,10 +28,10 @@
  *   pipelines.list
  *   pipelines.repositories.add {repository}, pipelines.repositories.remove {repository}
  *   pipelines.repositories.updateAll
- *   encoder.status, encoder.start {pipeline, host, port, maxBitrate?, latency?, delay?, streamid?,
- *                                  audioSource?, audioCodec? ("aac"|"opus"), bitrateOverlay?},
- *   encoder.stop, encoder.bitrate {maxBitrate}
- *   ceracoder.set {balancer? ("adaptive"|"fixed"|"aimd"), minBitrate?, adaptive? {incrStep?,
+ *   encoder.status, encoder.start {pipeline, host, port, minBitrate?, maxBitrate?, latency?, delay?,
+ *                                  streamid?, audioSource?, audioCodec? ("aac"|"opus"), bitrateOverlay?},
+ *   encoder.stop, encoder.bitrate {maxBitrate?, minBitrate?}   (at least one; applied live)
+ *   ceracoder.set {balancer? ("adaptive"|"fixed"|"aimd"), adaptive? {incrStep?,
  *                   decrStep?, incrInterval?, decrInterval?}, aimd? {incrStep?, decrMult?,
  *                   incrInterval?, decrInterval?}}   (ceracoder encoder only; applied live)
  *   stream.start {pipeline, remoteHost, remotePort, listenPort?, ...same encoder options},
@@ -257,11 +257,15 @@ function parseEncoderConfig(p: Params, host: string, port: string): EncoderConfi
 	if (p.bitrateOverlay !== undefined && typeof p.bitrateOverlay !== "boolean") {
 		throw new ApiError("bitrateOverlay must be a boolean");
 	}
+	const maxBitrate = optionalInt(p, "maxBitrate", prev?.maxBitrate ?? 5000, MIN_BITRATE_KBPS, MAX_BITRATE_KBPS);
+	const minBitrate = optionalInt(p, "minBitrate", prev?.minBitrate ?? MIN_BITRATE_KBPS, MIN_BITRATE_KBPS, MAX_BITRATE_KBPS);
+	if (minBitrate > maxBitrate) throw new ApiError("minBitrate must not exceed maxBitrate");
 	return {
 		pipeline: requireString(p, "pipeline"),
 		host,
 		port,
-		maxBitrate: optionalInt(p, "maxBitrate", prev?.maxBitrate ?? 5000, MIN_BITRATE_KBPS, MAX_BITRATE_KBPS),
+		minBitrate,
+		maxBitrate,
 		latency: optionalInt(p, "latency", prev?.latency ?? 2000, 100, 10_000),
 		delay: optionalInt(p, "delay", prev?.delay ?? 0, -2000, 2000),
 		streamid,
@@ -415,11 +419,13 @@ async function updateSettings(p: Params): Promise<object> {
 	state.settings = { ...current, uuid, hostname, role, remoteUrl, remoteToken, color, language };
 	setCurrentLanguage(language);
 	await saveState();
-	// Every save re-registers the device on the control server — re-dialing to
-	// the (possibly new) URL so changed token/role/hostname are picked up live.
-	if (remoteUrl || remoteChanged) {
+	// Re-dial the control-server link only when the endpoint or its token changed;
+	// unrelated saves (hostname, color, language, …) keep the existing connection.
+	if (remoteChanged) {
 		applyRemoteSettings(remoteUrl ?? "", remoteToken);
-		logEvent("info", "Settings", t("log.settings_saved_reconnect", scrubUrl(remoteUrl!)));
+		logEvent("info", "Settings", remoteUrl
+			? t("log.settings_saved_reconnect", scrubUrl(remoteUrl))
+			: t("mlog.done.remote_disabled"));
 	} else {
 		logEvent("info", "Settings", t("mlog.done.settings_saved"));
 	}
@@ -567,9 +573,12 @@ const methods: Record<string, Method> = {
 	},
 
 	"encoder.bitrate": async (p) => {
-		if (p.maxBitrate === undefined) throw new ApiError("maxBitrate is required");
-		const kbps = optionalInt(p, "maxBitrate", 0, MIN_BITRATE_KBPS, MAX_BITRATE_KBPS);
-		return { encoder: await setEncoderBitrate(kbps) };
+		if (p.minBitrate === undefined && p.maxBitrate === undefined) throw new ApiError("maxBitrate or minBitrate is required");
+		const prev = state.encoder.config;
+		const minKbps = optionalInt(p, "minBitrate", prev?.minBitrate ?? MIN_BITRATE_KBPS, MIN_BITRATE_KBPS, MAX_BITRATE_KBPS);
+		const maxKbps = optionalInt(p, "maxBitrate", prev?.maxBitrate ?? 5000, MIN_BITRATE_KBPS, MAX_BITRATE_KBPS);
+		if (minKbps > maxKbps) throw new ApiError("minBitrate must not exceed maxBitrate");
+		return { encoder: await setEncoderBitrate(minKbps, maxKbps) };
 	},
 
 	"ceracoder.set": async (p) => {

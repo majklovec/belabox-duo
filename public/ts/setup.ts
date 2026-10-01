@@ -55,6 +55,7 @@ const state = {
 	remoteUrl: "",
 	remoteToken: "",
 	pipeline: "",
+	minBitrate: "300",
 	maxBitrate: "5000",
 	audioSource: "",
 	audioCodec: "aac",
@@ -91,7 +92,12 @@ function stepValid(key: StepKey): boolean {
 			return HOSTNAME_RE.test(state.hostname);
 		case "encoder":
 			if (!state.pipeline || !state.audioSource) return false;
-			if (!inRange(state.maxBitrate, 300, 30000) || !inRange(state.latency, 100, 10000)) return false;
+			if (
+				!inRange(state.minBitrate, 300, 30000) ||
+				!inRange(state.maxBitrate, 300, 30000) ||
+				Number(state.minBitrate) > Number(state.maxBitrate) ||
+				!inRange(state.latency, 100, 10000)
+			) return false;
 			if (state.role === "encoder") return !!state.encoderHost && inRange(state.encoderPort, 1, 65535);
 			return true;
 		case "relay": {
@@ -159,6 +165,7 @@ async function complete(): Promise<void> {
 	if (role !== "relay") {
 		Object.assign(payload, {
 			pipeline: state.pipeline,
+			minBitrate: num(state.minBitrate),
 			maxBitrate: num(state.maxBitrate),
 			audioSource: state.audioSource,
 			audioCodec: state.audioCodec,
@@ -357,6 +364,20 @@ function stepBody(key: StepKey): m.Vnode {
 						{ name: "pipeline", required: true, value: state.pipeline, onchange: (e: Event) => (state.pipeline = (e.target as HTMLSelectElement).value) },
 						state.pipelines.map((p) => m("option", { value: p.id }, p.id)),
 					),
+				),
+				m(
+					"label",
+					t("dev.field.min_bitrate"),
+					m("input", {
+						name: "minBitrate",
+						type: "number",
+						min: 300,
+						max: 30000,
+						step: 100,
+						required: true,
+						value: state.minBitrate,
+						oninput: (e: Event) => (state.minBitrate = (e.target as HTMLInputElement).value),
+					}),
 				),
 				m(
 					"label",

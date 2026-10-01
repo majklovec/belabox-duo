@@ -1,22 +1,47 @@
 :root {
   color-scheme: dark;
-  --bg: #0b0d12;
-  --card: rgba(24, 27, 34, 0.72);
-  --card-solid: #181b22;
-  --border: #262b36;
-  --border-strong: #353b48;
-  --text: #e6e8ee;
-  --muted: #8b93a7;
-  --accent: #3b82f6;
-  --accent-hover: #60a5fa;
+
+  /* ──────────────────────────────────────────────────────────
+     THEME SEED — change this one value to retheme the whole UI.
+     Everything below derives from it. Try: #3b82f6, #8b5cf6,
+     #10b981, #f97316, #ef4444, #0ea5e9, #eab308.
+     ────────────────────────────────────────────────────────── */
+  --header-color: #3b82f6;
+
+  /* Neutral base the theme tints toward */
+  --base: #0b0d12;
+  --base-2: #14171e;
+
+  /* ── Derived palette (do not edit unless you want to change the recipe) ── */
+  --bg: color-mix(in srgb, var(--header-color) 6%, var(--base));
+  --bg-glow: color-mix(in srgb, var(--header-color) 22%, transparent);
+  --bg-glow-2: color-mix(in srgb, var(--header-color) 12%, transparent);
+
+  --header-bg: color-mix(in srgb, var(--header-color) 10%, var(--base));
+  --header-bg-blur: color-mix(in srgb, var(--header-bg) 78%, transparent);
+
+  --card-solid: color-mix(in srgb, var(--header-color) 5%, var(--base-2));
+  --card: color-mix(in srgb, var(--card-solid) 82%, transparent);
+  --card-subtle: color-mix(in srgb, var(--card-solid) 55%, transparent);
+
+  --border: color-mix(in srgb, var(--header-color) 14%, #262b36);
+  --border-strong: color-mix(in srgb, var(--header-color) 28%, #353b48);
+
+  --text: color-mix(in srgb, var(--header-color) 6%, #e6e8ee);
+  --muted: color-mix(in srgb, var(--header-color) 10%, #8b93a7);
+
+  --accent: var(--header-color);
+  --accent-hover: color-mix(in srgb, var(--accent) 78%, white);
+
   --ok: #22c55e;
   --warn: #f59e0b;
   --bad: #ef4444;
   --encoder: #ff6c6c;
   --relay: #38bdf8;
-  --header-color: rgba(11, 13, 18, 0.72);
+
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   --ring: color-mix(in srgb, var(--accent) 35%, transparent);
+
   --radius-xs: 6px;
   --radius-sm: 10px;
   --radius: 12px;
@@ -41,16 +66,8 @@ body {
   color: var(--text);
   min-height: 100vh;
   background:
-    radial-gradient(
-      circle at top left,
-      color-mix(in srgb, var(--accent) 12%, transparent),
-      transparent 45%
-    ),
-    radial-gradient(
-      circle at bottom right,
-      color-mix(in srgb, var(--relay) 8%, transparent),
-      transparent 45%
-    ),
+    radial-gradient(circle at top left, var(--bg-glow), transparent 45%),
+    radial-gradient(circle at bottom right, var(--bg-glow-2), transparent 45%),
     var(--bg);
   font-family:
     ui-sans-serif,
@@ -68,7 +85,7 @@ header {
   justify-content: space-between;
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  background: var(--header-color);
+  background: var(--header-bg-blur);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -110,7 +127,6 @@ select option {
     background var(--t),
     color var(--t);
 }
-
 .icon-link:hover {
   border-color: var(--accent);
   color: var(--accent);
@@ -227,7 +243,7 @@ textarea {
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 80%, var(--card-solid));
   color: var(--text);
   transition:
     border-color var(--t),
@@ -345,7 +361,7 @@ tr.selected td {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.9rem 1rem;
-  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  background: var(--card-subtle);
   transition:
     border-color var(--t),
     background var(--t);
@@ -589,7 +605,7 @@ td.num {
   column-gap: 0.75rem;
   align-items: center;
   padding: 1rem 1.1rem;
-  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  background: var(--card-subtle);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   cursor: pointer;
@@ -601,11 +617,11 @@ td.num {
 }
 .role-card:hover {
   border-color: var(--border-strong);
-  background: color-mix(in srgb, var(--bg) 40%, transparent);
+  background: color-mix(in srgb, var(--card-solid) 70%, transparent);
 }
 .role-card:has(input:checked) {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--card-solid));
+  background: color-mix(in srgb, var(--accent) 10%, var(--card-solid));
   box-shadow: 0 0 0 3px var(--ring);
 }
 .role-card input {

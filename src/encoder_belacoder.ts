@@ -6,11 +6,11 @@
  */
 import { BITRATE_FILE, DRY_RUN, ENCODER_BIN } from "./config";
 import { state } from "./state";
-import { type EncoderConfig, MIN_BITRATE_KBPS, pumpStderr } from "./encoder";
+import { type EncoderConfig, pumpStderr } from "./encoder";
 
 /** belacoder's bitrate control file: min and max bitrate in bit/s, one per line. */
-export async function writeBitrateFile(kbps: number): Promise<void> {
-	const content = `${MIN_BITRATE_KBPS * 1000}\n${kbps * 1000}\n`;
+export async function writeBitrateFile(minKbps: number, maxKbps: number): Promise<void> {
+	const content = `${minKbps * 1000}\n${maxKbps * 1000}\n`;
 	if (DRY_RUN) {
 		console.log(`[DRY-RUN] write ${BITRATE_FILE}: ${content.replace(/\n/g, " ")}`);
 		return;

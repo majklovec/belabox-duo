@@ -24,7 +24,7 @@ import { notifyStateChange, saveState, state } from "./state";
 import { Supervisor } from "./supervisor";
 import { errorMessage, readLines } from "./util";
 import { spawnBelacoder, writeBitrateFile } from "./encoder_belacoder";
-import { spawnCeracoder, writeCeraConf } from "./encoder_ceracoder";
+import { currentCeraConfig, spawnCeracoder, writeCeraConf } from "./encoder_ceracoder";
 
 export const MIN_BITRATE_KBPS = 300;
 export const MAX_BITRATE_KBPS = 30_000;
@@ -58,6 +58,7 @@ export interface EncoderConfig {
     pipeline: string;
     host: string;         // SRT destination (the relay, or 127.0.0.1 when combined)
     port: string;
+    minBitrate: number;   // kbps
     maxBitrate: number;   // kbps
     latency: number;      // SRT latency, ms
     delay: number;        // audio delay, ms
@@ -231,7 +232,7 @@ export async function startEncoder(cfg: EncoderConfig): Promise<EncoderState> {
     await saveState();
     const pipelineFile = await preparePipeline(await resolvePipeline(cfg.pipeline), cfg);
     if (IS_CERA) await writeCeraConf();
-    else await writeBitrateFile(cfg.maxBitrate);
+    else await writeBitrateFile(cfg.minBitrate ?? MIN_BITRATE_KBPS, cfg.maxBitrate);
 
     state.encoder = { running: true, config: cfg, startedAt: Date.now(), restarts: 0 };
     if (DRY_RUN) {
@@ -258,11 +259,18 @@ export async function stopEncoder(): Promise<void> {
     await saveState();
 }
 
-/** Change the max bitrate; the encoder re-reads its settings on SIGHUP. */
-export async function setEncoderBitrate(kbps: number): Promise<EncoderState> {
-    if (state.encoder.config) state.encoder.config = { ...state.encoder.config, maxBitrate: kbps };
-    if (IS_CERA) await writeCeraConf();
-    else await writeBitrateFile(kbps);
+/** Change the min / max bitrate; the encoder re-reads its settings on SIGHUP. */
+export async function setEncoderBitrate(minKbps: number, maxKbps: number): Promise<EncoderState> {
+    if (state.encoder.config) {
+        state.encoder.config = { ...state.encoder.config, minBitrate: minKbps, maxBitrate: maxKbps };
+    }
+    if (IS_CERA) {
+        // ceracoder's INI reads the min from the persisted cera section; keep it in sync
+        state.ceracoder = { ...currentCeraConfig(), minBitrate: minKbps };
+        await writeCeraConf();
+    } else {
+        await writeBitrateFile(minKbps, maxKbps);
+    }
     signalEncoderReload();
     await saveState();
     return encoderStatus();

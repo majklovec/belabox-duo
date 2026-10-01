@@ -74,6 +74,7 @@ const st = {
 	remotePort: "",
 	// Encoder form
 	pipeline: "",
+	minBitrate: "",
 	maxBitrate: "",
 	latency: "",
 	delay: "",
@@ -85,7 +86,6 @@ const st = {
 	bitrateOverlay: false,
 	// Ceracoder bitrate-control form (the card only renders it when the device runs ceracoder)
 	ceraBalancer: "adaptive" as CeraBalancer,
-	ceraMinBitrate: "",
 	ceraIncrStep: "",
 	ceraDecrStep: "",
 	ceraIncrInterval: "",
@@ -208,8 +208,8 @@ const optionalNumber = (v: string) => (v === "" ? undefined : Number(v));
 
 // Form fields the device's status can prefill, and the DOM id of each input (for the focus check).
 type StField =
-	| "listenPort" | "remoteHost" | "remotePort" | "encHost" | "encPort" | "maxBitrate" | "latency" | "delay" | "streamid"
-	| "ceraBalancer" | "ceraMinBitrate" | "ceraIncrStep" | "ceraDecrStep" | "ceraIncrInterval" | "ceraDecrInterval"
+	| "listenPort" | "remoteHost" | "remotePort" | "encHost" | "encPort" | "minBitrate" | "maxBitrate" | "latency" | "delay" | "streamid"
+	| "ceraBalancer" | "ceraIncrStep" | "ceraDecrStep" | "ceraIncrInterval" | "ceraDecrInterval"
 	| "ceraAimdIncrStep" | "ceraDecrMult" | "ceraAimdIncrInterval" | "ceraAimdDecrInterval";
 const FIELD_DNS: Record<StField, string> = {
 	listenPort: "srt-listenPort",
@@ -217,12 +217,12 @@ const FIELD_DNS: Record<StField, string> = {
 	remotePort: "srtla-remotePort",
 	encHost: "enc-host",
 	encPort: "enc-port",
+	minBitrate: "enc-minBitrate",
 	maxBitrate: "enc-maxBitrate",
 	latency: "enc-latency",
 	delay: "enc-delay",
 	streamid: "enc-streamid",
 	ceraBalancer: "cera-balancer",
-	ceraMinBitrate: "cera-minBitrate",
 	ceraIncrStep: "cera-incrStep",
 	ceraDecrStep: "cera-decrStep",
 	ceraIncrInterval: "cera-incrInterval",
@@ -273,6 +273,8 @@ function syncFromStatus(status: Status): void {
 		prefill("encHost", cfg.host);
 		prefill("encPort", cfg.port);
 	}
+	// belacoder keeps the min in the encoder config; ceracoder's lives in its own section
+	prefill("minBitrate", cfg?.minBitrate ?? status.ceracoder?.minBitrate);
 	prefill("maxBitrate", cfg?.maxBitrate);
 	prefill("latency", cfg?.latency);
 	prefill("delay", cfg?.delay);
@@ -295,7 +297,6 @@ function syncFromStatus(status: Status): void {
 	const cera = status.ceracoder;
 	if (cera) {
 		prefill("ceraBalancer", cera.balancer);
-		prefill("ceraMinBitrate", cera.minBitrate);
 		prefill("ceraIncrStep", cera.adaptive.incrStep);
 		prefill("ceraDecrStep", cera.adaptive.decrStep);
 		prefill("ceraIncrInterval", cera.adaptive.incrInterval);
@@ -332,6 +333,7 @@ async function encoderStart(): Promise<void> {
 	const pipeline = selectedPipeline();
 	const common: Params = {
 		pipeline: st.pipeline,
+		minBitrate: optionalNumber(st.minBitrate),
 		maxBitrate: optionalNumber(st.maxBitrate),
 		latency: optionalNumber(st.latency),
 		delay: optionalNumber(st.delay),
@@ -354,7 +356,6 @@ async function ceracoderApply(): Promise<void> {
 	if (!stateButtonEnabled("ceracoder-apply")) return;
 	void act("ceracoder-apply", "ceracoder.set", {
 		balancer: st.ceraBalancer,
-		minBitrate: optionalNumber(st.ceraMinBitrate),
 		adaptive: {
 			incrStep: optionalNumber(st.ceraIncrStep),
 			decrStep: optionalNumber(st.ceraDecrStep),
@@ -601,9 +602,11 @@ const App: m.Component<{}, {}> = {
 						{ title: t("dev.card.encoder") },
 						definitionList([
 							[t("dev.row.state"), state],
+							// The UI only exposes ceracoder's controls when the device runs ceracoder
+							[t("dev.row.encoder"), status.ceracoder ? "ceracoder" : "belacoder"],
 							[t("dev.row.pipeline"), cfg?.pipeline],
 							...(!combined ? ([[t("dev.row.target"), e.running ? target : null]] as [string, Child][]) : []),
-							[t("dev.row.bitrate"), cfg ? t("dev.max_kbps", cfg.maxBitrate) : null],
+							[t("dev.row.bitrate"), cfg ? t("dev.minmax_kbps", cfg.minBitrate ?? status.ceracoder?.minBitrate ?? 300, cfg.maxBitrate) : null],
 							[t("dev.row.latency"), cfg ? t("dev.latency_audio", cfg.latency, cfg.delay) : null],
 							[t("dev.row.audio"), cfg ? `${asrc?.name ?? cfg.audioSource ?? t("dev.audio_pipeline_default")}, ${(cfg.audioCodec ?? "aac").toUpperCase()}` : null],
 							[t("dev.row.started"), e.running ? since(e.startedAt) : null],
@@ -622,6 +625,19 @@ const App: m.Component<{}, {}> = {
 										touched.add("pipeline");
 									},
 								}, pipelineOptions()),
+							),
+							field(
+								t("dev.field.min_bitrate"),
+								m("input", {
+									id: "enc-minBitrate",
+									type: "number",
+									min: 300,
+									max: 30000,
+									step: 100,
+									placeholder: "300",
+									value: st.minBitrate,
+									oninput: (e: Event) => (st.minBitrate = (e.target as HTMLInputElement).value),
+								}),
 							),
 							field(
 								t("dev.field.max_bitrate"),
@@ -643,7 +659,7 @@ const App: m.Component<{}, {}> = {
 											type: "button",
 											class: "secondary",
 											disabled: !stateButtonEnabled("encoder-bitrate"),
-											onclick: () => void act("encoder-bitrate", "encoder.bitrate", { maxBitrate: optionalNumber(st.maxBitrate) }),
+											onclick: () => void act("encoder-bitrate", "encoder.bitrate", { minBitrate: optionalNumber(st.minBitrate), maxBitrate: optionalNumber(st.maxBitrate) }),
 										},
 										t("dev.apply_bitrate"),
 									),
@@ -682,19 +698,6 @@ const App: m.Component<{}, {}> = {
 												m("option", { key: b, value: b }, t(`dev.balancer.${b}`)),
 											),
 										),
-									),
-									field(
-										t("dev.field.min_bitrate"),
-										m("input", {
-											id: "cera-minBitrate",
-											type: "number",
-											min: 300,
-											max: 30000,
-											step: 100,
-											placeholder: "500",
-											value: st.ceraMinBitrate,
-											oninput: (e: Event) => (st.ceraMinBitrate = (e.target as HTMLInputElement).value),
-										}),
 									),
 									st.ceraBalancer === "adaptive" &&
 										field(
