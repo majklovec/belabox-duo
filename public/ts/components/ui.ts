@@ -13,7 +13,7 @@ export const Page: m.Component<{ title: m.Children; headerRight?: m.Children }> 
 			"header",
 			null,
 			m("h1", v.attrs.title),
-			m("span.actions", LanguageSelect, v.attrs.headerRight),
+			m("span.actions", null, [m(LanguageSelect), v.attrs.headerRight] as m.Children[]),
 		),
 		m("main", v.children),
 	],
