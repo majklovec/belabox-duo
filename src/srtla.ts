@@ -40,8 +40,10 @@ const isRunning = (): boolean => DRY_RUN ? dryRunActive : supervisor.running;
 
 export function srtlaStatus(): SrtlaState {
     if (isRunning()) return state.srtla;
-    if (state.srtla.running && !supervisor.running && !DRY_RUN) return { ...state.srtla, running: false };
-    return { running: false };
+    // Keep the last target so the UI can prefill the form after a stop
+    const live = state.srtla;
+    const target = state.srtlaTarget ?? { listenPort: live.listenPort, remoteHost: live.remoteHost, remotePort: live.remotePort };
+    return { running: false, ...target, reloadCount: live.reloadCount, lastReloadAt: live.lastReloadAt };
 }
 
 /**

@@ -98,7 +98,8 @@ const busy = new Set<string>();
 // ----------------------------------------------------------------------
 // WebSocket RPC
 // ----------------------------------------------------------------------
-const rpc = new RpcClient(() => socketUrl("ws")); // relative to the page, works at / and /d/<id>/
+const rpc = new RpcClient(() => socketUrl("ws"));
+ // relative to the page, works at / and /d/<id>/
 
 /** Start / Stop style buttons, enabled only when the streaming state allows their action. */
 const STATE_BUTTONS: Record<string, (s: Status) => boolean> = {
@@ -193,10 +194,26 @@ rpc.on("log", (data) => applyLog(data as LogEvent));
 // ----------------------------------------------------------------------
 const optionalNumber = (v: string) => (v === "" ? undefined : Number(v));
 
-/** Fill empty, unfocused inputs from the device's last known settings. */
-function prefill(id: string, target: { value: string }, value: string | number | undefined): void {
-	if (target.value || document.activeElement?.id === id || value === undefined || value === "" || value == null) return;
-	target.value = String(value);
+// Form fields the device's status can prefill, and the DOM id of each input (for the focus check).
+type StField = "listenPort" | "remoteHost" | "remotePort" | "encHost" | "encPort" | "maxBitrate" | "latency" | "delay" | "streamid";
+const FIELD_DNS: Record<StField, string> = {
+	listenPort: "srt-listenPort",
+	remoteHost: "srtla-remoteHost",
+	remotePort: "srtla-remotePort",
+	encHost: "enc-host",
+	encPort: "enc-port",
+	maxBitrate: "enc-maxBitrate",
+	latency: "enc-latency",
+	delay: "enc-delay",
+	streamid: "enc-streamid",
+};
+
+/** Fill an empty, unfocused form field from the device's last known settings (write goes to `st`). */
+function prefill(field: StField, value: string | number | undefined): void {
+	if (st[field]) return;                                     // the user (or a prior sync) already set it
+	if (document.activeElement?.id === FIELD_DNS[field]) return; // never clobber a field the user is typing in
+	if (value === undefined || value === "" || value == null) return;
+	st[field] = String(value);
 }
 
 function applyStatus(status: Status): void {
@@ -217,25 +234,24 @@ function syncFromStatus(status: Status): void {
 	if (combined) {
 		// Combined devices take the receiver from this card
 		for (const key of ["listenPort", "remoteHost", "remotePort"] as const) {
-			const value = s[key] ?? status.state.srtlaTarget?.[key];
-			if (value !== undefined) prefill(`srtla-${key}`, { value: st[key] }, value as string | number);
+			prefill(key, s[key] ?? status.state.srtlaTarget?.[key]);
 		}
 	} else {
-		prefill("srt-listenPort", { value: st.listenPort }, s.listenPort);
-		prefill("srtla-remoteHost", { value: st.remoteHost }, s.remoteHost);
-		prefill("srtla-remotePort", { value: st.remotePort }, s.remotePort);
+		prefill("listenPort", s.listenPort);
+		prefill("remoteHost", s.remoteHost);
+		prefill("remotePort", s.remotePort);
 	}
 	if (status.role === "relay") return;
 
 	const cfg = status.state.encoder.config;
 	if (cfg && !combined) {
-		prefill("enc-host", { value: st.encHost }, cfg.host);
-		prefill("enc-port", { value: st.encPort }, cfg.port);
+		prefill("encHost", cfg.host);
+		prefill("encPort", cfg.port);
 	}
-	prefill("enc-maxBitrate", { value: st.maxBitrate }, cfg?.maxBitrate);
-	prefill("enc-latency", { value: st.latency }, cfg?.latency);
-	prefill("enc-delay", { value: st.delay }, cfg?.delay);
-	prefill("enc-streamid", { value: st.streamid }, cfg?.streamid);
+	prefill("maxBitrate", cfg?.maxBitrate);
+	prefill("latency", cfg?.latency);
+	prefill("delay", cfg?.delay);
+	prefill("streamid", cfg?.streamid);
 
 	// Pipeline select: keep the choice if the pipeline is still there
 	if (cfg?.pipeline && !touched.has("pipeline") && (!st.pipeline || st.pipelines.some((p) => p.id === st.pipeline)))
@@ -734,7 +750,7 @@ const App: m.Component<{}, {}> = {
 									id: "srtla-remoteHost",
 									placeholder: "rec.example.com",
 									required: true,
-									value: s.remoteHost,
+									value: st.remoteHost,
 									oninput: (e: Event) => (st.remoteHost = (e.target as HTMLInputElement).value),
 								}),
 							),
@@ -744,7 +760,7 @@ const App: m.Component<{}, {}> = {
 									id: "srtla-remotePort",
 									placeholder: "5000",
 									required: true,
-									value: s.remotePort,
+									value: st.remotePort,
 									oninput: (e: Event) => (st.remotePort = (e.target as HTMLInputElement).value),
 								}),
 							),
