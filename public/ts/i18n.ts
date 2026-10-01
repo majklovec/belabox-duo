@@ -6,6 +6,8 @@
  * syncLanguageToServer), where the server is the source of truth on next load. */
 import m from "mithril";
 import { LANGUAGES, asLanguage, setCurrentLanguage, translate, type Language } from "../../src/i18n";
+export { LANGUAGES };
+export type { Language };
 import en from "../../i18n/en.json";
 import cs from "../../i18n/cs.json";
 

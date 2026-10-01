@@ -5,19 +5,23 @@ import { Page, badge } from "./components/ui";
 import { byId } from "./dom";
 import type { Params } from "./services/rpc";
 import { RpcClient, socketUrl } from "./services/rpc";
+import { LANGUAGES, languageLabel, lang, setLanguage, t } from "./i18n";
 import type { AudioSource, Pipeline, Role } from "../types";
 
 interface SetupInfo {
 	required: boolean;
 	hostname: string;
 	color: string;
+	language: string;
 	pipelines: Pipeline[];
 	audioSources: AudioSource[];
 }
 
-type StepKey = "role" | "identity" | "control" | "encoder" | "relay" | "finish";
+type StepKey = "language" | "role" | "identity" | "control" | "encoder" | "relay" | "finish";
 
-const STEPS: { key: StepKey; title: string; sub: string }[] = [
+const STEPS: { key: StepKey; title: string | (() => string); sub: string | (() => string) }[] = [
+	// The language step is a live function so switching it re-renders the stepper in the new language.
+	{ key: "language", title: () => t("setup.step.language"), sub: () => t("setup.step.language_sub") },
 	{ key: "role", title: "Role", sub: "Relay, encoder or both" },
 	{ key: "identity", title: "Identity", sub: "Name and color" },
 	{ key: "control", title: "Control server", sub: "Optional" },
@@ -43,6 +47,7 @@ const state = {
 	connected: false,
 	loaded: false,
 	current: 0,
+	language: "en",
 	role: undefined as Role | undefined,
 	hostname: "",
 	color: "#0f1115",
@@ -125,6 +130,8 @@ rpc.on("open", () => {
 			}
 			state.hostname = info.hostname;
 			state.color = info.color;
+			state.language = info.language;
+			setLanguage(state.language);
 			state.pipelines = info.pipelines;
 			state.audioSources = info.audioSources;
 			state.loaded = true;
@@ -146,8 +153,8 @@ async function complete(): Promise<void> {
 	state.saving = true;
 	state.message = "";
 	m.redraw();
-	const { role, hostname, color, remoteUrl, remoteToken } = state;
-	const payload: Params = { role, hostname, color, remoteUrl, remoteToken, autostart: state.autostart };
+	const { role, hostname, color, language, remoteUrl, remoteToken } = state;
+	const payload: Params = { language, role, hostname, color, remoteUrl, remoteToken, autostart: state.autostart };
 	if (role !== "relay") {
 		Object.assign(payload, {
 			pipeline: state.pipeline,
@@ -174,7 +181,8 @@ async function complete(): Promise<void> {
 	try {
 		await rpc.call("setup.complete", payload);
 		state.saved = true;
-		state.message = "Configuration saved. Restart the service to apply the selected role, hostname and control server.";
+		state.message = t("setup.saved");
+		m.redraw();
 	} catch (error: unknown) {
 		state.message = error instanceof Error ? error.message : String(error);
 	} finally {
@@ -240,6 +248,30 @@ const roleCard = (value: Role, name: string, tagline: string, shape: "encoder" |
 // -- One fieldset per step -----------------------------------------------------
 function stepBody(key: StepKey): m.Vnode {
 	switch (key) {
+		case "language":
+			return m(
+				"fieldset.wizard-step",
+				{ "data-step": key },
+				m("h2.wiz-heading", t("setup.language")),
+				m("p.wiz-desc", t("setup.language_desc")),
+				m(
+					"label",
+					t("setup.language"),
+					m(
+						"select",
+						{
+							name: "language",
+							value: state.language,
+							onchange: (e: Event) => {
+								const value = (e.target as HTMLSelectElement).value;
+								state.language = value;
+								setLanguage(value);
+							},
+						},
+						LANGUAGES.map((l) => m("option", { key: l, value: l }, languageLabel(l))),
+					),
+				),
+			);
 		case "role":
 			return m(
 				"fieldset.wizard-step",
@@ -516,8 +548,8 @@ function wizard(): m.Vnode[] {
 					"li",
 					{ key: s.key, class: `wiz-item ${i < current ? "done" : i === current ? "current" : "upcoming"}`, "data-step": s.key },
 					m("span.wiz-dot", i < current ? "✓" : String(i + 1)),
-					m("span.wiz-title", s.title),
-					m("span.wiz-sub", s.sub),
+					m("span.wiz-title", typeof s.title === "function" ? s.title() : s.title),
+					m("span.wiz-sub", typeof s.sub === "function" ? s.sub() : s.sub),
 				),
 			),
 		),
@@ -528,9 +560,9 @@ function wizard(): m.Vnode[] {
 			m("div.break"),
 			m(
 				"div.actions",
-				m("button", { type: "button", id: "previous", class: "secondary", hidden: current === 0, onclick: goPrev }, "Back"),
-				m("button", { type: "button", id: "next", hidden: last, onclick: goNext }, "Next"),
-				m("button", { type: "submit", id: "complete", hidden: !last, disabled: state.saving }, "Save configuration"),
+				m("button", { type: "button", id: "previous", class: "secondary", hidden: current === 0, onclick: goPrev }, t("ui.back")),
+				m("button", { type: "button", id: "next", hidden: last, onclick: goNext }, t("ui.next")),
+				m("button", { type: "submit", id: "complete", hidden: !last, disabled: state.saving }, t("setup.save")),
 			),
 		),
 		m("p.muted", { id: "result", role: "status" }, state.saved ? state.message : state.message),
@@ -541,8 +573,8 @@ const App: m.Component<{}, {}> = {
 	view: () =>
 		m(
 			Page,
-			{ title: "Belabox Duo setup", headerRight: badge(state.connected ? "connected" : "disconnected", state.connected ? "on" : "off") },
-			m("section.card", null, state.loaded ? wizard() : m("p.muted", "Loading setup data…")),
+			{ title: t("setup.title"), headerRight: badge(state.connected ? "connected" : "disconnected", state.connected ? "on" : "off") },
+			m("section.card", null, state.loaded ? wizard() : m("p.muted", t("setup.loading"))),
 		),
 };
 
