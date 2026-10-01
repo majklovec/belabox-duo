@@ -181,7 +181,7 @@ async function complete(): Promise<void> {
 	try {
 		await rpc.call("setup.complete", payload);
 		state.saved = true;
-		state.message = t("setup.saved");
+		state.message = `${t("setup.saved")} ${t("setup.restart_required")}`;
 		m.redraw();
 	} catch (error: unknown) {
 		state.message = error instanceof Error ? error.message : String(error);

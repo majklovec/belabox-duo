@@ -51,14 +51,13 @@ import {
 	ALLOWED_ORIGINS,
 	API_HOST,
 	API_PORT,
-	HAS_ENCODER,
-	HAS_RELAY,
 	PIPELINES_DIR,
 	RELOAD_MODE,
 	ROLES,
 	ROLE,
 	UPLINKS_FILE,
 } from "./config";
+import type { Role } from "./config";
 import {
 	AUDIO_CODECS,
 	AUDIO_DEFAULT,
@@ -191,10 +190,21 @@ function requireModemIndex(p: Params): number {
 // ----------------------------------------------------------------------
 // Methods
 // ----------------------------------------------------------------------
+/**
+ * The role the device is configured with — the role saved in the UI wins over
+ * the role the process started with, so the UI reflects the saved
+ * configuration immediately. Subprocess wiring (autostart, bonding monitor)
+ * follows the process role and applies on the next service restart.
+ */
+function effectiveRole(): Role {
+	return (state.settings?.role as Role | undefined) ?? ROLE;
+}
+
 async function buildStatus() {
+	const role = effectiveRole();
 	const all = await detectInterfaces();
 	return {
-		role: ROLE,
+		role,
 		setupRequired,
 		state: {
 			selection: state.selection,
@@ -207,9 +217,9 @@ async function buildStatus() {
 		},
 		interfaces: all,
 		// Encoder-only devices do no bonding and have no modems to manage
-		selected: HAS_RELAY ? await resolveSelection(all) : [],
-		modems: HAS_RELAY ? await detectModems() : [],
-		audioSources: HAS_ENCODER ? await listAudioSources() : [],
+		selected: role !== "encoder" ? await resolveSelection(all) : [],
+		modems: role !== "encoder" ? await detectModems() : [],
+		audioSources: role !== "relay" ? await listAudioSources() : [],
 		uplinksFile: UPLINKS_FILE,
 		srtlaControl: srtlaControlState(),
 		monitor: { running: isMonitorRunning(), reloadMode: RELOAD_MODE },
@@ -626,9 +636,10 @@ const methods: Record<string, Method> = {
 };
 
 function methodAllowed(name: string): boolean {
-	if (name.startsWith("stream.")) return ROLE === "combined";
-	if (name.startsWith("encoder.") || name === "pipelines.list") return HAS_ENCODER;
-	if (name.startsWith("modems.") || name.startsWith("srtla.") || name === "reconfigure") return HAS_RELAY;
+	const role = effectiveRole();
+	if (name.startsWith("stream.")) return role === "combined";
+	if (name.startsWith("encoder.") || name === "pipelines.list") return role !== "relay";
+	if (name.startsWith("modems.") || name.startsWith("srtla.") || name === "reconfigure") return role !== "encoder";
 	return true;
 }
 
@@ -659,7 +670,7 @@ export async function handleRequest(raw: string | Buffer | ArrayBuffer | Uint8Ar
 
 		const handler = Object.hasOwn(methods, method) ? methods[method] : undefined;
 		if (!handler) throw new ApiError(`Unknown method: ${method}`, 404);
-		if (!methodAllowed(method)) throw new ApiError(`${method} is not available on ${ROLE} devices`, 409);
+		if (!methodAllowed(method)) throw new ApiError(`${method} is not available on ${effectiveRole()} devices`, 409);
 
 		const params: Params =
 			req.params && typeof req.params === "object" && !Array.isArray(req.params)

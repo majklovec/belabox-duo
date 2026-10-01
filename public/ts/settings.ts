@@ -79,7 +79,10 @@ async function save(): Promise<void> {
 			...(state.remoteToken ? { remoteToken: state.remoteToken } : {}),
 		} as Params);
 		state.remoteToken = "";
-		state.message = t("set.saved");
+		const roleChanged = result.settings.role !== state.settings?.role;
+		state.message = roleChanged
+			? `${t("set.saved")} ${t("set.restart_required")}`
+			: t("set.saved");
 		// Parameters may have changed on the device side; drop the socket so the
 		// reconnect re-fetches fresh settings (hostname, role, color, …).
 		rpc.reconnect();
