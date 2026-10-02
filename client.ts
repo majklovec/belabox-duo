@@ -56,7 +56,7 @@
 
 import { startApiServer } from "./src/api";
 import { argv, HAS_RELAY, REMOTE_URL, ROLE } from "./src/config";
-import { encoder } from "./src/encoder";
+import { encoder, loadEncoder } from "./src/encoder";
 import { flushLog, logEvent } from "./src/eventlog";
 import { t } from "./src/i18n";
 import { startRemote, stopRemote } from "./src/remote";
@@ -65,6 +65,7 @@ import { reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/
 import { maybeStartSrtla, reloadSrtla, stopSrtla } from "./src/srtla";
 
 async function main(): Promise<void> {
+    await loadEncoder();
     console.log(`=== SRTLA Bonding Setup (Bun) — role: ${ROLE} ===\n`);
 
     const shutdown = async (signal: string) => {

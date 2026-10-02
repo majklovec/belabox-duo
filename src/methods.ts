@@ -44,7 +44,7 @@
  * responses carry `"logged": true` so clients do not log them a second time.
  */
 import { randomUUID } from "node:crypto";
-import { Ceracoder } from "./ceracoder";
+import { Ceracoder } from "./encoders/ceracoder";
 import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
 import { AUDIO_CODECS, AUDIO_DEFAULT, type EncoderConfig, encoder, listAudioSources, listPipelines } from "./encoder";
 import { logEntries, logEvent } from "./eventlog";

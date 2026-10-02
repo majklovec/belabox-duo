@@ -18,8 +18,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve, sep } from "node:path";
-import type { Belacoder } from "./belacoder";
-import type { Ceracoder } from "./ceracoder";
 import { DRY_RUN, ENCODER_BIN, IS_CERA, PIPELINES_DIR } from "./config";
 import { logEvent } from "./eventlog";
 import { t } from "./i18n";
@@ -309,14 +307,20 @@ export abstract class Encoder {
 let instance: Encoder | null = null;
 
 /**
- * The device's encoder: Ceracoder when ENCODER_BIN is ceracoder, else Belacoder.
- * The subclasses import this module for the base class, so they are loaded on
- * first use rather than imported statically (that cycle would run
- * `class … extends Encoder` before Encoder exists).
+ * Create the device's encoder: Ceracoder when ENCODER_BIN is ceracoder, else Belacoder.
+ * Called once at startup (client.ts). The subclasses import this module for the base
+ * class, so they are imported dynamically here: a static import cycle would run
+ * `class … extends Encoder` before Encoder exists.
  */
-export function encoder(): Encoder {
+export async function loadEncoder(): Promise<Encoder> {
     instance ??= IS_CERA
-        ? new (require("./ceracoder") as { Ceracoder: typeof Ceracoder }).Ceracoder(ENCODER_BIN)
-        : new (require("./belacoder") as { Belacoder: typeof Belacoder }).Belacoder(ENCODER_BIN);
+        ? new (await import("./encoders/ceracoder")).Ceracoder(ENCODER_BIN)
+        : new (await import("./encoders/belacoder")).Belacoder(ENCODER_BIN);
+    return instance;
+}
+
+/** The device's encoder (see loadEncoder()). */
+export function encoder(): Encoder {
+    if (!instance) throw new Error("encoder not loaded yet (call loadEncoder() at startup)");
     return instance;
 }

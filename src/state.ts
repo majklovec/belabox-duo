@@ -11,7 +11,7 @@
  */
 import { randomUUID } from "node:crypto";
 
-import type { CeraConfig } from "./ceracoder";
+import type { CeraConfig } from "./encoders/ceracoder";
 import { CONFIG_EXISTS, CONFIG_FILE, DRY_RUN, INITIAL_CONFIG } from "./config";
 import type { EncoderConfig, EncoderState } from "./encoder";
 import { asLanguage, DEFAULT_LANGUAGE, type Language, setCurrentLanguage } from "./i18n";

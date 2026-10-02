@@ -20,10 +20,10 @@
  * Max bitrate and SRT latency live in the encoder config (belacoder uses the
  * same values), everything else in the persisted `ceracoder` section.
  */
-import { CERACODER_CONF } from "./config";
-import { Encoder } from "./encoder";
-import { saveState, state } from "./state";
-import { BITRATE_KBPS } from "./validate";
+import { CERACODER_CONF } from "../config";
+import { Encoder } from "../encoder";
+import { saveState, state } from "../state";
+import { BITRATE_KBPS } from "../validate";
 
 export const CERA_BALANCERS = ["adaptive", "fixed", "aimd"] as const;
 export type CeraBalancer = (typeof CERA_BALANCERS)[number];
