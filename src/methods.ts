@@ -44,21 +44,9 @@
  * responses carry `"logged": true` so clients do not log them a second time.
  */
 import { randomUUID } from "node:crypto";
-import { mergeCeraConfig } from "./ceracoder";
-import { IS_CERA, PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
-import {
-	AUDIO_CODECS,
-	AUDIO_DEFAULT,
-	currentCeraConfig,
-	type EncoderConfig,
-	encoderStatus,
-	listAudioSources,
-	listPipelines,
-	setEncoderBitrate,
-	startEncoder,
-	stopEncoder,
-	updateCeraConfig,
-} from "./encoder";
+import { Ceracoder } from "./ceracoder";
+import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
+import { AUDIO_CODECS, AUDIO_DEFAULT, type EncoderConfig, encoder, listAudioSources, listPipelines } from "./encoder";
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
@@ -101,6 +89,7 @@ const effectiveRole = (): Role => state.settings.role ?? ROLE;
 
 export async function buildStatus() {
 	const role = effectiveRole();
+	const enc = encoder();
 	// One ModemManager scan serves both the interface enrichment and the modem list
 	const modems = await detectModems();
 	const [interfaces, audioSources] = await Promise.all([
@@ -113,7 +102,7 @@ export async function buildStatus() {
 		state: {
 			selection: state.selection,
 			srtla: srtlaStatus(),
-			encoder: encoderStatus(),
+			encoder: enc.status(),
 			stream: state.stream,
 			srtlaTarget: state.srtlaTarget,
 			srtlaOptions: state.srtlaOptions ?? {},
@@ -128,7 +117,7 @@ export async function buildStatus() {
 		srtlaControl: srtlaControlState(),
 		monitor: { running: isMonitorRunning(), reloadMode: RELOAD_MODE },
 		// null when the encoder binary is not ceracoder; the UI hides its settings then
-		ceracoder: IS_CERA ? currentCeraConfig() : null,
+		ceracoder: enc instanceof Ceracoder ? enc.config() : null,
 	};
 }
 
@@ -209,7 +198,7 @@ async function startStream(p: Params) {
 	const cfg = parseEncoderConfig(p, "127.0.0.1", listenPort);
 	cancelAutostart();
 	await startChecked(() => startCombined({ remoteHost, remotePort, listenPort }, cfg));
-	return { srtla: srtlaStatus(), encoder: encoderStatus() };
+	return { srtla: srtlaStatus(), encoder: encoder().status() };
 }
 
 // ----------------------------------------------------------------------
@@ -458,28 +447,29 @@ const methods: Record<string, Method> = {
 		return { repositories, results };
 	},
 
-	"encoder.status": () => ({ encoder: encoderStatus() }),
+	"encoder.status": () => ({ encoder: encoder().status() }),
 
 	"encoder.start": manual(async (p) => {
 		const cfg = parseEncoderConfig(p, requireHost(p, "host"), requirePort(p, "port"));
-		return { encoder: await startChecked(() => startEncoder(cfg)) };
+		return { encoder: await startChecked(() => encoder().start(cfg)) };
 	}),
 
 	"encoder.stop": manual(async () => {
-		await stopEncoder();
-		return { encoder: encoderStatus() };
+		await encoder().stop();
+		return { encoder: encoder().status() };
 	}),
 
 	"encoder.bitrate": async (p) => {
 		if (p.minBitrate === undefined && p.maxBitrate === undefined) throw new ApiError("maxBitrate or minBitrate is required");
 		const { minBitrate, maxBitrate } = parseBitrates(p, true);
-		return { encoder: await setEncoderBitrate(minBitrate, maxBitrate) };
+		return { encoder: await encoder().setBitrate(minBitrate, maxBitrate) };
 	},
 
 	"ceracoder.set": async (p) => {
-		if (!IS_CERA) throw new ApiError("The device encoder is not ceracoder");
+		const enc = encoder();
+		if (!(enc instanceof Ceracoder)) throw new ApiError("The device encoder is not ceracoder");
 		try {
-			return { ceracoder: await updateCeraConfig(mergeCeraConfig(currentCeraConfig(), p)) };
+			return { ceracoder: await enc.update(p) };
 		} catch (e: unknown) {
 			throw new ApiError(errorMessage(e));
 		}
@@ -489,7 +479,7 @@ const methods: Record<string, Method> = {
 
 	"stream.stop": manual(async () => {
 		await stopCombined();
-		return { srtla: srtlaStatus(), encoder: encoderStatus() };
+		return { srtla: srtlaStatus(), encoder: encoder().status() };
 	}),
 
 	"autostart.set": async (p) => {

@@ -23,7 +23,9 @@
  *   modems.ts       ModemManager integration
  *   routing.ts      interface detection, selection, routing, uplinks, monitor
  *   srtla.ts        srtla_send process management (srtlaControl.ts: its JSON-RPC socket)
- *   encoder.ts      belacoder / ceracoder pipelines + process management (ceracoder.ts: its INI)
+ *   encoder.ts      pipelines + Encoder base class (process management, bitrate changes)
+ *   belacoder.ts    Belacoder encoder (bitrate file)
+ *   ceracoder.ts    Ceracoder encoder (INI config, balancer tuning)
  *   stream.ts       combined srtla_send + encoder start/stop, autostart
  *   eventlog.ts     persistent event log shown in the web UI (--log-file)
  *   methods.ts      WebSocket API methods + dispatch (params.ts: parameter validation)
@@ -54,7 +56,7 @@
 
 import { startApiServer } from "./src/api";
 import { argv, HAS_RELAY, REMOTE_URL, ROLE } from "./src/config";
-import { stopEncoder } from "./src/encoder";
+import { encoder } from "./src/encoder";
 import { flushLog, logEvent } from "./src/eventlog";
 import { t } from "./src/i18n";
 import { startRemote, stopRemote } from "./src/remote";
@@ -71,7 +73,7 @@ async function main(): Promise<void> {
         logEvent("info", "Service", t("log.stopped_signal", signal));
         stopRemote();
         await stopInterfaceMonitor();
-        await stopEncoder();
+        await encoder().stop();
         await stopSrtla();
         await flushLog();
         process.exit(0);

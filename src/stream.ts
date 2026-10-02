@@ -8,7 +8,7 @@
  *   combined  srtla_send + belacoder with the last stream.start target / config
  */
 import { ROLE } from "./config";
-import { type EncoderConfig, encoderStatus, startEncoder, stopEncoder, validateEncoderConfig } from "./encoder";
+import { type EncoderConfig, encoder } from "./encoder";
 import { logEvent } from "./eventlog";
 import { t } from "./i18n";
 import { srtlaStatus, startSrtla, stopSrtla } from "./srtla";
@@ -19,7 +19,7 @@ const AUTOSTART_RETRY_MS = 5_000;
 
 /** Bring up srtla_send (reusing it if already aimed at the same target), then belacoder into it. */
 export async function startCombined(target: StreamTarget, cfg: EncoderConfig): Promise<void> {
-    if (encoderStatus().running) throw new Error("already streaming");
+    if (encoder().status().running) throw new Error("already streaming");
     // Persist both halves of the requested stream before validation/startup.
     // srtlaTarget is the canonical target the config file is projected from;
     // stream mirrors it for the UI and for autostart.
@@ -27,7 +27,7 @@ export async function startCombined(target: StreamTarget, cfg: EncoderConfig): P
     state.stream = target;
     state.encoder = { running: false, config: cfg };
     await saveState();
-    await validateEncoderConfig(cfg);   // fail before touching srtla_send
+    await encoder().validate(cfg);   // fail before touching srtla_send
 
     const { listenPort, remoteHost, remotePort } = target;
     const s = srtlaStatus();
@@ -37,7 +37,7 @@ export async function startCombined(target: StreamTarget, cfg: EncoderConfig): P
     if (!srtlaStatus().running) await startSrtla(listenPort, remoteHost, remotePort);
 
     try {
-        await startEncoder({ ...cfg, host: "127.0.0.1", port: listenPort });
+        await encoder().start({ ...cfg, host: "127.0.0.1", port: listenPort });
     } catch (e: unknown) {
         await stopSrtla();
         throw e;
@@ -45,7 +45,7 @@ export async function startCombined(target: StreamTarget, cfg: EncoderConfig): P
 }
 
 export async function stopCombined(): Promise<void> {
-    await stopEncoder();
+    await encoder().stop();
     await stopSrtla();
 }
 
@@ -78,11 +78,11 @@ async function startSaved(): Promise<boolean> {
         }
         case "encoder":
             if (!cfg) return false;
-            if (!encoderStatus().running) await startEncoder(cfg);
+            if (!encoder().status().running) await encoder().start(cfg);
             return true;
         case "combined":
             if (!cfg || !state.stream) return false;
-            if (!encoderStatus().running) await startCombined(state.stream, cfg);
+            if (!encoder().status().running) await startCombined(state.stream, cfg);
             return true;
     }
 }

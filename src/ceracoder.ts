@@ -1,6 +1,6 @@
 /*
- * ceracoder bitrate-control parameters (https://github.com/CERALIVE/ceracoder):
- * validation of UI updates and the INI config. Process handling lives in encoder.ts.
+ * ceracoder (https://github.com/CERALIVE/ceracoder): the Ceracoder encoder and its
+ * bitrate-control parameters (validation of UI updates, the INI config).
  *
  * When ENCODER_BIN points at ceracoder instead of belacoder, the encoder takes
  * its bitrate settings from a config file (-c) rather than the legacy bitrate
@@ -20,6 +20,9 @@
  * Max bitrate and SRT latency live in the encoder config (belacoder uses the
  * same values), everything else in the persisted `ceracoder` section.
  */
+import { CERACODER_CONF } from "./config";
+import { Encoder } from "./encoder";
+import { saveState, state } from "./state";
 import { BITRATE_KBPS } from "./validate";
 
 export const CERA_BALANCERS = ["adaptive", "fixed", "aimd"] as const;
@@ -77,7 +80,7 @@ function intInRange(value: unknown, key: string, [min, max]: Range): number {
  * Validate and merge a partial update (as sent by the UI) over the current
  * settings; returns the complete new config. Throws on invalid values.
  */
-export function mergeCeraConfig(current: CeraConfig, partial: unknown): CeraConfig {
+function mergeCeraConfig(current: CeraConfig, partial: unknown): CeraConfig {
 	const p = (partial && typeof partial === "object" ? partial : {}) as Record<string, unknown>;
 	if (p.balancer != null && !CERA_BALANCERS.includes(p.balancer as CeraBalancer)) {
 		throw new Error(`Invalid balancer: ${String(p.balancer)}`);
@@ -114,7 +117,7 @@ export function mergeCeraConfig(current: CeraConfig, partial: unknown): CeraConf
 }
 
 /** Render the INI config as ceracoder's -c flag consumes it. */
-export function ceraConfText(cfg: CeraConfig, maxBitrate: number, latency: number): string {
+function ceraConfText(cfg: CeraConfig, maxBitrate: number, latency: number): string {
 	const section = (name: string, values: Record<string, number | string>) =>
 		[`[${name}]`, ...Object.entries(values).map(([k, v]) => `${k} = ${v}`), ""];
 	// Fixed key order (the persisted config sorts keys alphabetically)
@@ -131,4 +134,37 @@ export function ceraConfText(cfg: CeraConfig, maxBitrate: number, latency: numbe
 		...section("adaptive", tuning("adaptive")),
 		...section("aimd", tuning("aimd")),
 	].join("\n");
+}
+
+export class Ceracoder extends Encoder {
+	/** Bitrate-control settings as persisted in the device state (defaults applied). */
+	config(): CeraConfig {
+		return state.ceracoder ?? DEFAULT_CERA_CONFIG;
+	}
+
+	/** Validate and persist a partial settings update, rewrite the INI and reload a running encoder. */
+	async update(partial: unknown): Promise<CeraConfig> {
+		const next = mergeCeraConfig(this.config(), partial);
+		state.ceracoder = next;
+		await this.writeBitrateControl(next.minBitrate, state.encoder.config?.maxBitrate ?? 5000);
+		this.reload();
+		await saveState();
+		return next;
+	}
+
+	override setBitrate(minKbps: number, maxKbps: number) {
+		// The INI reads the min from the persisted ceracoder section; keep it in sync
+		state.ceracoder = { ...this.config(), minBitrate: minKbps };
+		return super.setBitrate(minKbps, maxKbps);
+	}
+
+	protected bitrateArgs(): string[] {
+		return ["-c", CERACODER_CONF];
+	}
+
+	/** The min comes from the ceracoder section, the latency from the encoder config. */
+	protected writeBitrateControl(_minKbps: number, maxKbps: number): Promise<void> {
+		const latency = state.encoder.config?.latency ?? 2000;
+		return this.writeControlFile(CERACODER_CONF, ceraConfText(this.config(), maxKbps, latency));
+	}
 }
