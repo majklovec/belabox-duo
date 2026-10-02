@@ -44,7 +44,7 @@ const state = {
 };
 
 /** Editable copy of the settings; the token is write-only (never sent back by the device). */
-const draft = { hostname: "", role: "", color: "#0f1115", remoteUrl: "", remoteToken: "" };
+const draft = { hostname: "", role: "", color: "#3b82f6", remoteUrl: "", remoteToken: "" };
 
 const rpc = new RpcClient(() => socketUrl("../ws"));
 rpc.on("open", () => {

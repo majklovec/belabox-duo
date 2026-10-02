@@ -252,6 +252,25 @@ textarea {
     color var(--t);
 }
 
+/* Color picker: thin padding so the swatch fills the control, same height as text inputs */
+input[type="color"] {
+  padding: 0.2rem;
+  inline-size: 4.5rem;
+  block-size: calc(1lh + 1rem + 2px);
+  cursor: pointer;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--radius-xs);
+}
+input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: var(--radius-xs);
+}
+
 input:hover,
 select:hover,
 textarea:hover {
@@ -716,6 +735,7 @@ td.num {
 .wiz-sub {
   font-size: 0.7rem;
   color: var(--muted);
+  min-height: 3em;
 }
 .wiz-item.done .wiz-dot {
   background: var(--accent);

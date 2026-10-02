@@ -64,7 +64,7 @@ const f = {
 	language: "en",
 	role: undefined as Role | undefined,
 	hostname: "",
-	color: "#0f1115",
+	color: "#3b82f6",
 	remoteUrl: "",
 	remoteToken: "",
 	// encoder / combined

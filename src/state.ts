@@ -106,7 +106,7 @@ function projectConfig(s: PersistentState): DeviceConfig {
     const options = s.srtlaOptions ?? {};
     const cfg: DeviceConfig = {
         autostart: !!s.autostart,
-        color: settings.color ?? "#0f1115",
+        color: settings.color ?? "#3b82f6",
         hostname: settings.hostname ?? "",
         language: asLanguage(settings.language),
         remoteUrl: settings.remoteUrl ?? "",
