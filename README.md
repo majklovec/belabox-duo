@@ -102,7 +102,7 @@ pending retry.
 
 ## Control server
 
-`server/server.ts` lists all devices and serves the same web UI for each one at
+`server.ts` lists all devices and serves the same web UI for each one at
 `/d/<id>/`, relaying commands to the device over its outbound connection, so
 devices behind NAT or on mobile networks can be managed.
 
@@ -145,7 +145,7 @@ in `/var/lib/srtla-relay/`, which autostart needs to survive a reboot.
 The local `/ws` endpoint and the control server speak the same JSON protocol:
 requests `{ "id", "method", "params" }`, responses `{ "type": "response", "id", "ok", ... }`,
 and pushed `{ "type": "event", "event": "status", "data": ... }`. The method list
-is at the top of [src/api.ts](src/api.ts). Methods that do not apply to the
+is at the top of [src/methods.ts](src/methods.ts). Methods that do not apply to the
 device's role are rejected with code 409.
 
 The cog in the device header opens a separate settings page. It uses

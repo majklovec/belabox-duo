@@ -1,21 +1,18 @@
-/* Wire types shared by the relay UI, the device list and the control server. */
+/* Wire types shared by the device UI, the device list and the control server. */
+import type { CeraConfig } from "../src/ceracoder";
+import type { AudioSource, EncoderState } from "../src/encoder";
+import type { Language } from "../src/i18n";
 import type { ModemInfo } from "../src/modems";
 import type { Iface, ModemConfig } from "../src/routing";
 import type { SrtlaState } from "../src/srtla";
-import type { EncoderState } from "../src/encoder";
-import type { SrtlaOptions, SrtlaTarget, StreamTarget } from "../src/state";
 import type { SrtlaControlState } from "../src/srtlaControl";
-import type { Language } from "../src/i18n";
-import type { CeraConfig } from "../src/encoder_ceracoder";
+import type { SrtlaOptions, SrtlaTarget, StreamTarget } from "../src/state";
+import type { Role } from "../src/validate";
 
-export type { EncoderState, StreamTarget };
-export type { CeraBalancer, CeraConfig } from "../src/encoder_ceracoder";
-export type { AudioSource, Pipeline } from "../src/encoder";
+export type { CeraBalancer, CeraConfig } from "../src/ceracoder";
+export type { AudioSource, EncoderState, Pipeline } from "../src/encoder";
 export type { SrtlaLinkStats, SrtlaMode, SrtlaStats, SrtlaStatsEvent } from "../src/srtlaControl";
-import type { AudioSource } from "../src/encoder";
-
-export type { Role } from "../src/config";
-import type { Role } from "../src/config";
+export type { Role, SrtlaState, StreamTarget };
 
 export interface Status {
 	role: Role;
@@ -39,7 +36,7 @@ export interface Status {
 	ceracoder: CeraConfig | null;
 }
 
-/** Sent only when the UI is served by the control server (server/) for a remote device. */
+/** Sent only when the UI is served by the control server (server.ts) for a remote device. */
 export interface DeviceInfo {
 	/** Stable device uuid (the registry key on the control server) */
 	id: string;

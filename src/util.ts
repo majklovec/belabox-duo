@@ -1,5 +1,5 @@
 /*
- * Small shared helpers used across the app.
+ * Small runtime-agnostic helpers shared by the backend and the web UI.
  */
 
 /** Message of an unknown thrown value (never needs to throw itself). */
@@ -9,7 +9,17 @@ export function errorMessage(err: unknown): string {
 
 /** Text of a WebSocket / stream message that may arrive as a string already. */
 export function textOf(data: unknown): string {
-    return typeof data === "string" ? data : new TextDecoder().decode(new Uint8Array(data as ArrayBuffer));
+    return typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer | Uint8Array);
+}
+
+/** A parsed JSON object (not an array or scalar), or null when the text is anything else. */
+export function parseJsonObject(text: string): Record<string, unknown> | null {
+    try {
+        const v: unknown = JSON.parse(text);
+        return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -18,23 +28,17 @@ export function textOf(data: unknown): string {
  * after) so the config file diffs cleanly.
  */
 export function stableStringify(value: unknown): string {
+    const isObj = (v: unknown) => v !== null && typeof v === "object";
     function fmt(v: unknown, indent: string): string {
+        if (!isObj(v)) return JSON.stringify(v) ?? "null";
         const pad = indent + "  ";
-        if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
         if (Array.isArray(v)) {
-            return v.length
-                ? `[\n${v.map((item) => `${pad}${fmt(item, pad)}`).join(",\n")}\n${indent}]`
-                : "[]";
+            return v.length ? `[\n${v.map((item) => pad + fmt(item, pad)).join(",\n")}\n${indent}]` : "[]";
         }
         const obj = v as Record<string, unknown>;
         const keys = Object.keys(obj)
             .filter((k) => obj[k] !== undefined)
-            .sort((a, b) => {
-                const aObj = obj[a] !== null && typeof obj[a] === "object";
-                const bObj = obj[b] !== null && typeof obj[b] === "object";
-                if (aObj !== bObj) return aObj ? 1 : -1;
-                return a.localeCompare(b);
-            });
+            .sort((a, b) => Number(isObj(obj[a])) - Number(isObj(obj[b])) || a.localeCompare(b));
         if (!keys.length) return "{}";
         return `{\n${keys.map((k) => `${pad}${JSON.stringify(k)}: ${fmt(obj[k], pad)}`).join(",\n")}\n${indent}}`;
     }
@@ -53,29 +57,18 @@ export function scrubUrl(url: string): string {
     }
 }
 
-/** Role-diagram helper for the setup wizard (`/img/<name>.svg` from public/). */
-export async function svgResponse(path: string): Promise<Response> {
-    const file = Bun.file(new URL(`../public${path}`, import.meta.url));
-    return (await file.exists())
-        ? new Response(file, { headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "no-cache" } })
-        : new Response("Not found\n", { status: 404 });
-}
-
 /**
- * Reads a byte stream line by line (NUL-free, UTF-8). The generator finishes
- * when the stream closes; returning early abandons it.
+ * Reads a byte stream line by line (UTF-8, trimmed, blank lines skipped). The
+ * generator finishes when the stream closes; returning early abandons it.
  */
 export async function* readLines(stream: ReadableStream<Uint8Array>): AsyncGenerator<string> {
     const decoder = new TextDecoder();
     let buffer = "";
     for await (const chunk of stream) {
         buffer += decoder.decode(chunk, { stream: true });
-        let nl: number;
-        while ((nl = buffer.indexOf("\n")) !== -1) {
-            const line = buffer.slice(0, nl).trim();
-            buffer = buffer.slice(nl + 1);
-            if (line) yield line;
-        }
+        const lines = buffer.split("\n");
+        buffer = lines.pop()!;
+        for (const line of lines) if (line.trim()) yield line.trim();
     }
     if (buffer.trim()) yield buffer.trim();
 }

@@ -1,7 +1,7 @@
 /*
  * Outbound WebSocket connection to a remote control server.
  *
- * Speaks the same protocol as the local API (see api.ts), with roles of the
+ * Speaks the same protocol as the local API (see methods.ts), with roles of the
  * transport reversed: this device dials out, then
  *   - pushes `{ "type": "event", "event": "status", ... }` on connect, on
  *     every state change and every REMOTE_INTERVAL seconds;
@@ -20,11 +20,12 @@
  * runtime so settings saved in the UI apply without a process restart.
  */
 import { REMOTE_INTERVAL, REMOTE_STATS_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
-import { errorMessage, scrubUrl, textOf } from "./util";
 import { asLanguage } from "./i18n";
-import { addStatusSink, handleRequest, logHistoryEvent, statsEvent, statusEvent } from "./api";
+import { handleRequest } from "./methods";
+import { addStatusSink, logHistoryEvent, statsEvent, statusEvent } from "./push";
 import { latestSrtlaStats } from "./srtlaControl";
 import { state } from "./state";
+import { errorMessage, scrubUrl, textOf } from "./util";
 
 const BACKOFF_MIN_MS = 1_000;
 const BACKOFF_MAX_MS = 30_000;
@@ -85,8 +86,8 @@ function connect(): void {
     // The uuid is the device's stable identity on the control server (hostnames
     // change); state.ts guarantees one is always assigned; hostname and color
     // ride along in the hello as display parameters
-    const id = state.settings?.uuid ?? "";
-    const role = state.settings?.role ?? ROLE;
+    const id = state.settings.uuid ?? "";
+    const role = state.settings.role ?? ROLE;
     const headers: Record<string, string> = { "x-device-id": id, "x-device-role": role };
     if (target.token) headers.authorization = `Bearer ${target.token}`;
 
@@ -103,9 +104,9 @@ function connect(): void {
             type: "hello",
             id,
             role,
-            hostname: state.settings?.hostname ?? "",
-            color: state.settings?.color ?? "",
-            language: asLanguage(state.settings?.language),
+            hostname: state.settings.hostname ?? "",
+            color: state.settings.color ?? "",
+            language: asLanguage(state.settings.language),
             ...(state.encoder.config?.maxBitrate !== undefined
                 ? { maxBitrate: state.encoder.config.maxBitrate }
                 : {}),
@@ -150,8 +151,6 @@ function connect(): void {
         backoff = Math.min(backoff * 2, BACKOFF_MAX_MS);
     });
 }
-
-export const isRemoteConnected = isOpen;
 
 export function startRemote(): void {
     if (!target.url || !stopped) return;

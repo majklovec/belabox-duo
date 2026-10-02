@@ -2,10 +2,11 @@
  * Back / Next / Save controls, all driven by a single state object. */
 import m from "mithril";
 import { errorMessage } from "../../src/util";
-import { HOSTNAME_RE } from "../../src/validate";
+import { BITRATE_KBPS, DEFAULT_COLOR, HOSTNAME_RE } from "../../src/validate";
 import type { AudioSource, Pipeline, Role } from "../types";
 import {
 	actions,
+	audioCodecOptions,
 	brk,
 	button,
 	checkbox,
@@ -17,6 +18,7 @@ import {
 	numberAttrs,
 	options,
 	Page,
+	schedulerOptions,
 	select,
 } from "./components/ui";
 import { languageOptions, setLanguage, t } from "./i18n";
@@ -47,7 +49,8 @@ const STEPS: { key: StepKey; title: string; sub: string }[] = [
 ];
 
 const PORT = numberAttrs(1, 65535);
-const BITRATE = { ...numberAttrs(300, 30000, undefined, 100), required: true };
+const BITRATE = { ...numberAttrs(BITRATE_KBPS.min, BITRATE_KBPS.max, undefined, 100), required: true };
+const bitrateValid = (v: string) => inRange(v, BITRATE_KBPS.min, BITRATE_KBPS.max);
 
 const state = {
 	connected: false,
@@ -64,12 +67,12 @@ const f = {
 	language: "en",
 	role: undefined as Role | undefined,
 	hostname: "",
-	color: "#3b82f6",
+	color: DEFAULT_COLOR,
 	remoteUrl: "",
 	remoteToken: "",
 	// encoder / combined
 	pipeline: "",
-	minBitrate: "300",
+	minBitrate: String(BITRATE_KBPS.min),
 	maxBitrate: "5000",
 	audioSource: "",
 	audioCodec: "aac",
@@ -104,8 +107,8 @@ function stepValid(key: StepKey): boolean {
 			return (
 				!!f.pipeline &&
 				!!f.audioSource &&
-				inRange(f.minBitrate, 300, 30000) &&
-				inRange(f.maxBitrate, 300, 30000) &&
+				bitrateValid(f.minBitrate) &&
+				bitrateValid(f.maxBitrate) &&
 				Number(f.minBitrate) <= Number(f.maxBitrate) &&
 				inRange(f.latency, 100, 10000) &&
 				(f.role !== "encoder" || (!!f.encoderHost && inRange(f.encoderPort, 1, 65535)))
@@ -192,6 +195,8 @@ async function complete(): Promise<void> {
 	try {
 		await rpc.call("setup.complete", payload);
 		state.message = `${t("setup.saved")} ${t("setup.restart_required")}`;
+		// Reconnect: setup.get then reports the device configured and the page moves on to the device UI
+		rpc.reconnect();
 	} catch (error: unknown) {
 		state.message = errorMessage(error);
 	} finally {
@@ -283,14 +288,7 @@ function stepBody(key: StepKey): m.Vnode {
 				),
 				field(
 					t("dev.field.audio_codec"),
-					select(
-						f,
-						"audioCodec",
-						options([
-							["aac", "AAC"],
-							["opus", "Opus"],
-						]),
-					),
+					select(f, "audioCodec", audioCodecOptions()),
 				),
 				field(t("dev.field.audio_delay"), input(f, "delay", numberAttrs(-2000, 2000))),
 				// Combined devices stream into their own srtla_send: no target to configure
@@ -323,14 +321,7 @@ function stepBody(key: StepKey): m.Vnode {
 				field(t("dev.field.remote_port"), input(f, "srtlaRemotePort", { ...PORT, required: needsReceiver })),
 				field(
 					t("dev.scheduler"),
-					select(
-						f,
-						"srtlaMode",
-						options([
-							["enhanced", t("dev.scheduler_enhanced")],
-							["classic", t("dev.scheduler_classic")],
-						]),
-					),
+					select(f, "srtlaMode", schedulerOptions()),
 				),
 				check("srtlaQuality", t("dev.quality_scoring")),
 			);

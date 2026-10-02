@@ -2,8 +2,8 @@
  * for the Mithril views. Views are plain `m()` trees driven by per-page state; these
  * helpers keep the markup consistent between pages. */
 import m from "mithril";
-import { LanguageSelect } from "../i18n";
-import { t } from "../i18n";
+import type { EncoderState, Role, SrtlaState } from "../../types";
+import { LanguageSelect, t } from "../i18n";
 import type { Child } from "../util";
 
 export type { Child };
@@ -45,6 +45,14 @@ export const badge = (text: string, kind: BadgeKind = "") => m("span", { class: 
 export const connectionBadge = (connected: boolean) =>
 	connected ? badge(t("dev.connected"), "on") : badge(t("dev.disconnected"), "off");
 
+/** Encoder state badge when it is not simply streaming: stopped, srtla_send down (combined), restarting. */
+export function encoderIssueBadge(role: Role | undefined, e: EncoderState, srtla: SrtlaState | undefined): m.Vnode | null {
+	if (!e.running) return badge(t("dev.badge.stopped"), "off");
+	if (role === "combined" && !srtla?.running) return badge(t("dev.badge.srtla_send_down"), "warn");
+	if (!e.pid && e.restarts) return badge(t("dev.badge.restarting"), "warn");
+	return null;
+}
+
 /** <dl> of dt/dd rows; empty values render "—". */
 export function definitionList(rows: [string, Child][]): m.Vnode {
 	return m("dl", rows.flatMap(([k, v]) => [m("dt", k), m("dd", v ?? "—")]));
@@ -72,6 +80,19 @@ export const brk = () => m("div.break");
 /** <option>s from [value, label] pairs. */
 export const options = (pairs: readonly (readonly [string, string])[]): m.Vnode[] =>
 	pairs.map(([value, label]) => m("option", { key: value, value }, label));
+
+export const audioCodecOptions = () =>
+	options([
+		["aac", "AAC"],
+		["opus", "Opus"],
+	]);
+
+/** srtla_send scheduler modes. */
+export const schedulerOptions = () =>
+	options([
+		["enhanced", t("dev.scheduler_enhanced")],
+		["classic", t("dev.scheduler_classic")],
+	]);
 
 /** <form> whose submit runs `onSubmit` instead of navigating. */
 export const form = (attrs: m.Attributes & { onSubmit?: () => void }, ...children: m.Children[]) => {

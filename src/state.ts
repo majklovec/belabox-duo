@@ -11,21 +11,22 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { CONFIG_FILE, DRY_RUN } from "./config";
-import type { CeraConfig } from "./encoder_ceracoder";
+import type { CeraConfig } from "./ceracoder";
+import { CONFIG_EXISTS, CONFIG_FILE, DRY_RUN, INITIAL_CONFIG } from "./config";
 import type { EncoderConfig, EncoderState } from "./encoder";
-import { DEFAULT_LANGUAGE, asLanguage, setCurrentLanguage, type Language } from "./i18n";
+import { asLanguage, DEFAULT_LANGUAGE, type Language, setCurrentLanguage } from "./i18n";
 import type { ModemConfig } from "./routing";
 import type { SrtlaMode } from "./srtlaControl";
 import type { SrtlaState } from "./srtla";
 import { stableStringify } from "./util";
+import { DEFAULT_COLOR, type Role } from "./validate";
 
 /** Device settings that can be changed from the control UI and used on restart. */
 export interface DeviceSettings {
     /** Stable identity; the device registers with the control server under this uuid */
     uuid?: string;
     hostname?: string;
-    role?: string;
+    role?: Role;
     remoteUrl?: string;
     remoteToken?: string;
     color?: string;
@@ -59,7 +60,7 @@ export interface DeviceConfig {
     hostname: string;
     language: Language;
     remoteUrl: string;
-    role: string;
+    role: Role;
     uuid: string;
     remoteToken?: string;
     pipelineRepositories?: string[];
@@ -73,7 +74,7 @@ export interface DeviceConfig {
 
 /** Merged in-memory view of config (persisted) + runtime (memory only). */
 export interface PersistentState {
-    settings?: DeviceSettings;
+    settings: DeviceSettings;
     selection: ModemConfig;
     srtla: SrtlaState;
     srtlaTarget?: SrtlaTarget;
@@ -84,29 +85,20 @@ export interface PersistentState {
     autostart?: boolean;      // resume the last stream when the service starts
 }
 
-const defaults = (): PersistentState => ({
-    settings: { uuid: randomUUID(), language: DEFAULT_LANGUAGE },
-    selection: {},
-    srtla: { running: false },
-    encoder: { running: false },
-});
-
-const configFile = Bun.file(CONFIG_FILE);
-
 // A fresh device (no config file) shows the setup wizard first.
-export let setupRequired = !(await configFile.exists());
+export let setupRequired = !CONFIG_EXISTS;
 
 // ----------------------------------------------------------------------
 // Projection between the merged in-memory state and the two files
 // ----------------------------------------------------------------------
 
 function projectConfig(s: PersistentState): DeviceConfig {
-    const settings = s.settings ?? {};
+    const { settings } = s;
     const target = s.srtlaTarget ?? s.stream ?? { listenPort: "", remoteHost: "", remotePort: "" };
     const options = s.srtlaOptions ?? {};
     const cfg: DeviceConfig = {
         autostart: !!s.autostart,
-        color: settings.color ?? "#3b82f6",
+        color: settings.color ?? DEFAULT_COLOR,
         hostname: settings.hostname ?? "",
         language: asLanguage(settings.language),
         remoteUrl: settings.remoteUrl ?? "",
@@ -159,16 +151,8 @@ function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
 }
 
 // ----------------------------------------------------------------------
-// Load and save
+// Change notification and save
 // ----------------------------------------------------------------------
-
-async function loadState(): Promise<PersistentState> {
-    if (await configFile.exists()) {
-        return fromConfig(await configFile.json().catch(() => null));
-    }
-    return defaults();
-}
-
 type ChangeListener = () => void;
 const listeners = new Set<ChangeListener>();
 
@@ -200,27 +184,24 @@ export async function completeSetup(): Promise<void> {
 }
 
 /** Shared mutable state; modules mutate its fields and call `saveState()`. */
-const state: PersistentState = await loadState();
+export const state: PersistentState = CONFIG_EXISTS
+    ? fromConfig(INITIAL_CONFIG as Partial<DeviceConfig> | null)
+    : { settings: {}, selection: {}, srtla: { running: false }, encoder: { running: false } };
 
 // Hostnames change; the uuid is the device's permanent identity on the control server.
-// It is auto-assigned (defaults()) / backfilled here, persisted, and never changes.
-if (!state.settings?.uuid) {
-    state.settings = { ...state.settings, uuid: randomUUID() };
-    await saveState();
-}
-export { state };
-
-// Older config files have no language; normalize so it is always present.
-if (state.settings?.language === undefined) {
-    state.settings = { ...state.settings, language: DEFAULT_LANGUAGE };
-    await saveState();
+// It is auto-assigned here (backfilled into older config files) and never changes.
+// Older config files have no language either; normalize so it is always present.
+// A fresh device keeps both in memory only, so the setup wizard still runs.
+{
+    const backfill = CONFIG_EXISTS && (!state.settings.uuid || state.settings.language === undefined);
+    state.settings.uuid ||= randomUUID();
+    state.settings.language ??= DEFAULT_LANGUAGE;
+    if (backfill) await saveState();
 }
 
 // Seed the process-wide current language so t()/label() self-resolve to the
 // device's saved UI language from the first log entry onward.
-setCurrentLanguage(state.settings?.language);
+setCurrentLanguage(state.settings.language);
 
 /** UI language as persisted in settings (defaults to "en"). */
-export function uiLanguage(): Language {
-    return asLanguage(state.settings?.language);
-}
+export const uiLanguage = (): Language => asLanguage(state.settings.language);

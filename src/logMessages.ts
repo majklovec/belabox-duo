@@ -32,44 +32,52 @@ export interface LogEvent {
 }
 
 type Params = Record<string, unknown>;
-type Done = (p: Params) => string;
 
-interface MethodLogDef { section: string; action: string; done: Done; }
+export interface MethodLog {
+    section: string;
+    action: string;                    // canonical English, for `<action> failed: <reason>`
+    done: (p: Params) => string;       // resolves the current language at call time
+}
+
+const log = (section: string, action: string, done: string | ((p: Params) => string)): MethodLog => ({
+    section,
+    action,
+    done: typeof done === "string" ? () => t(done) : done,
+});
 
 /** Methods that change something; read-only ones (status, *.list, …) are not logged. */
-const METHOD_LOG: Record<string, MethodLogDef> = {
-    "encoder.start": { section: "Encoder", action: "Start", done: (_p) => t("mlog.done.started") },
-    "encoder.stop": { section: "Encoder", action: "Stop", done: (_p) => t("mlog.done.stopped") },
-    "encoder.bitrate": { section: "Encoder", action: "Bitrate change", done: (p) => t("mlog.done.bitrate", p.minBitrate, p.maxBitrate) },
-    "ceracoder.set": { section: "Encoder", action: "Bitrate control", done: (_p) => t("mlog.done.cera_settings") },
-    "stream.start": { section: "Stream", action: "Start", done: (_p) => t("mlog.done.started") },
-    "stream.stop": { section: "Stream", action: "Stop", done: (_p) => t("mlog.done.stopped") },
-    "srtla.start": { section: "SRTLA", action: "Start", done: (_p) => t("mlog.done.started") },
-    "srtla.stop": { section: "SRTLA", action: "Stop", done: (_p) => t("mlog.done.stopped") },
-    "srtla.reload": { section: "SRTLA", action: "Reload", done: (_p) => t("mlog.done.reloaded") },
-    "srtla.options": { section: "SRTLA", action: "Options update", done: (p) =>
+const METHOD_LOG: Record<string, MethodLog> = {
+    "encoder.start": log("Encoder", "Start", "mlog.done.started"),
+    "encoder.stop": log("Encoder", "Stop", "mlog.done.stopped"),
+    "encoder.bitrate": log("Encoder", "Bitrate change", (p) => t("mlog.done.bitrate", p.minBitrate, p.maxBitrate)),
+    "ceracoder.set": log("Encoder", "Bitrate control", "mlog.done.cera_settings"),
+    "stream.start": log("Stream", "Start", "mlog.done.started"),
+    "stream.stop": log("Stream", "Stop", "mlog.done.stopped"),
+    "srtla.start": log("SRTLA", "Start", "mlog.done.started"),
+    "srtla.stop": log("SRTLA", "Stop", "mlog.done.stopped"),
+    "srtla.reload": log("SRTLA", "Reload", "mlog.done.reloaded"),
+    "srtla.options": log("SRTLA", "Options update", (p) =>
         [
             p.mode !== undefined && t("mlog.done.mode", p.mode),
             p.quality !== undefined && t(p.quality ? "mlog.done.quality_on" : "mlog.done.quality_off"),
-        ].filter(Boolean).join(", ") },
-    "modems.select": { section: "Interfaces", action: "Bond selection", done: (_p) => t("mlog.done.bond_updated") },
-    "modems.toggle": { section: "Interfaces", action: "Bond toggle", done: (p) => t("mlog.done.bond_toggled", p.iface) },
-    reconfigure: { section: "Interfaces", action: "Reconfigure", done: (_p) => t("mlog.done.reconfigured") },
-    "modems.enable": { section: "Modems", action: "Enable", done: (p) => t("mlog.done.modem_enabled", p.index) },
-    "modems.disable": { section: "Modems", action: "Disable", done: (p) => t("mlog.done.modem_disabled", p.index) },
-    "modems.connect": { section: "Modems", action: "Connect", done: (p) => t("mlog.done.modem_connected", p.index) },
-    "modems.disconnect": { section: "Modems", action: "Disconnect", done: (p) => t("mlog.done.modem_disconnected", p.index) },
-    "modems.reset": { section: "Modems", action: "Reset", done: (p) => t("mlog.done.modem_reset", p.index) },
-    "autostart.set": { section: "Autostart", action: "Update", done: (p) =>
-        t(p.enabled ? "mlog.done.enabled" : "mlog.done.disabled") },
+        ].filter(Boolean).join(", ")),
+    "modems.select": log("Interfaces", "Bond selection", "mlog.done.bond_updated"),
+    "modems.toggle": log("Interfaces", "Bond toggle", (p) => t("mlog.done.bond_toggled", p.iface)),
+    reconfigure: log("Interfaces", "Reconfigure", "mlog.done.reconfigured"),
+    "modems.enable": log("Modems", "Enable", (p) => t("mlog.done.modem_enabled", p.index)),
+    "modems.disable": log("Modems", "Disable", (p) => t("mlog.done.modem_disabled", p.index)),
+    "modems.connect": log("Modems", "Connect", (p) => t("mlog.done.modem_connected", p.index)),
+    "modems.disconnect": log("Modems", "Disconnect", (p) => t("mlog.done.modem_disconnected", p.index)),
+    "modems.reset": log("Modems", "Reset", (p) => t("mlog.done.modem_reset", p.index)),
+    "autostart.set": log("Autostart", "Update", (p) => t(p.enabled ? "mlog.done.enabled" : "mlog.done.disabled")),
 };
 
 /** Whether the device records this method in its event log. */
 export const isLoggedMethod = (method: string): boolean => Object.hasOwn(METHOD_LOG, method);
 
 /** Read-only methods still need wording for (browser-side) failures. */
-const READ_LOG: Record<string, MethodLogDef> = {
-    "pipelines.list": { section: "Pipelines", action: "Load", done: (_p) => t("mlog.done.loaded") },
+const READ_LOG: Record<string, MethodLog> = {
+    "pipelines.list": log("Pipelines", "Load", "mlog.done.loaded"),
 };
 
 /** Section for unknown methods, by prefix. */
@@ -83,24 +91,14 @@ const SECTIONS: Record<string, string> = {
     autostart: "Autostart",
 };
 
-export interface MethodLog {
-    section: string;
-    action: string;                    // canonical English, for `<action> failed: <reason>`
-    done: (p: Params) => string;       // resolves the current language at call time
-}
-
 /**
  * Log wording for an API method. `done` self-resolves the current language. On
  * failure the caller renders the localized "<action> failed: <reason>" (mlog.failed).
  */
 export function methodLog(method: string): MethodLog {
-    const known = METHOD_LOG[method] ?? READ_LOG[method];
-    const def = known ?? {
-        section: SECTIONS[method.split(".")[0]] ?? method,
-        action: method,
-        done: (_p: Params) => t("mlog.done.generic", method),
-    };
-    return { section: def.section, action: def.action, done: (p) => def.done(p) };
+    const own = (table: Record<string, MethodLog>) => (Object.hasOwn(table, method) ? table[method] : undefined);
+    return own(METHOD_LOG) ?? own(READ_LOG)
+        ?? log(SECTIONS[method.split(".")[0]] ?? method, method, () => t("mlog.done.generic", method));
 }
 
 /** Canonical label (section / action) → i18n key. Labels are English constants so log

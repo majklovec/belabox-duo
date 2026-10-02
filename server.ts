@@ -2,15 +2,16 @@
 /*
  * SRTLA control server.
  *
- * Devices (relay, encoder, or combined encoder+relay) connect out to this server (`srtla_relay.ts --remote ws(s)://host:port/device`)
+ * Devices (relay, encoder, or combined encoder+relay) connect out to this server (`client.ts --remote ws(s)://host:port/device`)
  * and operators control them from a browser, using the relay's own web UI
  * (../public) served per device.
  *
  * Endpoints:
- *   GET  /                 device list (server/public/devices.html)
- *   GET  /d/<id>/          relay UI for one device (../public/index.html); the
- *                          setup wizard (../public/setup.html) while the device
- *                          has no config file (status.setupRequired; ?ui=1 forces the UI)
+ *   GET  /                 device list (public/devices.html)
+ *   GET  /d/<id>/          device UI (public/index.html); the setup wizard
+ *                          (public/setup.html) while the device has no config
+ *                          file (status.setupRequired; ?ui=1 forces the UI)
+ *   GET  /d/<id>/settings/ device settings (public/settings.html)
  *   GET  /d/<id>/setup/    setup wizard for one device
  *   WS   /d/<id>/ws        browser ⇄ device; same protocol as the relay's local /ws
  *   GET  /api/devices      JSON list of known devices
@@ -42,17 +43,17 @@
  *   --no-auth disables both (local testing only).
  *
  * Usage:
- *   SRTLA_DEVICE_TOKEN=devsecret SRTLA_UI_PASSWORD=uipass bun server/server.ts --port 8090
+ *   SRTLA_DEVICE_TOKEN=devsecret SRTLA_UI_PASSWORD=uipass bun server.ts --port 8090
  */
 import type { ServerWebSocket } from "bun";
 import { createHash, timingSafeEqual } from "node:crypto";
+import type { DeviceInfo, DeviceSummary, SrtlaStats, SrtlaStatsEvent, Status } from "./public/types";
 import { arg, argFail, flag, intArg } from "./src/args";
-import type { DeviceInfo, DeviceSummary, Role, SrtlaStats, SrtlaStatsEvent, Status } from "./public/types";
-import type { LogEntry, LogEvent, LogLevel } from "./src/logMessages";
-import { LOG_MAX } from "./src/logMessages";
-import { asLanguage, translate, type Language } from "./src/i18n";
-import { svgResponse } from "./src/util";
-import { COLOR_RE } from "./src/validate";
+import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
+import { isLanguage, type Language, translate } from "./src/i18n";
+import { LOG_MAX, type LogEntry, type LogEvent, type LogLevel } from "./src/logMessages";
+import { parseJsonObject, textOf } from "./src/util";
+import { COLOR_RE, isRole, type Role } from "./src/validate";
 
 const PORT         = intArg("--port", 8090, 1, 65535);
 const HOST         = arg("--host", "0.0.0.0");
@@ -64,16 +65,14 @@ const UI_USER      = arg("--ui-user", process.env.SRTLA_UI_USER ?? "admin");
 const UI_PASSWORD  = arg("--ui-password", process.env.SRTLA_UI_PASSWORD ?? "");
 const NO_AUTH      = flag("--no-auth");
 
-const STALE_DEVICE_MS  = 5 * 60 * 1000;
+const STALE_DEVICE_MS   = 5 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 30 * 1000;
-
 const REQUEST_TIMEOUT_MS = 60_000;
 
 const ID_RE = /^[\w.-]{1,64}$/;
-const ROLES: readonly Role[] = ["relay", "encoder", "combined"];
-const asRole = (v: unknown): Role | undefined => (ROLES as readonly unknown[]).includes(v) ? (v as Role) : undefined;
+// /d/<id>, /d/<id>/, /d/<id>/ws, /d/<id>/settings[/], /d/<id>/setup[/]
+const DEVICE_PATH_RE = /^\/d\/([^/]+)(?:(\/)(?:(ws)|(settings|setup)(\/)?)?)?$/;
 const viewersTopic = (id: string) => `viewers:${id}`;
-const IMG_PATH_RE = /^\/img\/[a-zA-Z0-9_-]+\.svg$/;
 
 // ----------------------------------------------------------------------
 // Auth
@@ -118,55 +117,39 @@ function uiAuthorized(req: Request): boolean {
 }
 
 const unauthorized = () =>
-    new Response("Authentication required\n", {
-        status: 401,
-        headers: { "www-authenticate": 'Basic realm="SRTLA control", charset="UTF-8"' },
-    });
-
-/** Reject cross-site pages driving the browser socket (browsers always send Origin). */
-function sameOrigin(req: Request): boolean {
-    const origin = req.headers.get("origin");
-    if (!origin) return true;
-    try {
-        return new URL(origin).host === req.headers.get("host");
-    } catch {
-        return false;
-    }
-}
+    text("Authentication required", 401, { "www-authenticate": 'Basic realm="SRTLA control", charset="UTF-8"' });
 
 // ----------------------------------------------------------------------
 // Frontend (bundled once at startup so it can sit behind auth)
 // ----------------------------------------------------------------------
-interface Page { html: string; }
+const PAGES = ["devices", "index", "settings", "setup"] as const;
+type PageName = (typeof PAGES)[number];
+const pages = {} as Record<PageName, string>;
 const assets = new Map<string, Blob>();
-
-async function buildPage(entry: string): Promise<Page> {
+{
+    // One build for all pages: shared code (mithril, UI components) lands in common chunks
     const result = await Bun.build({
-        entrypoints: [entry],
+        entrypoints: PAGES.map((name) => new URL(`./public/${name}.html`, import.meta.url).pathname),
         target: "browser",
         minify: true,
+        splitting: true,
         publicPath: "/assets/",
         naming: { asset: "[name]-[hash].[ext]", chunk: "[name]-[hash].[ext]", entry: "[name]-[hash].[ext]" },
     });
     if (!result.success) {
         for (const l of result.logs) console.error(l);
-        throw new Error(`Failed to bundle ${entry}`);
+        throw new Error("Failed to bundle the web UI");
     }
-    let html = "";
     for (const out of result.outputs) {
-        if (out.path.endsWith(".html")) html = await out.text();
-        else assets.set(out.path.replace(/^\.\//, ""), out);
+        const file = out.path.replace(/^\.\//, "");
+        const page = PAGES.find((name) => file.startsWith(`${name}-`) && file.endsWith(".html"));
+        if (page) pages[page] = await out.text();
+        else assets.set(file, out);
     }
-    return { html };
 }
 
-const devicesPage = await buildPage(new URL("./public/devices.html", import.meta.url).pathname);
-const devicePage  = await buildPage(new URL("./public/index.html", import.meta.url).pathname);
-const settingsPage = await buildPage(new URL("./public/settings.html", import.meta.url).pathname);
-const setupPage   = await buildPage(new URL("./public/setup.html", import.meta.url).pathname);
-
-const htmlResponse = (page: Page) =>
-    new Response(page.html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });
+const htmlResponse = (page: PageName) =>
+    new Response(pages[page], { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });
 
 // ----------------------------------------------------------------------
 // Device registry and request routing
@@ -228,21 +211,22 @@ const deviceInfo = (d: Device): DeviceInfo => ({
     address: d.address,
 });
 
-const deviceEvent = (d: Device) => JSON.stringify({ type: "event", event: "device", data: deviceInfo(d) });
-
-const logEvent = (data: LogEvent) => JSON.stringify({ type: "event", event: "log", data });
+const event = (name: string, data: unknown) => JSON.stringify({ type: "event", event: name, data });
+const deviceEvent = (d: Device) => event("device", deviceInfo(d));
+const logEvent = (data: LogEvent) => event("log", data);
+const publish = (d: Device, msg: string) => server.publish(viewersTopic(d.id), msg);
 
 const logHistory = (d: Device) =>
-    logEvent({
-        reset: true,
-        entries: [...d.log, ...d.serverLog].sort((a, b) => a.at - b.at).slice(-LOG_MAX),
-    });
+    logEvent({ reset: true, entries: [...d.log, ...d.serverLog].sort((a, b) => a.at - b.at).slice(-LOG_MAX) });
+
+/** Keep the newest LOG_MAX entries. */
+const trimLog = (log: LogEntry[]) => log.splice(0, Math.max(0, log.length - LOG_MAX));
 
 function addServerLog(d: Device, level: LogLevel, message: string): void {
     const entry: LogEntry = { id: nextServerLogId++, origin: "server", at: Date.now(), level, section: "Device", message };
     d.serverLog.push(entry);
-    if (d.serverLog.length > LOG_MAX) d.serverLog.splice(0, d.serverLog.length - LOG_MAX);
-    server.publish(viewersTopic(d.id), logEvent({ entries: [entry] }));
+    trimLog(d.serverLog);
+    publish(d, logEvent({ entries: [entry] }));
 }
 
 /** Apply a device `log` event to the cache; returns the message to forward to viewers. */
@@ -257,7 +241,7 @@ function updateDeviceLog(d: Device, data: LogEvent | undefined, raw: string): st
         if (i >= 0) d.log[i] = e;
         else d.log.push(e);
     }
-    if (d.log.length > LOG_MAX) d.log.splice(0, d.log.length - LOG_MAX);
+    trimLog(d.log);
     return raw;
 }
 
@@ -277,18 +261,21 @@ function failPending(predicate: (p: Pending) => boolean, error: string, code: nu
     }
 }
 
-function parseObject(raw: string | Buffer): Record<string, unknown> | null {
-    try {
-        const msg: unknown = JSON.parse(typeof raw === "string" ? raw : raw.toString());
-        return msg && typeof msg === "object" && !Array.isArray(msg) ? (msg as Record<string, unknown>) : null;
-    } catch {
-        return null;
+/** Apply the device's self-reported parameters (hello / status); returns whether any changed. */
+function updateDevice(d: Device, fields: Partial<Pick<Device, "role" | "hostname" | "color" | "language">>): boolean {
+    let changed = false;
+    for (const [key, value] of Object.entries(fields) as [keyof typeof fields, string | undefined][]) {
+        if (value === undefined || d[key] === value) continue;
+        (d as unknown as Record<string, string>)[key] = value;
+        changed = true;
     }
+    return changed;
 }
 
 function onDeviceMessage(d: Device, raw: string | Buffer): void {
     d.lastSeen = Date.now();
-    const msg = parseObject(raw);
+    const text = textOf(raw);
+    const msg = parseJsonObject(text);
     if (!msg) return;
 
     if (msg.type === "response" && typeof msg.id === "number") {
@@ -301,60 +288,40 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
     }
 
     if (msg.type === "event") {
-        const text = typeof raw === "string" ? raw : raw.toString();
         if (msg.event === "status") {
             d.statusMsg = text;
             d.status = msg.data as Status;
             d.statusAt = Date.now();
-            const role = asRole(d.status?.role);
-            if (role && role !== d.role) {
-                d.role = role;
-                server.publish(viewersTopic(d.id), deviceEvent(d));
-            }
-        }
-        if (msg.event === "srtla.stats") {
+            const role = d.status?.role;
+            if (updateDevice(d, { role: isRole(role) ? role : undefined })) publish(d, deviceEvent(d));
+        } else if (msg.event === "srtla.stats") {
             d.statsMsg = text;
             d.stats = (msg.data as SrtlaStatsEvent | undefined)?.stats ?? null;
-        }
-        if (msg.event === "log") {
+        } else if (msg.event === "log") {
             const forward = updateDeviceLog(d, msg.data as LogEvent | undefined, text);
-            if (forward) server.publish(viewersTopic(d.id), forward);
+            if (forward) publish(d, forward);
             return;
         }
-        server.publish(viewersTopic(d.id), text);
+        publish(d, text);
         return;
     }
 
     if (msg.type === "hello") {
         if (msg.id !== d.id) console.warn(`[device ${d.id}] hello announced a different id (${String(msg.id)}) — ignored`);
-        let changed = false;
-        const role = asRole(msg.role);
-        if (role && role !== d.role) {
-            d.role = role;
-            changed = true;
-        }
         // The per-uuid parameters the device reports about itself; a color change
         // re-themes the list dot, a hostname change the display name
-        if (typeof msg.hostname === "string" && msg.hostname !== "") {
-            d.hostname = msg.hostname;
-            changed = true;
-        }
-        if (typeof msg.color === "string" && COLOR_RE.test(msg.color) && msg.color !== d.color) {
-            d.color = msg.color;
-            changed = true;
-        }
-        if (msg.language === "en" || msg.language === "cs") {
-            if (msg.language !== d.language) {
-                d.language = msg.language;
-                changed = true;
-            }
-        }
-        if (changed) server.publish(viewersTopic(d.id), deviceEvent(d));
+        const changed = updateDevice(d, {
+            role: isRole(msg.role) ? msg.role : undefined,
+            hostname: typeof msg.hostname === "string" && msg.hostname !== "" ? msg.hostname : undefined,
+            color: typeof msg.color === "string" && COLOR_RE.test(msg.color) ? msg.color : undefined,
+            language: isLanguage(msg.language) ? msg.language : undefined,
+        });
+        if (changed) publish(d, deviceEvent(d));
     }
 }
 
 function onViewerMessage(ws: Socket, deviceId: string, raw: string | Buffer): void {
-    const msg = parseObject(raw);
+    const msg = parseJsonObject(textOf(raw));
     if (!msg) {
         ws.send(errorResponse(null, "", "Invalid JSON object", 400));
         return;
@@ -402,6 +369,39 @@ function summaries(): DeviceSummary[] {
         .sort((a, b) => Number(b.online) - Number(a.online) || a.id.localeCompare(b.id));
 }
 
+/** Device connection (`/device`): authenticate by uuid + token, then upgrade. */
+function deviceUpgrade(req: Request, url: URL, srv: Bun.Server<WsData>): Response | undefined {
+    const id = req.headers.get("x-device-id") ?? url.searchParams.get("id") ?? "";
+    const token = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1] ?? "";
+    const address = srv.requestIP(req)?.address ?? "";
+    if (!ID_RE.test(id)) return text("Missing or invalid x-device-id", 400);
+    if (!deviceAuthorized(id, token)) {
+        console.warn(`[device ${id}] rejected: bad token from ${address || "?"}`);
+        return text("Unauthorized", 401);
+    }
+    const role = req.headers.get("x-device-role");
+    if (srv.upgrade(req, { data: { kind: "device", id, address, role: isRole(role) ? role : undefined } })) return undefined;
+    return upgradeRequired();
+}
+
+/** Pages and the viewer socket of one device (`/d/<id>/…`). */
+function devicePath(req: Request, url: URL, srv: Bun.Server<WsData>, m: RegExpMatchArray): Response | undefined {
+    const [, rawId, slash, ws, page, pageSlash] = m;
+    const id = decodeURIComponent(rawId);
+    if (!ID_RE.test(id)) return text("Invalid device id", 400);
+    const base = `/d/${encodeURIComponent(id)}/`;
+    if (ws) {
+        if (!originAllowed(req)) return text("Origin not allowed", 403);
+        if (srv.upgrade(req, { data: { kind: "viewer", id } })) return undefined;
+        return upgradeRequired();
+    }
+    if (page) return pageSlash ? htmlResponse(page as PageName) : Response.redirect(`${base}${page}/`, 308);
+    if (!slash) return Response.redirect(base, 308);
+    // Devices without a config file serve the setup wizard instead of the UI
+    const setupRequired = devices.get(id)?.status?.setupRequired && !url.searchParams.has("ui");
+    return htmlResponse(setupRequired ? "setup" : "index");
+}
+
 const server = Bun.serve({
     hostname: HOST,
     port: PORT,
@@ -410,69 +410,21 @@ const server = Bun.serve({
         const url = new URL(req.url);
         const path = url.pathname;
 
-        if (path === "/healthz") return new Response("ok\n");
-
-        if (path === "/device") {
-            const id = req.headers.get("x-device-id") ?? url.searchParams.get("id") ?? "";
-            const token = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1] ?? "";
-            if (!ID_RE.test(id)) return new Response("Missing or invalid x-device-id\n", { status: 400 });
-            if (!deviceAuthorized(id, token)) {
-                console.warn(`[device ${id}] rejected: bad token from ${srv.requestIP(req)?.address ?? "?"}`);
-                return new Response("Unauthorized\n", { status: 401 });
-            }
-            const address = srv.requestIP(req)?.address ?? "";
-            const role = asRole(req.headers.get("x-device-role"));
-            if (srv.upgrade(req, { data: { kind: "device", id, address, role } })) return undefined;
-            return new Response("Expected a WebSocket upgrade\n", { status: 426 });
-        }
-
+        if (path === "/healthz") return text("ok");
+        if (path === "/device") return deviceUpgrade(req, url, srv);
         if (!uiAuthorized(req)) return unauthorized();
 
-        if (path === "/") return htmlResponse(devicesPage);
+        if (path === "/") return htmlResponse("devices");
         if (path === "/api/devices") return Response.json(summaries());
-
         if (path.startsWith("/assets/")) {
             const asset = assets.get(path.slice("/assets/".length));
             return asset
                 ? new Response(asset, { headers: { "cache-control": "public, max-age=31536000, immutable" } })
-                : new Response("Not found\n", { status: 404 });
+                : notFound();
         }
-
-        // Role diagrams on the setup wizard (e.g. /img/encoder.svg)
-        if (IMG_PATH_RE.test(path)) return svgResponse(path);
-
-        const settingsMatch = path.match(/^\/d\/([^/]+)\/settings(\/)?$/);
-        if (settingsMatch) {
-            const id = decodeURIComponent(settingsMatch[1]);
-            if (!ID_RE.test(id)) return new Response("Invalid device id\n", { status: 400 });
-            if (!settingsMatch[2]) return Response.redirect(`/d/${encodeURIComponent(id)}/settings/`, 308);
-            return htmlResponse(settingsPage);
-        }
-
-        const setupMatch = path.match(/^\/d\/([^/]+)\/setup(\/)?$/);
-        if (setupMatch) {
-            const id = decodeURIComponent(setupMatch[1]);
-            if (!ID_RE.test(id)) return new Response("Invalid device id\n", { status: 400 });
-            if (!setupMatch[2]) return Response.redirect(`/d/${encodeURIComponent(id)}/setup/`, 308);
-            return htmlResponse(setupPage);
-        }
-
-        const m = path.match(/^\/d\/([^/]+)(\/(ws)?)?$/);
-        if (m) {
-            const id = decodeURIComponent(m[1]);
-            if (!ID_RE.test(id)) return new Response("Invalid device id\n", { status: 400 });
-            if (!m[2]) return Response.redirect(`/d/${encodeURIComponent(id)}/`, 308);
-            if (!m[3]) {
-                // Devices without a config file serve the setup wizard instead of the UI
-                if (deviceFor(id).status?.setupRequired && !new URL(req.url).searchParams.has("ui")) return htmlResponse(setupPage);
-                return htmlResponse(devicePage);
-            }
-            if (!sameOrigin(req)) return new Response("Origin not allowed\n", { status: 403 });
-            if (srv.upgrade(req, { data: { kind: "viewer", id } })) return undefined;
-            return new Response("Expected a WebSocket upgrade\n", { status: 426 });
-        }
-
-        return new Response("Not found\n", { status: 404 });
+        const m = path.match(DEVICE_PATH_RE);
+        if (m) return devicePath(req, url, srv, m);
+        return (await imageResponse(path)) ?? notFound();
     },
 
     websocket: {
@@ -488,8 +440,8 @@ const server = Bun.serve({
                 d.role = data.role ?? d.role;
                 d.connectedAt = d.lastSeen = Date.now();
                 console.log(`[device ${d.id}] connected from ${data.address}`);
-                server.publish(viewersTopic(d.id), deviceEvent(d));
-                addServerLog(d, "info", translate(d.language ?? "en", "srv.online", data.address));
+                publish(d, deviceEvent(d));
+                addServerLog(d, "info", translate(d.language, "srv.online", data.address));
                 return;
             }
             // Viewers of never-seen devices must not grow the registry
@@ -503,16 +455,13 @@ const server = Bun.serve({
 
         message(ws, raw) {
             const { data } = ws;
-            if (data.kind === "device") {
-                const d = devices.get(data.id);
-                if (d && d.ws === ws) onDeviceMessage(d, raw);
-            } else {
-                onViewerMessage(ws, data.id, raw);
-            }
+            if (data.kind === "viewer") return onViewerMessage(ws, data.id, raw);
+            const d = devices.get(data.id);
+            if (d && d.ws === ws) onDeviceMessage(d, raw);
         },
 
         close(ws, code, reason) {
-            const { data } = ws; 
+            const { data } = ws;
             if (data.kind === "viewer") {
                 failPending((p) => p.viewer === ws, "", 0, false);
                 return;
@@ -522,10 +471,11 @@ const server = Bun.serve({
             d.ws = null;
             d.statsMsg = undefined;   // live telemetry; viewers clear it on the offline device event
             d.stats = undefined;
-            console.log(`[device ${d.id}] disconnected (${code}${reason ? `: ${reason}` : ""})`);
+            const why = `${code}${reason ? `: ${reason}` : ""}`;
+            console.log(`[device ${d.id}] disconnected (${why})`);
             failPending((p) => p.deviceId === d.id, "device disconnected", 503);
-            server.publish(viewersTopic(d.id), deviceEvent(d));
-            addServerLog(d, "warn", translate(d.language ?? "en", "srv.offline", `${code}${reason ? `: ${reason}` : ""}`));
+            publish(d, deviceEvent(d));
+            addServerLog(d, "warn", translate(d.language, "srv.offline", why));
         },
     },
 });
@@ -540,7 +490,7 @@ setInterval(() => {
         d.ws?.close(4000, "removed after inactivity");
         devices.delete(d.id);
         failPending((p) => p.deviceId === d.id, "device disconnected", 503);
-        server.publish(viewersTopic(d.id), deviceEvent(d));
+        publish(d, deviceEvent(d));
         console.log(`[device ${d.id}] removed: no heartbeat for >${STALE_DEVICE_MS / 60000} minutes`);
     }
 }, PRUNE_INTERVAL_MS);

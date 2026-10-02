@@ -1,7 +1,7 @@
 /* Control server device list — a Mithril view of a polling fetch every few seconds. */
 import m from "mithril";
 import type { DeviceSummary } from "../types";
-import { type BadgeKind, badge, Card, type Child, Page } from "./components/ui";
+import { type BadgeKind, badge, Card, type Child, encoderIssueBadge, Page } from "./components/ui";
 import { t } from "./i18n";
 import { icon, roleTag } from "./icons";
 import { formatBitrate, mountPage, since } from "./util";
@@ -22,9 +22,8 @@ function streamState(d: DeviceSummary): Child {
 	const { srtla: s, encoder: e } = d;
 	if (hasEncoder(d)) {
 		if (!e) return "—";
-		if (!e.running) return badge(t("dev.badge.stopped"), "off");
-		if (d.role === "combined" && !s?.running) return badge(t("dev.badge.srtla_send_down"), "warn");
-		if (!e.pid && e.restarts) return badge(t("dev.badge.restarting"), "warn");
+		const issue = encoderIssueBadge(d.role, e, s);
+		if (issue) return issue;
 	} else if (!s?.running) {
 		return badge(t("dev.badge.stopped"), "off");
 	}

@@ -1,8 +1,10 @@
 /* Encoder card: status rows, the stream form and (on ceracoder devices) bitrate control. */
 import m from "mithril";
 import type { CeraBalancer, Pipeline, Status } from "../../types";
+import { BITRATE_KBPS } from "../../../src/validate";
 import {
 	actions,
+	audioCodecOptions,
 	badge,
 	brk,
 	button,
@@ -11,6 +13,7 @@ import {
 	checkbox,
 	checkField,
 	definitionList,
+	encoderIssueBadge,
 	field,
 	form,
 	input,
@@ -64,6 +67,7 @@ export const streamButtons = (stopMethod: string) =>
 // ceracoder bitrate control
 // ----------------------------------------------------------------------
 type Param = readonly [key: string, labelKey: string, attrs: m.Attributes];
+const BITRATE_ATTRS = (placeholder: string) => numberAttrs(BITRATE_KBPS.min, BITRATE_KBPS.max, placeholder, 100);
 const STEP = (placeholder: string) => numberAttrs(1, 10000, placeholder);
 const INTERVAL = (placeholder: string) => numberAttrs(10, 60000, placeholder);
 const CERA_PARAMS: Record<Exclude<CeraBalancer, "fixed">, readonly Param[]> = {
@@ -122,12 +126,8 @@ function ceracoderControls(): m.Children {
 // ----------------------------------------------------------------------
 // Card
 // ----------------------------------------------------------------------
-function stateBadge(status: Status): m.Vnode {
-	const { encoder: e, srtla } = status.state;
-	if (!e.running) return badge(t("dev.badge.stopped"), "off");
-	if (status.role === "combined" && !srtla.running) return badge(t("dev.badge.srtla_send_down"), "warn");
-	return e.pid || !e.restarts ? badge(t("dev.badge.streaming"), "on") : badge(t("dev.badge.restarting"), "warn");
-}
+const stateBadge = ({ role, state: { encoder, srtla } }: Status): m.Vnode =>
+	encoderIssueBadge(role, encoder, srtla) ?? badge(t("dev.badge.streaming"), "on");
 
 function pipelineOptions(): m.Children {
 	const groups = new Map<string, Pipeline[]>();
@@ -153,7 +153,7 @@ function statusRows(status: Status): [string, Child][] {
 		...(combined ? [] : [[t("dev.row.target"), e.running && cfg ? `${cfg.host}:${cfg.port}` : null] as [string, Child]]),
 		[
 			t("dev.row.bitrate"),
-			cfg && t("dev.minmax_kbps", cfg.minBitrate ?? status.ceracoder?.minBitrate ?? 300, cfg.maxBitrate),
+			cfg && t("dev.minmax_kbps", cfg.minBitrate ?? status.ceracoder?.minBitrate ?? BITRATE_KBPS.min, cfg.maxBitrate),
 		],
 		[t("dev.row.latency"), cfg && t("dev.latency_audio", cfg.latency, cfg.delay)],
 		[
@@ -179,11 +179,11 @@ export function encoderCard(status: Status): m.Vnode {
 				t("dev.row.pipeline"),
 				select(fields, "pipeline", pipelineOptions(), { required: true }, () => touched.add("pipeline")),
 			),
-			field(t("dev.field.min_bitrate"), input(fields, "minBitrate", numberAttrs(300, 30000, "300", 100))),
+			field(t("dev.field.min_bitrate"), input(fields, "minBitrate", BITRATE_ATTRS(String(BITRATE_KBPS.min)))),
 			field(
 				t("dev.field.max_bitrate"),
 				actions(
-					input(fields, "maxBitrate", numberAttrs(300, 30000, "5000", 100)),
+					input(fields, "maxBitrate", BITRATE_ATTRS("5000")),
 					button(t("dev.apply_bitrate"), {
 						class: "secondary",
 						disabled: !enabled("encoder-bitrate"),
@@ -216,16 +216,7 @@ export function encoderCard(status: Status): m.Vnode {
 			pipeline?.acodec &&
 				field(
 					t("dev.field.audio_codec"),
-					select(
-						fields,
-						"audioCodec",
-						options([
-							["aac", "AAC"],
-							["opus", "Opus"],
-						]),
-						{},
-						() => touched.add("audioCodec"),
-					),
+					select(fields, "audioCodec", audioCodecOptions(), {}, () => touched.add("audioCodec")),
 				),
 			field(t("dev.field.audio_delay"), input(fields, "delay", numberAttrs(-2000, 2000, "0"))),
 			!combined && [

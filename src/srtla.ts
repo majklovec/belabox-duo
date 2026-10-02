@@ -31,9 +31,8 @@ export interface SrtlaState {
 const RESTART_DELAY_MS = 2_000;
 
 const supervisor = new Supervisor("SRTLA", RESTART_DELAY_MS, onSrtlaExit);
-// Args of the last start() call, replayed by the restart timer.
-let srtlaArgs: [string, string, string] | null = null;
-
+// Target of the last startSrtla(); state.srtlaTarget may already hold a newer, not yet started one
+let startedTarget: [listenPort: string, remoteHost: string, remotePort: string] | null = null;
 let dryRunActive = false;   // --dry-run has no process to track
 
 const isRunning = (): boolean => DRY_RUN ? dryRunActive : supervisor.running;
@@ -84,15 +83,15 @@ export async function reloadSrtla(): Promise<void> {
         console.warn("SIGHUP failed — falling back to restart");
     }
 
-    if (!srtlaArgs) {
+    const target = startedTarget;
+    if (!target) {
         console.warn("No srtla_send args cached — cannot restart");
         return;
     }
-    const args = srtlaArgs;
     console.log("Restarting srtla_send to pick up new uplinks file...");
     await stopSrtla();
     await Bun.sleep(200);
-    await startSrtla(...args);
+    await startSrtla(...target);
 }
 
 export async function startSrtla(
@@ -110,29 +109,18 @@ export async function startSrtla(
     // leave the UI with a complete target to restore.
     state.srtlaTarget = { listenPort, remoteHost, remotePort };
     await saveState();
-    srtlaArgs = [listenPort, remoteHost, remotePort];
+    startedTarget = [listenPort, remoteHost, remotePort];
     console.log(`Starting ${bin} listen: ${listenPort} target: ${remoteHost}:${remotePort} ${UPLINKS_FILE}`);
 
-    if (!caps) {
-        const s: SrtlaState = { running: true, listenPort, remoteHost, remotePort, startedAt: Date.now() };
+    const s: SrtlaState = { running: true, listenPort, remoteHost, remotePort, startedAt: Date.now() };
+    if (caps) {
+        await supervisor.start(() => spawnSrtla(bin, listenPort, remoteHost, remotePort, caps));
+        Object.assign(s, { pid: supervisor.pid, reloadCount: state.srtla.reloadCount ?? 0 });
+    } else {
         dryRunActive = true;
-        state.srtla = s;
-        await saveState();
-        return s;
     }
-
-    await supervisor.start(() => spawnSrtla(bin, listenPort, remoteHost, remotePort, caps));
-
-    const s: SrtlaState = {
-        running: true,
-        pid: supervisor.pid,
-        listenPort, remoteHost, remotePort,
-        startedAt: Date.now(),
-        reloadCount: state.srtla.reloadCount ?? 0,
-    };
     state.srtla = s;
     await saveState();
-
     return s;
 }
 

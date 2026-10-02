@@ -17,18 +17,20 @@
  * `--role` (default `relay`).
  *
  * Modules (src/):
- *   config.ts   CLI arguments and derived settings
- *   exec.ts     shell command helper (dry-run aware)
- *   state.ts    persistent state (selection + srtla)
- *   modems.ts   ModemManager integration
- *   routing.ts  interface detection, selection, routing, uplinks, monitor
- *   srtla.ts    srtla_send process management
- *   encoder.ts  belacoder pipelines + process management (encoder / combined roles)
- *   stream.ts   combined srtla_send + belacoder start/stop, autostart
- *   eventlog.ts persistent event log shown in the web UI (--log-file)
- *   api.ts      WebSocket API (ws://host:port/ws) + web UI from public/ at /
- *   remote.ts   outbound WebSocket to a remote control server (same protocol);
- *               the server itself lives in server/ (bun server/server.ts)
+ *   args.ts / config.ts   CLI arguments and derived settings
+ *   exec.ts         shell command helper (dry-run aware)
+ *   state.ts        persistent state (config file) + in-memory process state
+ *   modems.ts       ModemManager integration
+ *   routing.ts      interface detection, selection, routing, uplinks, monitor
+ *   srtla.ts        srtla_send process management (srtlaControl.ts: its JSON-RPC socket)
+ *   encoder.ts      belacoder / ceracoder pipelines + process management (ceracoder.ts: its INI)
+ *   stream.ts       combined srtla_send + encoder start/stop, autostart
+ *   eventlog.ts     persistent event log shown in the web UI (--log-file)
+ *   methods.ts      WebSocket API methods + dispatch (params.ts: parameter validation)
+ *   push.ts         status / stats / log pushes to the local UI and the control server
+ *   api.ts          local HTTP server: web UI from public/ at / and the API at ws://host:port/ws
+ *   remote.ts       outbound WebSocket to a remote control server (same protocol);
+ *                   the server itself is server.ts
  *
  * Prefers Bun runtime APIs ($, Bun.file, Bun.serve, Bun.spawn).
  *
@@ -51,7 +53,7 @@
  */
 
 import { startApiServer } from "./src/api";
-import { HAS_RELAY, MONITOR, REMOTE_URL, ROLE, argv } from "./src/config";
+import { argv, HAS_RELAY, REMOTE_URL, ROLE } from "./src/config";
 import { stopEncoder } from "./src/encoder";
 import { flushLog, logEvent } from "./src/eventlog";
 import { t } from "./src/i18n";
@@ -59,8 +61,6 @@ import { startRemote, stopRemote } from "./src/remote";
 import { runAutostart } from "./src/stream";
 import { reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
 import { maybeStartSrtla, reloadSrtla, stopSrtla } from "./src/srtla";
-
-
 
 async function main(): Promise<void> {
     console.log(`=== SRTLA Bonding Setup (Bun) — role: ${ROLE} ===\n`);
@@ -93,10 +93,10 @@ async function main(): Promise<void> {
 
         // 2. Start srtla_send if requested (uses the file we just wrote)
         await maybeStartSrtla(argv);
-    }
 
-    // 3. Start the monitor (will reload srtla_send on changes)
-    if (MONITOR) startInterfaceMonitor(reloadSrtla);
+        // 3. Start the monitor (will reload srtla_send on changes); encoders have nothing to watch
+        startInterfaceMonitor(reloadSrtla);
+    }
 
     // 4. Start the local API and, if configured, the remote control link
     startApiServer();

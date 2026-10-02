@@ -13,7 +13,7 @@ import {
 	field,
 	form,
 	input,
-	options,
+	schedulerOptions,
 } from "../components/ui";
 import { since } from "../util";
 import { t } from "../i18n";
@@ -115,10 +115,7 @@ export function srtlaCard(status: Status): m.Vnode {
 						value: modeValue(),
 						onchange: (e: Event) => void setOption("mode", (e.target as HTMLSelectElement).value),
 					},
-					options([
-						["enhanced", t("dev.scheduler_enhanced")],
-						["classic", t("dev.scheduler_classic")],
-					]),
+					schedulerOptions(),
 				),
 			),
 			checkField(

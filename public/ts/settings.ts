@@ -1,6 +1,7 @@
 /* Device settings + pipeline repositories — a Mithril view over the WebSocket API. */
 import m from "mithril";
 import { errorMessage } from "../../src/util";
+import { DEFAULT_COLOR } from "../../src/validate";
 import {
 	actions,
 	brk,
@@ -44,7 +45,7 @@ const state = {
 };
 
 /** Editable copy of the settings; the token is write-only (never sent back by the device). */
-const draft = { hostname: "", role: "", color: "#3b82f6", remoteUrl: "", remoteToken: "" };
+const draft = { hostname: "", role: "", color: DEFAULT_COLOR, remoteUrl: "", remoteToken: "" };
 
 const rpc = new RpcClient(() => socketUrl("../ws"));
 rpc.on("open", () => {
