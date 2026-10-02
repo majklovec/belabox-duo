@@ -5,6 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { DEBOUNCE_MS, DRY_RUN, UPLINKS_FILE } from "./config";
 import { ip, query } from "./exec";
+import { writeFileAtomic } from "./files";
 import { detectModems, type ModemInfo, modemNetworkIface } from "./modems";
 import { notifyStateChange, saveState, state } from "./state";
 import { errorMessage, readLines } from "./util";
@@ -211,7 +212,7 @@ export async function reconfigure(): Promise<ReconfigureResult> {
 		const previous = lastUplinksContent ?? (await Bun.file(UPLINKS_FILE).text().catch(() => null));
 		const changed = previous !== content;
 		if (changed && !DRY_RUN) {
-			await Bun.write(UPLINKS_FILE, content);
+			await writeFileAtomic(UPLINKS_FILE, content);
 			lastUplinksContent = content;
 			console.log(`Uplinks file updated: ${ips.join(", ")}`);
 		}

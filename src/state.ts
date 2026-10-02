@@ -14,6 +14,7 @@ import { randomUUID } from "node:crypto";
 import type { CeraConfig } from "./encoders/ceracoder";
 import { CONFIG_EXISTS, CONFIG_FILE, DRY_RUN, INITIAL_CONFIG } from "./config";
 import type { EncoderConfig, EncoderState } from "./encoder";
+import { writeFileAtomic } from "./files";
 import { asLanguage, DEFAULT_LANGUAGE, type Language, setCurrentLanguage } from "./i18n";
 import type { ModemConfig } from "./routing";
 import type { SrtlaMode } from "./srtlaControl";
@@ -175,7 +176,7 @@ export async function saveState(): Promise<void> {
     const config = stableStringify(projectConfig(state));
     if (config === lastConfig) return;
     lastConfig = config;
-    await Bun.write(CONFIG_FILE, config);
+    await writeFileAtomic(CONFIG_FILE, config);
 }
 
 export async function completeSetup(): Promise<void> {

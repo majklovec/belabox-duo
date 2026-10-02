@@ -3,6 +3,7 @@
  * Kept in memory, capped at LOG_MAX entries and written to LOG_FILE shortly after changes.
  */
 import { LOG_FILE } from "./config";
+import { writeFileAtomic } from "./files";
 import { LOG_MAX, type LogEntry, type LogLevel } from "./logMessages";
 import { errorMessage } from "./util";
 
@@ -35,7 +36,7 @@ export const logEntries = (): LogEntry[] => entries;
 
 async function save(): Promise<void> {
     try {
-        await Bun.write(LOG_FILE, JSON.stringify(entries));
+        await writeFileAtomic(LOG_FILE, JSON.stringify(entries));
     } catch (err: unknown) {
         console.warn(`Cannot write ${LOG_FILE}: ${errorMessage(err)}`);
     }

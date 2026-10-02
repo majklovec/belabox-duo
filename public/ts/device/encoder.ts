@@ -102,12 +102,14 @@ function ceracoderControls(): m.Children {
 				() => touched.add("balancer"),
 			),
 		),
+		brk(),
 		group &&
 			CERA_PARAMS[group].map(([key, labelKey, attrs]) =>
 				field(t(labelKey), input(cera[group] as Record<string, string>, key, { ...attrs, name: `${group}.${key}` }), {
 					key: `${group}.${key}`,
 				}),
 			),
+		brk(),
 		actions(
 			button(t("dev.apply_cera"), {
 				class: "secondary",

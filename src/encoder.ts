@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { DRY_RUN, ENCODER_BIN, IS_CERA, PIPELINES_DIR } from "./config";
 import { logEvent } from "./eventlog";
+import { writeFileAtomic } from "./files";
 import { t } from "./i18n";
 import { notifyStateChange, saveState, state } from "./state";
 import { Supervisor } from "./supervisor";
@@ -160,7 +161,7 @@ async function preparePipeline(file: string, cfg: EncoderConfig, write = true): 
 
     if (!cfg.bitrateOverlay) text = text.replace(BITRATE_OVERLAY, "");
 
-    if (write && !DRY_RUN) await Bun.write(PIPELINE_TMP, text);
+    if (write && !DRY_RUN) await writeFileAtomic(PIPELINE_TMP, text);
     return PIPELINE_TMP;
 }
 
@@ -196,7 +197,7 @@ export abstract class Encoder {
     /** Write a control file (only printed under --dry-run). */
     protected async writeControlFile(path: string, text: string, preview = `\n${text}`): Promise<void> {
         if (DRY_RUN) console.log(`[DRY-RUN] write ${path}:${preview}`);
-        else await Bun.write(path, text);
+        else await writeFileAtomic(path, text);
     }
 
     /** Make a running encoder re-read its bitrate settings. */
