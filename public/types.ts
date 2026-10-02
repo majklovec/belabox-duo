@@ -49,7 +49,7 @@ export interface DeviceInfo {
 	hostname?: string;
 	/** Device header color, used for the list's heartbeat dot */
 	color?: string;
-	/** UI language the device was set to ("en" | "cs") */
+	/** UI language the device was set to (see LANGUAGE_INFO in src/i18n.ts) */
 	language?: Language;
 }
 

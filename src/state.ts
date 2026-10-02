@@ -31,7 +31,7 @@ export interface DeviceSettings {
     remoteToken?: string;
     color?: string;
     pipelineRepositories?: string[];
-    /** UI language ("en" | "cs"); defaults to "en". */
+    /** UI language (see LANGUAGE_INFO in i18n.ts); defaults to "en". */
     language?: Language;
 }
 

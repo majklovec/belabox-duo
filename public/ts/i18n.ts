@@ -1,7 +1,7 @@
 /* Browser i18n. Reuses the shared catalog and translation helper in src/i18n; this layer
  * adds the *current* UI language (remembered in localStorage), a header <select>, and redraw. */
 import m from "mithril";
-import { LANGUAGES, asLanguage, setCurrentLanguage, translate, type Language } from "../../src/i18n";
+import { asLanguage, LANGUAGE_INFO, LANGUAGES, type Language, setCurrentLanguage, translate } from "../../src/i18n";
 
 export { LANGUAGES };
 export type { Language };
@@ -27,8 +27,11 @@ export function t(key: string, ...args: (string | number | undefined)[]): string
 	return translate(current, key, ...args);
 }
 
-/** Native display name for a language (in the current UI language). */
-export const languageLabel = (l: Language): string => t(`lang.native.${l}`);
+/** "🇨🇿 Čeština": flag and native name, the same whatever the UI language. */
+export const languageLabel = (l: Language): string => {
+	const info = LANGUAGE_INFO.find((i) => i.code === l);
+	return info ? `${info.flag} ${info.name}` : l;
+};
 
 /** Change the UI language: state, <html lang>, localStorage, then redraw. */
 export function setLanguage(next: string): void {
@@ -45,10 +48,10 @@ export function setLanguage(next: string): void {
 	m.redraw();
 }
 
-/** <option> per language, labelled by its native name. */
+/** <option> per language, labelled by its flag and native name. */
 export const languageOptions = () => LANGUAGES.map((l) => m("option", { key: l, value: l }, languageLabel(l)));
 
-/** Header <select> listing every language by its native name. */
+/** Header <select> listing every language by its flag and native name. */
 export const LanguageSelect: m.Component = {
 	view: () =>
 		m(
