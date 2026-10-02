@@ -1,14 +1,28 @@
-/* First-run setup wizard — a fully Mithril view: stepper, one fieldset per step,
+/* First-run setup wizard — a Mithril view: stepper, one fieldset per step,
  * Back / Next / Save controls, all driven by a single state object. */
 import m from "mithril";
-import { Page, badge } from "./components/ui";
-import { byId } from "./dom";
-import type { Params } from "./services/rpc";
-import { RpcClient, socketUrl } from "./services/rpc";
-import { LANGUAGES, languageLabel, lang, setLanguage, t } from "./i18n";
-import type { AudioSource, Pipeline, Role } from "../types";
 import { errorMessage } from "../../src/util";
 import { HOSTNAME_RE } from "../../src/validate";
+import type { AudioSource, Pipeline, Role } from "../types";
+import {
+	actions,
+	brk,
+	button,
+	checkbox,
+	checkField,
+	connectionBadge,
+	field,
+	form,
+	input,
+	numberAttrs,
+	options,
+	Page,
+	select,
+} from "./components/ui";
+import { languageOptions, setLanguage, t } from "./i18n";
+import { roleCardIcon } from "./icons";
+import { RpcClient, socketUrl } from "./services/rpc";
+import { HOSTNAME_PATTERN, inRange, mountPage, setHeaderColor, toNumber } from "./util";
 
 interface SetupInfo {
 	required: boolean;
@@ -21,39 +35,39 @@ interface SetupInfo {
 
 type StepKey = "language" | "role" | "identity" | "control" | "encoder" | "relay" | "finish";
 
-const STEPS: { key: StepKey; title: string | (() => string); sub: string | (() => string) }[] = [
-	// The language step is a live function so switching it re-renders the stepper in the new language.
-	{ key: "language", title: () => t("ui.language_label"), sub: () => t("setup.step.language_sub") },
-	{ key: "role", title: () => t("set.role"), sub: () => t("setup.step.role_sub") },
-	{ key: "identity", title: () => t("setup.step.identity"), sub: () => t("setup.step.identity_sub") },
-	{ key: "control", title: () => t("setup.step.control"), sub: () => t("setup.step.control_sub") },
-	{ key: "encoder", title: () => t("setup.step.encoder"), sub: () => t("setup.step.encoder_sub") },
-	{ key: "relay", title: () => t("setup.step.relay"), sub: () => t("setup.step.relay_sub") },
-	{ key: "finish", title: () => t("setup.step.review"), sub: () => t("setup.save") },
+/** Stepper entries: translation keys of each step's title and subtitle. */
+const STEPS: { key: StepKey; title: string; sub: string }[] = [
+	{ key: "language", title: "ui.language_label", sub: "setup.step.language_sub" },
+	{ key: "role", title: "set.role", sub: "setup.step.role_sub" },
+	{ key: "identity", title: "setup.step.identity", sub: "setup.step.identity_sub" },
+	{ key: "control", title: "setup.step.control", sub: "setup.step.control_sub" },
+	{ key: "encoder", title: "setup.step.encoder", sub: "setup.step.encoder_sub" },
+	{ key: "relay", title: "setup.step.relay", sub: "setup.step.relay_sub" },
+	{ key: "finish", title: "setup.step.review", sub: "setup.save" },
 ];
 
-// A step applies only for roles where it makes sense
-const stepVisible = (key: StepKey, role: Role | undefined): boolean => {
-	if (key === "encoder") return role !== "relay";
-	if (key === "relay") return role !== "encoder";
-	return true;
-};
-
-const inRange = (value: string, min: number, max: number) => {
-	const n = Number(value);
-	return value !== "" && n >= min && n <= max;
-};
+const PORT = numberAttrs(1, 65535);
+const BITRATE = { ...numberAttrs(300, 30000, undefined, 100), required: true };
 
 const state = {
 	connected: false,
 	loaded: false,
 	current: 0,
+	message: "",
+	saving: false,
+	pipelines: [] as Pipeline[],
+	audioSources: [] as AudioSource[],
+};
+
+/** The answers, sent as-is (numbers converted) to `setup.complete`. */
+const f = {
 	language: "en",
 	role: undefined as Role | undefined,
 	hostname: "",
 	color: "#0f1115",
 	remoteUrl: "",
 	remoteToken: "",
+	// encoder / combined
 	pipeline: "",
 	minBitrate: "300",
 	maxBitrate: "5000",
@@ -65,91 +79,81 @@ const state = {
 	latency: "2000",
 	streamid: "",
 	bitrateOverlay: false,
+	// relay / combined
 	listenPort: "6000",
 	srtlaRemoteHost: "",
 	srtlaRemotePort: "5000",
 	srtlaMode: "enhanced",
 	srtlaQuality: true,
 	autostart: false,
-	pipelines: [] as Pipeline[],
-	audioSources: [] as AudioSource[],
-	message: "",
-	saving: false,
-	saved: false,
 };
 
-const num = (s: string): number => (s === "" ? 0 : Number(s));
+// A step applies only for roles where it makes sense
+const visibleSteps = () =>
+	STEPS.filter(({ key }) => (key === "encoder" ? f.role !== "relay" : key === "relay" ? f.role !== "encoder" : true));
 
-const visibleSteps = () => STEPS.filter((s) => stepVisible(s.key, state.role));
-
-/** A step passes when every mandatory field in it is satisfied (same rules as the
- * native `required`/min/max constraints the old markup carried). */
+/** A step passes when every mandatory field in it is satisfied (the same rules as the
+ * native `required`/min/max constraints on its inputs). */
 function stepValid(key: StepKey): boolean {
 	switch (key) {
 		case "role":
-			return !!state.role;
+			return !!f.role;
 		case "identity":
-			return HOSTNAME_RE.test(state.hostname);
+			return HOSTNAME_RE.test(f.hostname);
 		case "encoder":
-			if (!state.pipeline || !state.audioSource) return false;
-			if (
-				!inRange(state.minBitrate, 300, 30000) ||
-				!inRange(state.maxBitrate, 300, 30000) ||
-				Number(state.minBitrate) > Number(state.maxBitrate) ||
-				!inRange(state.latency, 100, 10000)
-			) return false;
-			if (state.role === "encoder") return !!state.encoderHost && inRange(state.encoderPort, 1, 65535);
-			return true;
-		case "relay": {
-			if (!inRange(state.listenPort, 1, 65535)) return false;
-			if (state.role !== "encoder") return !!state.srtlaRemoteHost && inRange(state.srtlaRemotePort, 1, 65535);
-			return true;
-		}
+			return (
+				!!f.pipeline &&
+				!!f.audioSource &&
+				inRange(f.minBitrate, 300, 30000) &&
+				inRange(f.maxBitrate, 300, 30000) &&
+				Number(f.minBitrate) <= Number(f.maxBitrate) &&
+				inRange(f.latency, 100, 10000) &&
+				(f.role !== "encoder" || (!!f.encoderHost && inRange(f.encoderPort, 1, 65535)))
+			);
+		case "relay":
+			return (
+				inRange(f.listenPort, 1, 65535) &&
+				(f.role === "encoder" || (!!f.srtlaRemoteHost && inRange(f.srtlaRemotePort, 1, 65535)))
+			);
 		default:
 			return true;
 	}
 }
 
+const currentIndex = () => Math.min(state.current, visibleSteps().length - 1);
+
 function goNext(): void {
 	const steps = visibleSteps();
-	if (!stepValid(steps[Math.min(state.current, steps.length - 1)].key)) return;
-	state.current = Math.min(state.current + 1, steps.length - 1);
-	m.redraw();
+	const current = currentIndex();
+	if (stepValid(steps[current].key)) state.current = Math.min(current + 1, steps.length - 1);
 }
 
 function goPrev(): void {
-	state.current = Math.max(state.current - 1, 0);
-	m.redraw();
+	state.current = Math.max(currentIndex() - 1, 0);
 }
 
 // The wizard is served at /d/<id>/, so the viewer socket is "ws" relative to it (settings uses "../ws").
 const rpc = new RpcClient(() => socketUrl("ws"));
-rpc.on("open", () => {
+rpc.on("open", async () => {
 	state.connected = true;
 	m.redraw();
-	rpc
-		.call<SetupInfo>("setup.get")
-		.then((info) => {
-			if (!info.required) {
-				// device is already configured — the same URL now serves the device page
-				location.replace("./");
-				return;
-			}
-			state.hostname = info.hostname;
-			state.color = info.color;
-			state.language = info.language;
-			setLanguage(state.language);
-			state.pipelines = info.pipelines;
-			state.audioSources = info.audioSources;
-			state.loaded = true;
-			document.documentElement.style.setProperty("--header-color", state.color);
-			state.current = Math.min(state.current, visibleSteps().length - 1);
-			m.redraw();
-		})
-		.catch((error: unknown) => {
-			state.message = errorMessage(error);
-			m.redraw();
-		});
+	try {
+		const info = await rpc.call<SetupInfo>("setup.get");
+		if (!info.required) {
+			// device is already configured — the same URL now serves the device page
+			location.replace("./");
+			return;
+		}
+		Object.assign(f, { hostname: info.hostname, color: info.color, language: info.language });
+		setLanguage(info.language);
+		setHeaderColor(info.color);
+		state.pipelines = info.pipelines;
+		state.audioSources = info.audioSources;
+		state.loaded = true;
+	} catch (error: unknown) {
+		state.message = errorMessage(error);
+	}
+	m.redraw();
 });
 rpc.on("close", () => {
 	state.connected = false;
@@ -159,38 +163,35 @@ rpc.on("close", () => {
 async function complete(): Promise<void> {
 	state.saving = true;
 	state.message = "";
-	m.redraw();
-	const { role, hostname, color, language, remoteUrl, remoteToken } = state;
-	const payload: Params = { language, role, hostname, color, remoteUrl, remoteToken, autostart: state.autostart };
+	const { language, role, hostname, color, remoteUrl, remoteToken, autostart } = f;
+	const payload: Record<string, unknown> = { language, role, hostname, color, remoteUrl, remoteToken, autostart };
 	if (role !== "relay") {
 		Object.assign(payload, {
-			pipeline: state.pipeline,
-			minBitrate: num(state.minBitrate),
-			maxBitrate: num(state.maxBitrate),
-			audioSource: state.audioSource,
-			audioCodec: state.audioCodec,
-			delay: num(state.delay),
-			encoderHost: state.encoderHost,
-			encoderPort: num(state.encoderPort),
-			latency: num(state.latency),
-			streamid: state.streamid,
-			bitrateOverlay: state.bitrateOverlay,
+			pipeline: f.pipeline,
+			minBitrate: toNumber(f.minBitrate),
+			maxBitrate: toNumber(f.maxBitrate),
+			audioSource: f.audioSource,
+			audioCodec: f.audioCodec,
+			delay: toNumber(f.delay),
+			encoderHost: f.encoderHost,
+			encoderPort: toNumber(f.encoderPort),
+			latency: toNumber(f.latency),
+			streamid: f.streamid,
+			bitrateOverlay: f.bitrateOverlay,
 		});
 	}
 	if (role !== "encoder") {
 		Object.assign(payload, {
-			listenPort: num(state.listenPort),
-			srtlaRemoteHost: state.srtlaRemoteHost,
-			srtlaRemotePort: num(state.srtlaRemotePort),
-			srtlaMode: state.srtlaMode,
-			srtlaQuality: state.srtlaQuality,
+			listenPort: toNumber(f.listenPort),
+			srtlaRemoteHost: f.srtlaRemoteHost,
+			srtlaRemotePort: toNumber(f.srtlaRemotePort),
+			srtlaMode: f.srtlaMode,
+			srtlaQuality: f.srtlaQuality,
 		});
 	}
 	try {
 		await rpc.call("setup.complete", payload);
-		state.saved = true;
 		state.message = `${t("setup.saved")} ${t("setup.restart_required")}`;
-		m.redraw();
 	} catch (error: unknown) {
 		state.message = errorMessage(error);
 	} finally {
@@ -199,41 +200,11 @@ async function complete(): Promise<void> {
 	}
 }
 
-// -- Role card icons -----------------------------------------------------------
-const roleIcon = (shape: "encoder" | "relay" | "combined"): m.Vnode =>
-	m(
-		"svg",
-		{
-			class: "role-icon",
-			viewBox: "0 0 24 24",
-			width: "36",
-			height: "36",
-			fill: "none",
-			stroke: "currentColor",
-			"stroke-width": "1.6",
-			"stroke-linecap": "round",
-			"stroke-linejoin": "round",
-			"aria-hidden": "true",
-		},
-		{
-			encoder: [m("rect", { x: "2", y: "7", width: "13", height: "10", rx: "2" }), m("path", { d: "m15 11 7-3v8l-7-3z" })],
-			relay: [
-				m("rect", { x: "1.5", y: "9", width: "7", height: "6", rx: "1.5" }),
-				m("rect", { x: "15.5", y: "9", width: "7", height: "6", rx: "1.5" }),
-				m("path", { d: "M9 12h6" }),
-				m("path", { d: "m13.5 9.5 2.5 2.5-2.5 2.5" }),
-				m("path", { d: "m10.5 9.5-2.5 2.5 2.5 2.5" }),
-			],
-			combined: [
-				m("rect", { x: "1.5", y: "8.5", width: "10", height: "7", rx: "1.5" }),
-				m("path", { d: "m11.5 11 4-2v4l-4-2z" }),
-				m("path", { d: "M17.5 12H23" }),
-				m("path", { d: "m21 10 2 2-2 2" }),
-			],
-		}[shape],
-	);
+// -- One fieldset per step -----------------------------------------------------
+const step = (key: StepKey, heading: string, desc: string, ...children: m.Children[]) =>
+	m("fieldset.wizard-step", { "data-step": key }, m("h2.wiz-heading", heading), m("p.wiz-desc", desc), children);
 
-const roleCard = (value: Role, name: string, tagline: string, shape: "encoder" | "relay" | "combined"): m.Vnode =>
+const roleCard = (value: Role, name: string, tagline: string): m.Vnode =>
 	m(
 		"label.role-card",
 		m("input", {
@@ -241,364 +212,173 @@ const roleCard = (value: Role, name: string, tagline: string, shape: "encoder" |
 			name: "role",
 			value,
 			required: true,
-			checked: state.role === value,
-			onchange: () => {
-				state.role = value;
-				m.redraw();
-			},
+			checked: f.role === value,
+			onchange: () => (f.role = value),
 		}),
-		roleIcon(shape),
+		roleCardIcon(value),
 		m("span.role-name", name),
 		m("span.role-tagline", tagline),
-		m("img", { src: "/img/" + shape + ".svg", alt: "", "aria-hidden": "true" })
+		m("img", { src: `/img/${value}.svg`, alt: "", "aria-hidden": "true" }),
 	);
 
-// -- One fieldset per step -----------------------------------------------------
+const check = (key: "bitrateOverlay" | "srtlaQuality" | "autostart", label: string) =>
+	checkField(null, [checkbox(f, key), ` ${label}`]);
+
 function stepBody(key: StepKey): m.Vnode {
 	switch (key) {
 		case "language":
-			return m(
-				"fieldset.wizard-step",
-				{ "data-step": key },
-				m("h2.wiz-heading", t("ui.language_label")),
-				m("p.wiz-desc", t("setup.language_desc")),
-				m(
-					"label",
-					t("ui.language_label"),
-					m(
-						"select",
-						{
-							name: "language",
-							value: state.language,
-							onchange: (e: Event) => {
-								const value = (e.target as HTMLSelectElement).value;
-								state.language = value;
-								setLanguage(value);
-							},
-						},
-						LANGUAGES.map((l) => m("option", { key: l, value: l }, languageLabel(l))),
-					),
-				),
+			return step(
+				key,
+				t("ui.language_label"),
+				t("setup.language_desc"),
+				field(t("ui.language_label"), select(f, "language", languageOptions(), {}, setLanguage)),
 			);
 		case "role":
-			return m(
-				"fieldset.wizard-step",
-				{ "data-step": key },
-				m("h2.wiz-heading", t("set.role")),
-				m("p.wiz-desc", t("setup.step.role_sub")),
-				roleCard("encoder", t("setup.role.encoder"), t("setup.role.encoder_tag"), "encoder"),
-				roleCard("relay", t("setup.step.relay"), t("setup.role.relay_tag"), "relay"),
-				roleCard("combined", t("setup.role.combined"), t("setup.role.combined_tag"), "combined"),
+			return step(
+				key,
+				t("set.role"),
+				t("setup.step.role_sub"),
+				roleCard("encoder", t("setup.role.encoder"), t("setup.role.encoder_tag")),
+				roleCard("relay", t("setup.step.relay"), t("setup.role.relay_tag")),
+				roleCard("combined", t("setup.role.combined"), t("setup.role.combined_tag")),
 			);
 		case "identity":
-			return m(
-				"fieldset.wizard-step",
-				{ "data-step": key },
-				m("h2.wiz-heading", t("setup.identity")),
-				m("p.wiz-desc", t("setup.identity_desc")),
-				m(
-					"label",
+			return step(
+				key,
+				t("setup.identity"),
+				t("setup.identity_desc"),
+				field(
 					t("setup.hostname"),
-					m("input", {
-						name: "hostname",
+					input(f, "hostname", {
 						required: true,
-						pattern: "[A-Za-z0-9][A-Za-z0-9.-]{0,62}",
+						pattern: HOSTNAME_PATTERN,
 						title: t("setup.hostname_title"),
-						value: state.hostname,
-						oninput: (e: Event) => (state.hostname = (e.target as HTMLInputElement).value),
 					}),
 				),
-				m(
-					"label",
-					t("set.color"),
-					m("input", {
-						name: "color",
-						type: "color",
-						value: state.color,
-						oninput: (e: Event) => {
-							state.color = (e.target as HTMLInputElement).value;
-							document.documentElement.style.setProperty("--header-color", state.color);
-						},
-					}),
-				),
+				field(t("set.color"), input(f, "color", { type: "color" }, setHeaderColor)),
 			);
 		case "control":
-			return m(
-				"fieldset.wizard-step",
-				{ "data-step": key },
-				m("h2.wiz-heading", t("setup.step.control")),
-				m("p.wiz-desc", t("setup.control_desc")),
-				m(
-					"label",
-					t("set.remote_url"),
-					m("input", {
-						name: "remoteUrl",
-						placeholder: "wss://control.example/device",
-						value: state.remoteUrl,
-						oninput: (e: Event) => (state.remoteUrl = (e.target as HTMLInputElement).value),
-					}),
-				),
-				m(
-					"label",
-					t("setup.control_token"),
-					m("input", {
-						name: "remoteToken",
-						type: "password",
-						autocomplete: "off",
-						value: state.remoteToken,
-						oninput: (e: Event) => (state.remoteToken = (e.target as HTMLInputElement).value),
-					}),
-				),
+			return step(
+				key,
+				t("setup.step.control"),
+				t("setup.control_desc"),
+				field(t("set.remote_url"), input(f, "remoteUrl", { placeholder: "wss://control.example/device" })),
+				field(t("setup.control_token"), input(f, "remoteToken", { type: "password", autocomplete: "off" })),
 			);
-		case "encoder":
-			return m(
-				"fieldset.wizard-step",
-				{ "data-step": key },
-				m("h2.wiz-heading", t("setup.step.encoder")),
-				m("p.wiz-desc", t("setup.encoder_desc")),
-				m(
-					"label",
+		case "encoder": {
+			const standalone = f.role === "encoder";
+			return step(
+				key,
+				t("setup.step.encoder"),
+				t("setup.encoder_desc"),
+				field(
 					t("dev.row.pipeline"),
-					m(
-						"select",
-						{ name: "pipeline", required: true, value: state.pipeline, onchange: (e: Event) => (state.pipeline = (e.target as HTMLSelectElement).value) },
-						state.pipelines.map((p) => m("option", { value: p.id }, p.id)),
-					),
+					select(f, "pipeline", options(state.pipelines.map((p) => [p.id, p.id])), { required: true }),
 				),
-				m(
-					"label",
-					t("dev.field.min_bitrate"),
-					m("input", {
-						name: "minBitrate",
-						type: "number",
-						min: 300,
-						max: 30000,
-						step: 100,
-						required: true,
-						value: state.minBitrate,
-						oninput: (e: Event) => (state.minBitrate = (e.target as HTMLInputElement).value),
-					}),
-				),
-				m(
-					"label",
-					t("dev.field.max_bitrate"),
-					m("input", {
-						name: "maxBitrate",
-						type: "number",
-						min: 300,
-						max: 30000,
-						step: 100,
-						required: true,
-						value: state.maxBitrate,
-						oninput: (e: Event) => (state.maxBitrate = (e.target as HTMLInputElement).value),
-					}),
-				),
-				m(
-					"label",
+				field(t("dev.field.min_bitrate"), input(f, "minBitrate", BITRATE)),
+				field(t("dev.field.max_bitrate"), input(f, "maxBitrate", BITRATE)),
+				field(
 					t("dev.field.audio_source"),
-					m(
-						"select",
-						{ name: "audioSource", required: true, value: state.audioSource, onchange: (e: Event) => (state.audioSource = (e.target as HTMLSelectElement).value) },
-						state.audioSources.map((a) => m("option", { value: a.id }, a.name)),
-					),
+					select(f, "audioSource", options(state.audioSources.map((a) => [a.id, a.name])), { required: true }),
 				),
-				m(
-					"label",
+				field(
 					t("dev.field.audio_codec"),
-					m(
-						"select",
-						{ name: "audioCodec", value: state.audioCodec, onchange: (e: Event) => (state.audioCodec = (e.target as HTMLSelectElement).value) },
-						m("option", { value: "aac" }, "AAC"),
-						m("option", { value: "opus" }, "Opus"),
+					select(
+						f,
+						"audioCodec",
+						options([
+							["aac", "AAC"],
+							["opus", "Opus"],
+						]),
 					),
 				),
-				m(
-					"label",
-					t("dev.field.audio_delay"),
-					m("input", { name: "delay", type: "number", min: -2000, max: 2000, value: state.delay, oninput: (e: Event) => (state.delay = (e.target as HTMLInputElement).value) }),
-				),
-				m(
-					"label.encoder-target",
-					{ hidden: state.role === "combined" },
-					t("dev.field.stream_host"),
-					m("input", {
-						name: "encoderHost",
-						placeholder: "192.168.1.10",
-						required: state.role === "encoder",
-						value: state.encoderHost,
-						oninput: (e: Event) => (state.encoderHost = (e.target as HTMLInputElement).value),
-					}),
-				),
-				m(
-					"label.encoder-target",
-					{ hidden: state.role === "combined" },
-					t("dev.field.stream_srt_port"),
-					m("input", {
-						name: "encoderPort",
-						type: "number",
-						min: 1,
-						max: 65535,
-						required: state.role === "encoder",
-						value: state.encoderPort,
-						oninput: (e: Event) => (state.encoderPort = (e.target as HTMLInputElement).value),
-					}),
-				),
-				m(
-					"label",
+				field(t("dev.field.audio_delay"), input(f, "delay", numberAttrs(-2000, 2000))),
+				// Combined devices stream into their own srtla_send: no target to configure
+				standalone && [
+					field(
+						t("dev.field.stream_host"),
+						input(f, "encoderHost", { placeholder: "192.168.1.10", required: true }),
+					),
+					field(t("dev.field.stream_srt_port"), input(f, "encoderPort", { ...PORT, required: true })),
+				],
+				field(
 					t("dev.field.srt_latency"),
-					m("input", {
-						name: "latency",
-						type: "number",
-						min: 100,
-						max: 10000,
-						step: 100,
-						required: true,
-						value: state.latency,
-						oninput: (e: Event) => (state.latency = (e.target as HTMLInputElement).value),
-					}),
+					input(f, "latency", { ...numberAttrs(100, 10000, undefined, 100), required: true }),
 				),
-				m("label", t("dev.field.stream_id"), m("input", { name: "streamid", placeholder: t("ui.optional"), value: state.streamid, oninput: (e: Event) => (state.streamid = (e.target as HTMLInputElement).value) })),
-				m(
-					"label.check",
-					m("input", {
-						type: "checkbox",
-						name: "bitrateOverlay",
-						checked: state.bitrateOverlay,
-						onchange: (e: Event) => (state.bitrateOverlay = (e.target as HTMLInputElement).checked),
-					}),
-					` ${t("dev.field.bitrate_overlay")}`,
-				),
+				field(t("dev.field.stream_id"), input(f, "streamid", { placeholder: t("ui.optional") })),
+				check("bitrateOverlay", t("dev.field.bitrate_overlay")),
 			);
-		case "relay":
-			return m(
-				"fieldset.wizard-step",
-				{ "data-step": key },
-				m("h2.wiz-heading", t("setup.step.relay")),
-				m("p.wiz-desc", t("setup.relay_desc")),
-				m(
-					"label",
-					t("dev.field.srt_listen_port"),
-					m("input", {
-						name: "listenPort",
-						type: "number",
-						min: 1,
-						max: 65535,
-						required: true,
-						value: state.listenPort,
-						oninput: (e: Event) => (state.listenPort = (e.target as HTMLInputElement).value),
-					}),
-				),
-				m(
-					"label",
+		}
+		case "relay": {
+			const needsReceiver = f.role !== "encoder";
+			return step(
+				key,
+				t("setup.step.relay"),
+				t("setup.relay_desc"),
+				field(t("dev.field.srt_listen_port"), input(f, "listenPort", { ...PORT, required: true })),
+				field(
 					t("dev.field.remote_host"),
-					m("input", {
-						name: "srtlaRemoteHost",
-						placeholder: "rec.example.com",
-						required: state.role !== "encoder",
-						value: state.srtlaRemoteHost,
-						oninput: (e: Event) => (state.srtlaRemoteHost = (e.target as HTMLInputElement).value),
-					}),
+					input(f, "srtlaRemoteHost", { placeholder: "rec.example.com", required: needsReceiver }),
 				),
-				m(
-					"label",
-					t("dev.field.remote_port"),
-					m("input", {
-						name: "srtlaRemotePort",
-						type: "number",
-						min: 1,
-						max: 65535,
-						required: state.role !== "encoder",
-						value: state.srtlaRemotePort,
-						oninput: (e: Event) => (state.srtlaRemotePort = (e.target as HTMLInputElement).value),
-					}),
-				),
-				m(
-					"label",
+				field(t("dev.field.remote_port"), input(f, "srtlaRemotePort", { ...PORT, required: needsReceiver })),
+				field(
 					t("dev.scheduler"),
-					m(
-						"select",
-						{
-							name: "srtlaMode",
-							value: state.srtlaMode,
-							onchange: (e: Event) => (state.srtlaMode = (e.target as HTMLSelectElement).value),
-						},
-						m("option", { value: "enhanced" }, t("dev.scheduler_enhanced")),
-						m("option", { value: "classic" }, t("dev.scheduler_classic")),
+					select(
+						f,
+						"srtlaMode",
+						options([
+							["enhanced", t("dev.scheduler_enhanced")],
+							["classic", t("dev.scheduler_classic")],
+						]),
 					),
 				),
-				m(
-					"label.check",
-					m("input", {
-						type: "checkbox",
-						name: "srtlaQuality",
-						checked: state.srtlaQuality,
-						onchange: (e: Event) => (state.srtlaQuality = (e.target as HTMLInputElement).checked),
-					}),
-					` ${t("dev.quality_scoring")}`,
-				),
+				check("srtlaQuality", t("dev.quality_scoring")),
 			);
+		}
 		case "finish":
-			return m(
-				"fieldset.wizard-step",
-				{ "data-step": key },
-				m("h2.wiz-heading", t("setup.step.review")),
-				m("p.wiz-desc", t("setup.review_desc")),
-				m(
-					"label.check",
-					m("input", {
-						type: "checkbox",
-						name: "autostart",
-						checked: state.autostart,
-						onchange: (e: Event) => (state.autostart = (e.target as HTMLInputElement).checked),
-					}),
-					` ${t("setup.autostart")}`,
-				),
-			);
+			return step(key, t("setup.step.review"), t("setup.review_desc"), check("autostart", t("setup.autostart")));
 	}
 }
 
-function wizard(): m.Vnode[] {
+function wizard(): m.Children {
 	const steps = visibleSteps();
-	const current = Math.min(state.current, steps.length - 1);
+	const current = currentIndex();
 	const last = current === steps.length - 1;
+	const stage = (i: number) => (i < current ? "done" : i === current ? "current" : "upcoming");
 	return [
 		m(
 			"ol.wizard-stepper",
-			{ id: "stepper" },
 			steps.map((s, i) =>
 				m(
 					"li",
-					{ key: s.key, class: `wiz-item ${i < current ? "done" : i === current ? "current" : "upcoming"}`, "data-step": s.key },
+					{ key: s.key, class: `wiz-item ${stage(i)}`, "data-step": s.key },
 					m("span.wiz-dot", i < current ? "✓" : String(i + 1)),
-					m("span.wiz-title", typeof s.title === "function" ? s.title() : s.title),
-					m("span.wiz-sub", typeof s.sub === "function" ? s.sub() : s.sub),
+					m("span.wiz-title", t(s.title)),
+					m("span.wiz-sub", t(s.sub)),
 				),
 			),
 		),
-		m(
-			"form",
-			{ id: "setup-form", onsubmit: (e: Event) => { e.preventDefault(); void complete(); } },
+		form(
+			{ id: "setup-form", onSubmit: complete },
 			stepBody(steps[current].key),
-			m("div.break"),
-			m(
-				"div.actions",
-				m("button", { type: "button", id: "previous", class: "secondary", hidden: current === 0, onclick: goPrev }, t("ui.back")),
-				m("button", { type: "button", id: "next", hidden: last, onclick: goNext }, t("ui.next")),
-				m("button", { type: "submit", id: "complete", hidden: !last, disabled: state.saving }, t("setup.save")),
+			brk(),
+			actions(
+				button(t("ui.back"), { class: "secondary", hidden: current === 0, onclick: goPrev }),
+				button(t("ui.next"), { hidden: last, onclick: goNext }),
+				button(t("setup.save"), { type: "submit", hidden: !last, disabled: state.saving }),
 			),
 		),
-		m("p.muted", { id: "result", role: "status" }, state.saved ? state.message : state.message),
+		m("p.muted", { role: "status" }, state.message),
 	];
 }
 
-const App: m.Component<{}, {}> = {
+const App: m.Component = {
 	view: () =>
 		m(
 			Page,
-			{ title: t("setup.title"), headerRight: badge(state.connected ? t("dev.connected") : t("dev.disconnected"), state.connected ? "on" : "off") },
-			m("section.card", null, state.loaded ? wizard() : m("p.muted", t("setup.loading"))),
+			{ title: t("setup.title"), headerRight: connectionBadge(state.connected) },
+			m("section.card", state.loaded ? wizard() : m("p.muted", t("setup.loading"))),
 		),
 };
 
-document.title = t("setup.title");
-m.mount(byId("app"), App);
+mountPage(t("setup.title"), App);

@@ -18,7 +18,7 @@ export class RpcClient {
 	private nextId = 1;
 	private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 	private events = new Map<string, Set<EventHandler>>();
-	private reconnectTimer: number | undefined;
+	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private destroyed = false;
 
 	constructor(private readonly makeUrl: () => string) {
@@ -84,17 +84,12 @@ export class RpcClient {
 
 		// "open"/"close" are registered as their own event channels, so server pushes
 		// (status, device, …) are never confused with connection lifecycle notifications
-		ws.onopen = () => {
-			const set = this.events.get("open");
-			if (set) set.forEach((h) => h());
-		};
+		ws.onopen = () => this.emit("open");
 
 		ws.onmessage = (e) => {
 			const msg = JSON.parse(String(e.data));
-			if (msg.type === "event") {
-				const handlers = this.events.get(msg.event);
-				if (handlers) for (const h of handlers) h(msg.data);
-			} else if (msg.type === "response") {
+			if (msg.type === "event") this.emit(msg.event, msg.data);
+			else if (msg.type === "response") {
 				const p = this.pending.get(msg.id);
 				if (!p) return;
 				this.pending.delete(msg.id);
@@ -108,13 +103,17 @@ export class RpcClient {
 
 		ws.onclose = () => {
 			this.ws = null;
-			const wasOpen = !this.destroyed;
 			for (const p of this.pending.values()) p.reject(new RpcError("connection closed"));
 			this.pending.clear();
-			if (wasOpen) this.events.get("close")?.forEach((h) => h());
-			if (wasOpen) this.reconnectTimer = setTimeout(this.connect, RECONNECT_MS) as unknown as number;
+			if (this.destroyed) return;
+			this.emit("close");
+			this.reconnectTimer = setTimeout(this.connect, RECONNECT_MS);
 		};
 	};
+
+	private emit(type: string, data?: unknown): void {
+		for (const h of this.events.get(type) ?? []) h(data);
+	}
 }
 
 /** Convenience: build a ws(s):// URL for this page, with an optional path relative to the page. */

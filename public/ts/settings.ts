@@ -1,11 +1,22 @@
 /* Device settings + pipeline repositories — a Mithril view over the WebSocket API. */
 import m from "mithril";
-import { t } from "./i18n";
-import { Card, Page, badge, field } from "./components/ui";
-import { byId } from "./dom";
-import type { Params } from "./services/rpc";
-import { RpcClient, socketUrl } from "./services/rpc";
 import { errorMessage } from "../../src/util";
+import {
+	actions,
+	brk,
+	button,
+	Card,
+	connectionBadge,
+	field,
+	form,
+	input,
+	options,
+	Page,
+	select,
+} from "./components/ui";
+import { t } from "./i18n";
+import { RpcClient, socketUrl } from "./services/rpc";
+import { HOSTNAME_PATTERN, mountPage, setHeaderColor } from "./util";
 
 interface Settings {
 	/** Stable identity on the control server; hostnames change, the uuid does not */
@@ -18,26 +29,22 @@ interface Settings {
 	pipelineRepositories: string[];
 }
 
-const repoPattern = "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+";
-const hostnamePattern = "[A-Za-z0-9][A-Za-z0-9.-]{0,62}";
+const REPO_PATTERN = "[A-Za-z0-9_.\\-]+/[A-Za-z0-9_.\\-]+";
 
 const state = {
 	connected: false,
 	settings: null as Settings | null,
-	// Form fields (committed values plus the fields the user is editing)
-	hostname: "",
-	role: "",
-	color: "#0f1115",
-	remoteUrl: "",
-	remoteToken: "",
+	message: "",
+	saving: false,
 	// Repository section
 	repository: "",
 	repositories: [] as string[],
-	message: "",
 	repoMessage: "",
-	saving: false,
 	repoBusy: false,
 };
+
+/** Editable copy of the settings; the token is write-only (never sent back by the device). */
+const draft = { hostname: "", role: "", color: "#0f1115", remoteUrl: "", remoteToken: "" };
 
 const rpc = new RpcClient(() => socketUrl("../ws"));
 rpc.on("open", () => {
@@ -51,195 +58,167 @@ rpc.on("close", () => {
 	m.redraw();
 });
 
-async function load(): Promise<void> {
+/** Run an RPC call, routing its error message into `state[messageKey]`; redraws afterwards. */
+async function run<T>(messageKey: "message" | "repoMessage", call: () => Promise<T>): Promise<T | undefined> {
 	try {
-		const result = await rpc.call<{ settings: Settings }>("settings.get");
-		state.settings = result.settings;
-		state.hostname = result.settings.hostname;
-		state.role = result.settings.role;
-		state.color = result.settings.color;
-		state.remoteUrl = result.settings.remoteUrl;
-		state.repositories = result.settings.pipelineRepositories;
-		document.documentElement.style.setProperty("--header-color", result.settings.color);
+		return await call();
 	} catch (error: unknown) {
-		state.message = errorMessage(error);
+		state[messageKey] = errorMessage(error);
+		return undefined;
+	} finally {
+		m.redraw();
 	}
-	m.redraw();
+}
+
+async function load(): Promise<void> {
+	const result = await run("message", () => rpc.call<{ settings: Settings }>("settings.get"));
+	if (!result) return;
+	const s = result.settings;
+	state.settings = s;
+	state.repositories = s.pipelineRepositories;
+	Object.assign(draft, { hostname: s.hostname, role: s.role, color: s.color, remoteUrl: s.remoteUrl });
+	setHeaderColor(s.color);
 }
 
 async function save(): Promise<void> {
 	state.saving = true;
 	state.message = "";
-	m.redraw();
-	try {
-		const result = await rpc.call<{ settings: Settings }>("settings.update", {
-			hostname: state.hostname,
-			role: state.role,
-			remoteUrl: state.remoteUrl,
-			color: state.color,
-			...(state.remoteToken ? { remoteToken: state.remoteToken } : {}),
-		} as Params);
-		state.remoteToken = "";
-		const roleChanged = result.settings.role !== state.settings?.role;
-		state.message = roleChanged
-			? `${t("set.saved")} ${t("set.restart_required")}`
-			: t("set.saved");
-		// Parameters may have changed on the device side; drop the socket so the
-		// reconnect re-fetches fresh settings (hostname, role, color, …).
-		rpc.reconnect();
-	} catch (error: unknown) {
-		state.message = errorMessage(error);
-	} finally {
-		state.saving = false;
-		m.redraw();
-	}
+	const { remoteToken, ...rest } = draft;
+	const result = await run("message", () =>
+		rpc.call<{ settings: Settings }>("settings.update", { ...rest, ...(remoteToken ? { remoteToken } : {}) }),
+	);
+	state.saving = false;
+	if (!result) return;
+	draft.remoteToken = "";
+	const roleChanged = result.settings.role !== state.settings?.role;
+	state.message = roleChanged ? `${t("set.saved")} ${t("set.restart_required")}` : t("set.saved");
+	// Parameters may have changed on the device side; drop the socket so the
+	// reconnect re-fetches fresh settings (hostname, role, color, …).
+	rpc.reconnect();
 }
 
 async function addRepository(): Promise<void> {
-	if (!state.repository.trim()) return;
-	const repo = state.repository.trim();
+	const repository = state.repository.trim();
+	if (!repository) return;
 	state.repoBusy = true;
-	state.repoMessage = t("set.repo_importing", repo);
-	m.redraw();
-	try {
-		const response = await rpc.call<{ repositories: string[]; result: { files: number; bytes: number } }>(
-			"pipelines.repositories.add",
-			{ repository: repo } as Params,
-		);
-		state.repositories = response.repositories;
-		state.repository = "";
-		state.repoMessage = t("set.repo_imported", response.result.files);
-	} catch (error: unknown) {
-		state.repoMessage = errorMessage(error);
-	} finally {
-		state.repoBusy = false;
-		m.redraw();
-	}
+	state.repoMessage = t("set.repo_importing", repository);
+	const response = await run("repoMessage", () =>
+		rpc.call<{ repositories: string[]; result: { files: number } }>("pipelines.repositories.add", { repository }),
+	);
+	state.repoBusy = false;
+	if (!response) return;
+	state.repositories = response.repositories;
+	state.repository = "";
+	state.repoMessage = t("set.repo_imported", response.result.files);
 }
 
 async function removeRepository(repository: string): Promise<void> {
 	state.repoMessage = t("set.repo_removing", repository);
-	m.redraw();
-	try {
-		const result = await rpc.call<{ repositories: string[] }>("pipelines.repositories.remove", { repository });
-		state.repositories = result.repositories;
-		state.repoMessage = t("set.repo_removed", repository);
-	} catch (error: unknown) {
-		state.repoMessage = errorMessage(error);
-	}
-	m.redraw();
+	const result = await run("repoMessage", () =>
+		rpc.call<{ repositories: string[] }>("pipelines.repositories.remove", { repository }),
+	);
+	if (!result) return;
+	state.repositories = result.repositories;
+	state.repoMessage = t("set.repo_removed", repository);
 }
 
 async function updateAllRepositories(): Promise<void> {
 	state.repoBusy = true;
 	state.repoMessage = t("set.repo_updating_all");
-	m.redraw();
-	try {
-		const response = await rpc.call<{ results: Array<{ repository: string; files: number }> }>("pipelines.repositories.updateAll");
-		const files = response.results.reduce((total, r) => total + r.files, 0);
-		state.repoMessage = t("set.repo_updated_all", response.results.length, files);
-	} catch (error: unknown) {
-		state.repoMessage = errorMessage(error);
-	} finally {
-		state.repoBusy = false;
-		m.redraw();
-	}
+	const response = await run("repoMessage", () =>
+		rpc.call<{ results: { repository: string; files: number }[] }>("pipelines.repositories.updateAll"),
+	);
+	state.repoBusy = false;
+	if (!response) return;
+	const files = response.results.reduce((total, r) => total + r.files, 0);
+	state.repoMessage = t("set.repo_updated_all", response.results.length, files);
 }
 
-const App: m.Component<{}, {}> = {
-	view: () => {
-		const tokenPlaceholder = state.settings
-			? state.settings.hasRemoteToken
-				? t("set.token_ph_configured")
-				: t("set.token_ph_missing")
-			: t("set.token_ph_unchanged");
-		return m(
+function settingsCard(): m.Vnode {
+	const tokenPlaceholder = !state.settings
+		? t("set.token_ph_unchanged")
+		: state.settings.hasRemoteToken
+			? t("set.token_ph_configured")
+			: t("set.token_ph_missing");
+	return m(
+		Card,
+		m("p.muted", t("set.description")),
+		form(
+			{ onSubmit: save },
+			field(t("set.hostname"), input(draft, "hostname", { pattern: HOSTNAME_PATTERN })),
+			field(
+				t("set.role"),
+				select(
+					draft,
+					"role",
+					options([
+						["", t("set.role_keep")],
+						["relay", t("role.relay")],
+						["encoder", t("role.encoder")],
+						["combined", t("role.combined")],
+					]),
+				),
+			),
+			brk(),
+			field(t("set.color"), input(draft, "color", { type: "color" }, setHeaderColor)),
+			brk(),
+			field(t("set.remote_url"), input(draft, "remoteUrl", { placeholder: "wss://control.example/device" })),
+			field(
+				t("set.remote_token"),
+				input(draft, "remoteToken", { type: "password", autocomplete: "off", placeholder: tokenPlaceholder }),
+			),
+			brk(),
+			actions(button(t("set.save"), { type: "submit", disabled: state.saving })),
+		),
+		m("p.muted", { role: "status" }, state.message),
+	);
+}
+
+function repositoriesCard(): m.Vnode {
+	return m(
+		Card,
+		{ title: t("set.repos") },
+		m("p.muted", t("set.repos_desc")),
+		form(
+			{ onSubmit: addRepository },
+			field(
+				t("set.repo_field"),
+				input(state, "repository", { required: true, pattern: REPO_PATTERN, placeholder: "author/repository" }),
+			),
+			actions(
+				button(t("set.repo_add"), { type: "submit", disabled: state.repoBusy }),
+				button(t("set.repo_update_all"), {
+					class: "secondary",
+					disabled: state.repoBusy,
+					onclick: () => void updateAllRepositories(),
+				}),
+			),
+		),
+		state.repositories.length
+			? state.repositories.map((repository) =>
+					m(
+						"div.card-head",
+						{ key: repository },
+						m("code", repository),
+						button(t("ui.remove"), { class: "danger", onclick: () => void removeRepository(repository) }),
+					),
+				)
+			: m("p.muted", t("set.no_repos")),
+		m("p.muted", { role: "status" }, state.repoMessage),
+	);
+}
+
+const App: m.Component = {
+	view: () =>
+		m(
 			Page,
 			{
 				title: [m("a", { href: "../", title: t("set.back") }, "←"), ` ${t("set.title")}`],
-				headerRight: badge(state.connected ? t("dev.connected") : t("dev.disconnected"), state.connected ? "on" : "off"),
+				headerRight: connectionBadge(state.connected),
 			},
-			m(
-				Card,
-				null,
-				m("p.muted", t("set.description")),
-						m(
-							"form",
-							{ onsubmit: (e: Event) => { e.preventDefault(); void save(); } },
-							field(
-								t("set.hostname"),
-								m("input", { value: state.hostname, pattern: hostnamePattern, oninput: (e: Event) => (state.hostname = (e.target as HTMLInputElement).value) }),
-							),
-							field(
-								t("set.role"),
-								m(
-									"select",
-									{ value: state.role, onchange: (e: Event) => (state.role = (e.target as HTMLSelectElement).value) },
-									m("option", { value: "" }, t("set.role_keep")),
-									m("option", { value: "relay" }, t("role.relay")),
-									m("option", { value: "encoder" }, t("role.encoder")),
-									m("option", { value: "combined" }, t("role.combined")),
-								),
-							),
-							m("div.break"),
-							field(
-								t("set.color"),
-								m("input", {
-									type: "color",
-									value: state.color,
-									oninput: (e: Event) => {
-										state.color = (e.target as HTMLInputElement).value;
-										document.documentElement.style.setProperty("--header-color", state.color);
-									},
-								}),
-							),
-							m("div.break"),
-							field(
-								t("set.remote_url"),
-								m("input", { placeholder: "wss://control.example/device", value: state.remoteUrl, oninput: (e: Event) => (state.remoteUrl = (e.target as HTMLInputElement).value) }),
-							),
-							field(
-								t("set.remote_token"),
-								m("input", { type: "password", autocomplete: "off", placeholder: tokenPlaceholder, value: state.remoteToken, oninput: (e: Event) => (state.remoteToken = (e.target as HTMLInputElement).value) }),
-							),
-							m("div.break"),
-							m("div.actions", m("button", { type: "submit", disabled: state.saving }, t("set.save"))),
-						),
-				m("p.muted", { role: "status" }, state.message),
-			),
-			m(
-				Card,
-			{ title: t("set.repos") },
-			m("p.muted", t("set.repos_desc")),
-						m(
-							"form",
-							{ onsubmit: (e: Event) => { e.preventDefault(); void addRepository(); } },
-							field(
-								t("set.repo_field"),
-								m("input", { required: true, pattern: repoPattern, placeholder: "author/repository", value: state.repository, oninput: (e: Event) => (state.repository = (e.target as HTMLInputElement).value) }),
-							),
-							m(
-								"div.actions",
-								m("button", { type: "submit", disabled: state.repoBusy }, t("set.repo_add")),
-								m("button", { type: "button", class: "secondary", disabled: state.repoBusy, onclick: () => void updateAllRepositories() }, t("set.repo_update_all")),
-							),
-						),
-						state.repositories.length
-							? state.repositories.map(
-									(repository) =>
-										m(
-											"div.card-head",
-											{ key: repository },
-											m("code", repository),
-											m("button.danger", { type: "button", onclick: () => void removeRepository(repository) }, t("ui.remove")),
-										),
-								)
-							: m("p.muted", t("set.no_repos")),
-				m("p.muted", { role: "status" }, state.repoMessage),
-			),
-		);
-	},
+			settingsCard(),
+			repositoriesCard(),
+		),
 };
 
-document.title = t("set.title");
-m.mount(byId("app"), App);
+mountPage(t("set.title"), App);

@@ -1,28 +1,26 @@
 /* Control server device list — a Mithril view of a polling fetch every few seconds. */
 import m from "mithril";
-import { t } from "./i18n";
-import { Card, Page, badge, type Child } from "./components/ui";
-import { formatBitrate, since } from "./dom";
-import { icon, roleTag } from "./icons";
 import type { DeviceSummary } from "../types";
+import { type BadgeKind, badge, Card, type Child, Page } from "./components/ui";
+import { t } from "./i18n";
+import { icon, roleTag } from "./icons";
+import { formatBitrate, mountPage, since } from "./util";
 
 const REFRESH_MS = 3_000;
-const COLUMNS = 9;
 
-interface UiState {
-	connText: string;
-	connKind: "" | "on" | "off" | "warn";
-	devices: DeviceSummary[] | null; // null = before the first fetch landed
-}
+const state = {
+	connText: t("mgmt.loading"),
+	connKind: "off" as BadgeKind,
+	devices: null as DeviceSummary[] | null, // null = before the first fetch landed
+};
 
-const state: UiState = { connText: t("mgmt.loading"), connKind: "off", devices: null };
+const hasEncoder = (d: DeviceSummary) => d.role === "encoder" || d.role === "combined";
 
 /** Live stream state, mirroring the device page's encoder / srtla_send badges. */
 function streamState(d: DeviceSummary): Child {
 	if (!d.online) return "—";
-	const s = d.srtla;
-	const e = d.encoder;
-	if (d.role === "encoder" || d.role === "combined") {
+	const { srtla: s, encoder: e } = d;
+	if (hasEncoder(d)) {
 		if (!e) return "—";
 		if (!e.running) return badge(t("dev.badge.stopped"), "off");
 		if (d.role === "combined" && !s?.running) return badge(t("dev.badge.srtla_send_down"), "warn");
@@ -37,22 +35,16 @@ function streamState(d: DeviceSummary): Child {
 function bitrate(d: DeviceSummary): Child {
 	const live = d.online && d.bitrate !== undefined ? formatBitrate(d.bitrate) : null;
 	const max = d.maxBitrate !== undefined ? t("dev.max_value", formatBitrate(d.maxBitrate * 125)) : null;
-	if (live && max) return m("span", null, live, " / ", m("span.muted", null, max));
+	if (live && max) return m("span", live, " / ", m("span.muted", max));
 	return live ?? max ?? "—";
 }
 
-function links(d: DeviceSummary): Child {
-	return d.online && d.totalLinks !== undefined ? `${d.activeLinks ?? 0}/${d.totalLinks}` : "—";
-}
-
 function row(d: DeviceSummary): m.Vnode {
-	const s = d.srtla;
-	const e = d.encoder;
-	const hasEncoder = d.role === "encoder" || d.role === "combined";
-	const hasRelay = d.role !== "encoder";
+	const { srtla: s, encoder: e } = d;
+	const stopped = badge(t("dev.badge.stopped"), "warn");
 	return m(
 		"tr",
-		null,
+		{ key: d.id },
 		// The dot wears the device's header color and beats while the link is up;
 		// the uuid is stable, the hostname is the display name (shown when present)
 		m(
@@ -60,7 +52,10 @@ function row(d: DeviceSummary): m.Vnode {
 			m(
 				"a.device",
 				{ href: `d/${encodeURIComponent(d.id)}/`, title: d.id },
-				m("span.device-dot", { class: d.online ? "online" : "", style: d.color ? `background:${d.color};color:${d.color}` : "" }),
+				m("span.device-dot", {
+					class: d.online ? "online" : "",
+					style: d.color ? `background:${d.color};color:${d.color}` : "",
+				}),
 				d.hostname || d.id,
 			),
 		),
@@ -69,21 +64,29 @@ function row(d: DeviceSummary): m.Vnode {
 		m("td", d.online ? since(d.connectedAt) : t("mgmt.last_seen", since(d.lastSeen))),
 		m("td", streamState(d)),
 		m("td", bitrate(d)),
-		m("td", links(d)),
+		m("td", d.online && d.totalLinks !== undefined ? `${d.activeLinks ?? 0}/${d.totalLinks}` : "—"),
 		m(
 			"td",
-			hasEncoder && e
-				? e.running
-					? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on")
-					: badge(t("dev.badge.stopped"), "warn")
-				: "—",
+			hasEncoder(d) && e ? (e.running ? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on") : stopped) : "—",
 		),
 		m(
 			"td",
-			hasRelay && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : badge(t("dev.badge.stopped"), "warn")) : "—",
+			d.role !== "encoder" && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : stopped) : "—",
 		),
 	);
 }
+
+const columnHeaders = (): m.Children[] => [
+	t("mgmt.th.device"),
+	t("mgmt.th.role"),
+	t("mgmt.th.status"),
+	t("mgmt.th.connected"),
+	t("mgmt.th.stream"),
+	t("mgmt.th_bitrate"),
+	t("mgmt.th.links"),
+	[icon("encoder"), ` ${t("setup.step.encoder")}`],
+	[icon("relay"), ` ${t("setup.step.relay")}`],
+];
 
 async function refresh(): Promise<void> {
 	try {
@@ -101,55 +104,37 @@ async function refresh(): Promise<void> {
 	m.redraw();
 }
 
-const App: m.Component<{}, {}> = {
-	view: () =>
-		m(
+const App: m.Component = {
+	view: () => {
+		const headers = columnHeaders();
+		return m(
 			Page,
-			{
-				title: t("mgmt.title"),
-				headerRight: m("span", { class: `badge ${state.connKind}` }, state.connText),
-			},
+			{ title: t("mgmt.title"), headerRight: badge(state.connText, state.connKind) },
 			m(
 				Card,
 				{ title: t("mgmt.devices") },
 				m(
-							"table",
-							null,
-							m(
-								"thead",
-								null,
-								m(
+					"table",
+					m("thead", m("tr", headers.map((h) => m("th", h)))),
+					m(
+						"tbody",
+						state.devices?.length
+							? state.devices.map(row)
+							: m(
 									"tr",
-									null,
-									m("th", t("mgmt.th.device")),
-									m("th", t("mgmt.th.role")),
-									m("th", t("mgmt.th.status")),
-									m("th", t("mgmt.th.connected")),
-									m("th", t("mgmt.th.stream")),
-									m("th", t("mgmt.th_bitrate")),
-									m("th", t("mgmt.th.links")),
-									m("th", null, icon("encoder"), ` ${t("setup.step.encoder")}`),
-									m("th", null, icon("relay"), ` ${t("setup.step.relay")}`),
+									m(
+										"td",
+										{ colspan: headers.length, class: "muted" },
+										state.devices ? t("mgmt.none") : t("mgmt.loading"),
+									),
 								),
-							),
-							m(
-								"tbody",
-								state.devices?.length
-									? state.devices.map(row)
-									: [
-											m(
-												"tr",
-												m("td", { colspan: COLUMNS, class: "muted" }, state.devices ? t("mgmt.none") : t("mgmt.loading")),
-											),
-										],
-							),
+					),
 				),
 			),
-		),
+		);
+	},
 };
 
-document.title = t("mgmt.title");
-m.mount(document.getElementById("app")!, App);
-
+mountPage(t("mgmt.title"), App);
 void refresh();
 setInterval(refresh, REFRESH_MS);

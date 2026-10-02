@@ -1,11 +1,13 @@
-/* Device type and log level icons (inline SVG, stroked with the current text colour). */
+/* Inline SVG icons (stroked with the current text colour). Mithril sets the SVG namespace
+ * automatically, so plain tag names render as SVG children. */
 import m from "mithril";
 import { t } from "./i18n";
 import type { Role } from "../types";
 
+type Shape = readonly (readonly [string, Record<string, string>])[];
+
 // 24×24 outline shapes: a video camera for the encoder, a broadcasting antenna for the relay.
-// Mithril sets the SVG namespace automatically, so plain tag names render as SVG children.
-const SHAPES = {
+const ROLE_SHAPES = {
 	encoder: [
 		["rect", { x: "2", y: "6", width: "14", height: "12", rx: "2" }],
 		["path", { d: "M16 10.5 22 7v10l-6-3.5z" }],
@@ -16,9 +18,7 @@ const SHAPES = {
 		["path", { d: "M8.5 5.5a5 5 0 0 0 0 7M15.5 5.5a5 5 0 0 1 0 7" }],
 		["path", { d: "M5.6 2.6a9 9 0 0 0 0 12.8M18.4 2.6a9 9 0 0 1 0 12.8" }],
 	],
-} as const;
-
-export type Shape = keyof typeof SHAPES;
+} as const satisfies Record<string, Shape>;
 
 // Log level markers, in the same 24×24 outline style
 const LEVEL_SHAPES = {
@@ -34,30 +34,73 @@ const LEVEL_SHAPES = {
 		["circle", { cx: "12", cy: "12", r: "10" }],
 		["path", { d: "m15 9-6 6M9 9l6 6" }],
 	],
-} as const;
+} as const satisfies Record<string, Shape>;
+
+// Larger role pictograms for the setup wizard's role cards
+const ROLE_CARD_SHAPES = {
+	encoder: [
+		["rect", { x: "2", y: "7", width: "13", height: "10", rx: "2" }],
+		["path", { d: "m15 11 7-3v8l-7-3z" }],
+	],
+	relay: [
+		["rect", { x: "1.5", y: "9", width: "7", height: "6", rx: "1.5" }],
+		["rect", { x: "15.5", y: "9", width: "7", height: "6", rx: "1.5" }],
+		["path", { d: "M9 12h6" }],
+		["path", { d: "m13.5 9.5 2.5 2.5-2.5 2.5" }],
+		["path", { d: "m10.5 9.5-2.5 2.5 2.5 2.5" }],
+	],
+	combined: [
+		["rect", { x: "1.5", y: "8.5", width: "10", height: "7", rx: "1.5" }],
+		["path", { d: "m11.5 11 4-2v4l-4-2z" }],
+		["path", { d: "M17.5 12H23" }],
+		["path", { d: "m21 10 2 2-2 2" }],
+	],
+} as const satisfies Record<Role, Shape>;
+
+const GEAR: Shape = [
+	["circle", { cx: "12", cy: "12", r: "3" }],
+	[
+		"path",
+		{
+			d: "M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z",
+		},
+	],
+];
 
 export type Level = keyof typeof LEVEL_SHAPES;
 
-/** Translated role label ("relay" / "encoder" / "encoder + relay"). */
-export const roleLabel = (role: Role): string => t(`role.${role}`);
-
-function draw(parts: readonly (readonly [string, Record<string, string>])[], className: string): m.Vnode {
+function draw(parts: Shape, attrs: m.Attributes): m.Vnode {
 	return m(
 		"svg",
-		{ viewBox: "0 0 24 24", class: className, "aria-hidden": "true" },
-		...parts.map(([tag, attrs]) => m(tag, { ...attrs })),
+		{ viewBox: "0 0 24 24", "aria-hidden": "true", ...attrs },
+		parts.map(([tag, a]) => m(tag, { ...a })),
 	);
 }
 
-export const icon = (shape: Shape): m.Vnode => draw(SHAPES[shape], `role-icon role-icon-${shape}`);
+export const icon = (shape: keyof typeof ROLE_SHAPES): m.Vnode =>
+	draw(ROLE_SHAPES[shape], { class: `role-icon role-icon-${shape}` });
 
-export const levelIcon = (level: Level): m.Vnode => draw(LEVEL_SHAPES[level], "role-icon log-icon");
+export const levelIcon = (level: Level): m.Vnode => draw(LEVEL_SHAPES[level], { class: "role-icon log-icon" });
 
-/** Icon(s) for a role: combined devices get both the encoder and the relay icon. */
-export function roleIcons(role: Role): m.Vnode[] {
-	return role === "combined" ? [icon("encoder"), icon("relay")] : [icon(role)];
-}
+export const roleCardIcon = (role: Role): m.Vnode =>
+	draw(ROLE_CARD_SHAPES[role], {
+		class: "role-icon",
+		width: "36",
+		height: "36",
+		fill: "none",
+		stroke: "currentColor",
+		"stroke-width": "1.6",
+		"stroke-linecap": "round",
+		"stroke-linejoin": "round",
+	});
 
-/** Icons followed by the role label, e.g. for a badge or table cell. */
+export const gearIcon = (): m.Vnode =>
+	draw(GEAR, { width: "18", height: "18", fill: "none", stroke: "currentColor", "stroke-width": "2" });
+
+/** Role icon(s) with the translated role as tooltip; combined devices get both icons. */
 export const roleTag = (role: Role): m.Vnode =>
-	m("span", { class: "role", title: roleLabel(role) }, roleIcons(role));
+	m(
+		"span",
+		{ class: "role", title: t(`role.${role}`) },
+		role === "combined" ? [icon("encoder"), icon("relay")] : icon(role),
+	);
