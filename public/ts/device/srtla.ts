@@ -11,6 +11,7 @@ import {
 	checkField,
 	definitionList,
 	field,
+	fieldGroup,
 	form,
 	input,
 	schedulerOptions,
@@ -76,18 +77,46 @@ export function srtlaCard(status: Status): m.Vnode {
 		form(
 			// Enter in the receiver fields of a combined device means "start the stream"
 			{ onSubmit: combined ? encoderStart : srtlaStart },
-			!combined && [
+			fieldGroup(
+				t("dev.group.connection"),
+				!combined && [
+					field(
+						t("dev.field.srt_listen_port"),
+						input(fields, "listenPort", { placeholder: "6000", required: true }),
+					),
+					" ⇨ ",
+				],
 				field(
-					t("dev.field.srt_listen_port"),
-					input(fields, "listenPort", { placeholder: "6000", required: true }),
+					t("dev.field.remote_host"),
+					input(fields, "remoteHost", { placeholder: "rec.example.com", required: true }),
 				),
-				" ⇨ ",
-			],
-			field(
-				t("dev.field.remote_host"),
-				input(fields, "remoteHost", { placeholder: "rec.example.com", required: true }),
+				field(t("dev.field.remote_port"), input(fields, "remotePort", { placeholder: "5000", required: true })),
 			),
-			field(t("dev.field.remote_port"), input(fields, "remotePort", { placeholder: "5000", required: true })),
+			fieldGroup(
+				t("dev.quality_scoring"),
+				field(
+					t("dev.scheduler"),
+					m(
+						"select",
+						{
+							disabled: busy.has("srtla-mode"),
+							value: modeValue(),
+							onchange: (e: Event) => void setOption("mode", (e.target as HTMLSelectElement).value),
+						},
+						schedulerOptions(),
+					),
+				),
+				checkField(
+					t("dev.quality_scoring"),
+					m("input", {
+						type: "checkbox",
+						checked: qualityValue(),
+						disabled: busy.has("srtla-quality") || modeValue() === "classic",
+						onchange: (e: Event) => void setOption("quality", (e.target as HTMLInputElement).checked),
+					}),
+					{ title: t("dev.quality_scoring_title") },
+				),
+			),
 			brk(),
 			combined
 				? streamButtons("stream.stop")
@@ -103,31 +132,6 @@ export function srtlaCard(status: Status): m.Vnode {
 							onclick: () => press("srtla-reload", "srtla.reload"),
 						}),
 					),
-		),
-		form(
-			{ class: "inline options" },
-			field(
-				t("dev.scheduler"),
-				m(
-					"select",
-					{
-						disabled: busy.has("srtla-mode"),
-						value: modeValue(),
-						onchange: (e: Event) => void setOption("mode", (e.target as HTMLSelectElement).value),
-					},
-					schedulerOptions(),
-				),
-			),
-			checkField(
-				t("dev.quality_scoring"),
-				m("input", {
-					type: "checkbox",
-					checked: qualityValue(),
-					disabled: busy.has("srtla-quality") || modeValue() === "classic",
-					onchange: (e: Event) => void setOption("quality", (e.target as HTMLInputElement).checked),
-				}),
-				{ title: t("dev.quality_scoring_title") },
-			),
 		),
 	);
 }

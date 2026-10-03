@@ -15,6 +15,7 @@ import {
 	definitionList,
 	encoderIssueBadge,
 	field,
+	fieldGroup,
 	form,
 	input,
 	numberAttrs,
@@ -90,8 +91,8 @@ const numbers = (group: Record<string, string>) =>
 
 function ceracoderControls(): m.Children {
 	const group = cera.balancer === "fixed" ? null : cera.balancer;
-	return [
-		brk(),
+	return fieldGroup(
+		t("dev.cera_section"),
 		field(
 			t("dev.field.balancer"),
 			select(
@@ -108,8 +109,7 @@ function ceracoderControls(): m.Children {
 				field(t(labelKey), input(cera[group] as Record<string, string>, key, { ...attrs, name: `${group}.${key}` }), {
 					key: `${group}.${key}`,
 				}),
-			),
-		brk(),
+			),		
 		actions(
 			button(t("dev.apply_cera"), {
 				class: "secondary",
@@ -122,7 +122,7 @@ function ceracoderControls(): m.Children {
 					}),
 			}),
 		),
-	];
+	);
 }
 
 // ----------------------------------------------------------------------
@@ -177,58 +177,68 @@ export function encoderCard(status: Status): m.Vnode {
 		definitionList(statusRows(status)),
 		form(
 			{ onSubmit: encoderStart },
-			field(
-				t("dev.row.pipeline"),
-				select(fields, "pipeline", pipelineOptions(), { required: true }, () => touched.add("pipeline")),
-			),
-			field(t("dev.field.min_bitrate"), input(fields, "minBitrate", BITRATE_ATTRS(String(BITRATE_KBPS.min)))),
-			field(
-				t("dev.field.max_bitrate"),
-				actions(
-					input(fields, "maxBitrate", BITRATE_ATTRS("5000")),
-					button(t("dev.apply_bitrate"), {
-						class: "secondary",
-						disabled: !enabled("encoder-bitrate"),
-						onclick: () =>
-							press("encoder-bitrate", "encoder.bitrate", {
-								minBitrate: optionalNumber(fields.minBitrate),
-								maxBitrate: optionalNumber(fields.maxBitrate),
-							}),
-					}),
-				),
-			),
-			pipeline?.overlay &&
-				checkField(
-					t("dev.field.bitrate_overlay"),
-					checkbox(fields, "bitrateOverlay", {}, () => touched.add("bitrateOverlay")),
-				),
-			brk(),
-			pipeline?.asrc &&
+			fieldGroup(
+				t("dev.group.video"),
 				field(
-					t("dev.field.audio_source"),
-					select(
-						fields,
-						"audioSource",
-						options(status.audioSources.map((a) => [a.id, a.name])),
-						{},
-						() => touched.add("audioSource"),
+					t("dev.row.pipeline"),
+					select(fields, "pipeline", pipelineOptions(), { required: true }, () => touched.add("pipeline")),
+				),
+				pipeline?.overlay &&
+					checkField(
+						t("dev.field.bitrate_overlay"),
+						checkbox(fields, "bitrateOverlay", {}, () => touched.add("bitrateOverlay")),
+					),
+			),
+			fieldGroup(
+				t("dev.group.bitrate"),
+				field(t("dev.field.min_bitrate"), input(fields, "minBitrate", BITRATE_ATTRS(String(BITRATE_KBPS.min)))),
+				field(
+					t("dev.field.max_bitrate"),
+					actions(
+						input(fields, "maxBitrate", BITRATE_ATTRS("5000")),
+						button(t("dev.apply_bitrate"), {
+							class: "secondary",
+							disabled: !enabled("encoder-bitrate"),
+							onclick: () =>
+								press("encoder-bitrate", "encoder.bitrate", {
+									minBitrate: optionalNumber(fields.minBitrate),
+									maxBitrate: optionalNumber(fields.maxBitrate),
+								}),
+						}),
 					),
 				),
-			pipeline?.acodec &&
-				field(
-					t("dev.field.audio_codec"),
-					select(fields, "audioCodec", audioCodecOptions(), {}, () => touched.add("audioCodec")),
-				),
-			field(t("dev.field.audio_delay"), input(fields, "delay", numberAttrs(-2000, 2000, "0"))),
+			),
 			status.ceracoder && ceracoderControls(),
-			!combined && [
-				brk(),
-				field(t("dev.field.stream_host"), input(fields, "encHost", { placeholder: "192.168.1.10", required: true })),
-				field(t("dev.field.stream_srt_port"), input(fields, "encPort", { placeholder: "6000", required: true })),
-			],
-			brk(),
-			field(t("dev.field.srt_latency"), input(fields, "latency", numberAttrs(100, 10000, "2000", 100))),
-			field(t("dev.field.stream_id"), input(fields, "streamid", { placeholder: t("ui.optional") })),
+			fieldGroup(
+				t("dev.group.audio"),
+				pipeline?.asrc &&
+					field(
+						t("dev.field.audio_source"),
+						select(
+							fields,
+							"audioSource",
+							options(status.audioSources.map((a) => [a.id, a.name])),
+							{},
+							() => touched.add("audioSource"),
+						),
+					),
+				pipeline?.acodec &&
+					field(
+						t("dev.field.audio_codec"),
+						select(fields, "audioCodec", audioCodecOptions(), {}, () => touched.add("audioCodec")),
+					),
+				field(t("dev.field.audio_delay"), input(fields, "delay", numberAttrs(-2000, 2000, "0"))),
+			),
+			fieldGroup(
+				t("dev.group.srt"),
+				!combined && [
+					field(t("dev.field.stream_host"), input(fields, "encHost", { placeholder: "192.168.1.10", required: true })),
+					field(t("dev.field.stream_srt_port"), input(fields, "encPort", { placeholder: "6000", required: true })),
+					brk(),
+				],
+				field(t("dev.field.srt_latency"), input(fields, "latency", numberAttrs(100, 10000, "2000", 100))),
+				field(t("dev.field.stream_id"), input(fields, "streamid", { placeholder: t("ui.optional") })),
+			),
 			!combined && [brk(), streamButtons("encoder.stop")],
 		),
 	);

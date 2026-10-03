@@ -77,6 +77,10 @@ export const actions = (...children: m.Children[]) => m("div.actions", children)
 /** Line break inside a flex-wrapped form. */
 export const brk = () => m("div.break");
 
+/** Titled full-width group of related form fields (<fieldset> + <legend>). */
+export const fieldGroup = (legend: Child, ...children: m.Children[]) =>
+	m("fieldset.group", m("legend", legend), children);
+
 /** <option>s from [value, label] pairs. */
 export const options = (pairs: readonly (readonly [string, string])[]): m.Vnode[] =>
 	pairs.map(([value, label]) => m("option", { key: value, value }, label));

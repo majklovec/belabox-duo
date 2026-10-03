@@ -626,12 +626,32 @@ th .role-icon {
   }
 }
 
-/* srtla_send link telemetry */
-form.options {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
+/* Titled groups of related fields: each takes a full row of the flex-wrapped form */
+fieldset.group {
+  flex-basis: 100%;
+  min-inline-size: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  margin: 0;
+  padding: 0.75rem 0 0;
+  border: none;
   border-top: 1px solid var(--border);
 }
+/* Floated, the legend leaves the border and becomes a full-width row of the flex content */
+fieldset.group > legend {
+  float: left;
+  inline-size: 100%;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+/* srtla_send link telemetry */
 .iface-sub {
   display: block;
   font-size: 0.8rem;
