@@ -32,7 +32,7 @@
   "dev.field.audio_codec": "Kodek audio",
   "dev.field.audio_delay": "Opóźnienie audio (ms)",
   "dev.field.audio_source": "Źródło audio",
-  "dev.field.balancer": "Balancer bitrate",
+  "dev.field.balancer": "Bitrate balancer",
   "dev.field.bitrate_overlay": "Overlay bitrate",
   "dev.field.cera_decr_interval": "Interwał zmniejszania (ms)",
   "dev.field.cera_decr_mult": "Mnożnik przeciążenia (0-1)",

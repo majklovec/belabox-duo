@@ -27,11 +27,11 @@ WORKDIR /app
 COPY --from=builder /app/package.json /app/bun.lock ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/server.ts ./
-COPY --from=builder /app/client.ts ./
+#COPY --from=builder /app/client.ts ./
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/i18n ./i18n
-COPY --from=builder /app/pipeline ./pipeline
+#COPY --from=builder /app/pipeline ./pipeline
 
 # Expose the default control-server port
 EXPOSE 8090

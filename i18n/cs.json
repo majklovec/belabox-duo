@@ -32,7 +32,7 @@
   "dev.field.audio_codec": "Audio kodek",
   "dev.field.audio_delay": "Zpoždění audio (ms)",
   "dev.field.audio_source": "Zdroj audio",
-  "dev.field.balancer": "Balancer bitrate",
+  "dev.field.balancer": "Bitrate balancer",
   "dev.field.bitrate_overlay": "Bitrate overlay",
   "dev.field.cera_decr_interval": "Interval snížení (ms)",
   "dev.field.cera_decr_mult": "Koeficient kongestace (0-1)",

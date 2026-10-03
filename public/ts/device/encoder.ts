@@ -202,7 +202,6 @@ export function encoderCard(status: Status): m.Vnode {
 					t("dev.field.bitrate_overlay"),
 					checkbox(fields, "bitrateOverlay", {}, () => touched.add("bitrateOverlay")),
 				),
-			status.ceracoder && ceracoderControls(),
 			brk(),
 			pipeline?.asrc &&
 				field(
@@ -221,11 +220,13 @@ export function encoderCard(status: Status): m.Vnode {
 					select(fields, "audioCodec", audioCodecOptions(), {}, () => touched.add("audioCodec")),
 				),
 			field(t("dev.field.audio_delay"), input(fields, "delay", numberAttrs(-2000, 2000, "0"))),
+			status.ceracoder && ceracoderControls(),
 			!combined && [
 				brk(),
 				field(t("dev.field.stream_host"), input(fields, "encHost", { placeholder: "192.168.1.10", required: true })),
 				field(t("dev.field.stream_srt_port"), input(fields, "encPort", { placeholder: "6000", required: true })),
 			],
+			brk(),
 			field(t("dev.field.srt_latency"), input(fields, "latency", numberAttrs(100, 10000, "2000", 100))),
 			field(t("dev.field.stream_id"), input(fields, "streamid", { placeholder: t("ui.optional") })),
 			!combined && [brk(), streamButtons("encoder.stop")],

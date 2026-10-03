@@ -32,7 +32,7 @@
   "dev.field.audio_codec": "Audio kodek",
   "dev.field.audio_delay": "Oneskorenie zvuku (ms)",
   "dev.field.audio_source": "Zdroj zvuku",
-  "dev.field.balancer": "Balancer bitrate",
+  "dev.field.balancer": "Bitrate balancer",
   "dev.field.bitrate_overlay": "Overlay bitrate",
   "dev.field.cera_decr_interval": "Interval zníženia (ms)",
   "dev.field.cera_decr_mult": "Koeficient preťaženia (0-1)",
