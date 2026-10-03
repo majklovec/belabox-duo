@@ -1,0 +1,69 @@
+# ---- Version control ----
+.git
+.gitignore
+.gitattributes
+.github
+
+# ---- Node / Bun ----
+node_modules
+bun.lockb
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
+.yarn
+
+# ---- Build output ----
+dist
+build
+out
+*.tsbuildinfo
+
+# ---- Docker ----
+Dockerfile
+Dockerfile.*
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# ---- Environment / secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+devices.json
+
+# ---- Editor / IDE ----
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ---- Logs / runtime ----
+logs
+*.log
+tmp
+temp
+coverage
+.nyc_output
+
+# ---- Tests / docs (not needed at runtime) ----
+test
+tests
+__tests__
+*.test.ts
+*.spec.ts
+docs
+README.md
+LICENSE
+CHANGELOG.md
+armbian/
+to-implement/
+deploy/

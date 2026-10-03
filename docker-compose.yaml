@@ -1,0 +1,12 @@
+services:
+  belabox-control:
+    build: .
+    image: majkl/belabox-duo-control:latest
+    container_name: belabox-control
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      SRTLA_DEVICE_TOKEN: "token"
+      SRTLA_UI_USER: "majkl"
+      SRTLA_UI_PASSWORD: "heslo"
