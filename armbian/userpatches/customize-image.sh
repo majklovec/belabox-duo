@@ -14,10 +14,10 @@ export DEBIAN_FRONTEND=noninteractive
 HOSTNAME="belabox-duo"
 
 # Versions / sources for the streaming dependency chain
-CERACODER_REPO="https://github.com/CERALIVE/ceracoder.git"
+CERACODER_REPO="CERALIVE/ceracoder"
 CERACODER_DIR="/opt/ceracoder"
 
-CERALIVE_SRT_REPO="https://github.com/CERALIVE/srt.git"
+CERALIVE_SRT_REPO="CERALIVE/srt"
 SRT_BUILD_DIR="/tmp/srt-build"
 
 SRTLA_SEND_REPO="irlserver/srtla_send"
@@ -76,7 +76,7 @@ apt-get install -y \
 # --- 6. Build and install libsrt (CERALIVE fork with BELABOX patches) ---
 echo "Building libsrt from CERALIVE/srt..."
 rm -rf "${SRT_BUILD_DIR}"
-git clone --depth=1 "${CERALIVE_SRT_REPO}" "${SRT_BUILD_DIR}"
+git clone --depth=1 "https://github.com/${CERALIVE_SRT_REPO}.git" "${SRT_BUILD_DIR}"
 cd "${SRT_BUILD_DIR}"
 mkdir -p build && cd build
 cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
@@ -94,7 +94,7 @@ fi
 
 # --- 7. Build and install ceracoder ---
 echo "Building ceracoder..."
-git clone --depth=1 "${CERACODER_REPO}" "${CERACODER_DIR}"
+git clone --depth=1 "https://github.com/${CERACODER_REPO}.git" "${CERACODER_DIR}"
 cd "${CERACODER_DIR}"
 
 # Verify GStreamer + SRT are visible to pkg-config before building
@@ -186,7 +186,14 @@ if [ -f "package.json" ]; then
 	bun install
 fi
 
-# --- 14. eMMC-only: install the first-boot auto-installer ---
+# --- 14. Install USB udev rules (audio card naming, USB device hotplug) ---
+echo "Installing USB udev rules..."
+install -d /etc/udev/rules.d
+for rule in /tmp/overlay/etc/udev/rules.d/*.rules; do
+	install -m 0644 "${rule}" /etc/udev/rules.d/
+done
+
+# --- 15. eMMC-only: install the first-boot auto-installer ---
 if [[ "${BUILD_VARIANT}" == "emmc" ]]; then
 	echo "Installing first-boot eMMC installer..."
 
