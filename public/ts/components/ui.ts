@@ -63,9 +63,9 @@ export function field(label: Child, control: m.Children, extra: m.Attributes = {
 	return m("label", extra, label, control);
 }
 
-/** A checkbox (or radios) with a caption beside it. */
+/** A checkbox (or radios) with its caption after it. */
 export function checkField(label: Child, control: m.Children, extra: m.Attributes = {}): m.Vnode {
-	return m("label", { ...extra, class: extra.class ? `${extra.class} check` : "check" }, label, control);
+	return m("label", { ...extra, class: extra.class ? `${extra.class} check` : "check" }, control, label);
 }
 
 /** <button type="button">; pass `type: "submit"` for a form's default action. */

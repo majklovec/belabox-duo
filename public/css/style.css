@@ -499,8 +499,63 @@ form .break {
 label.check {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   align-self: center;
+  cursor: pointer;
+  user-select: none;
+}
+label.check:has(input:disabled) {
+  cursor: not-allowed;
+}
+/* In a form: as tall as a text input and bottom-aligned, so it sits on the inputs' row */
+form label.check {
+  align-self: end;
+  min-block-size: calc(1lh + 1rem + 2px);
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  display: inline-grid;
+  place-content: center;
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 5px;
+  vertical-align: middle;
+  cursor: pointer;
+}
+input[type="checkbox"]::before {
+  content: "";
+  inline-size: 0.7rem;
+  block-size: 0.7rem;
+  background: #fff;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  transform: scale(0);
+  transition: transform var(--t);
+}
+input[type="checkbox"]:hover {
+  border-color: var(--accent);
+}
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="checkbox"]:checked:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+input[type="checkbox"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+input[type="checkbox"]:disabled:hover {
+  border-color: var(--border-strong);
 }
 
 /* Device type icons */
