@@ -1,18 +1,16 @@
 /*
- * Module runner: starts/stops the kick-stats and kick-chat modules according
- * to settings.modules, and exposes helpers for the API:
+ * Module runner: starts/stops the kick-chat module according to
+ * settings.modules, and exposes helpers for the API:
  *   - moduleEnabled / moduleAllowed gate the module-owned methods (409)
  *   - modulesView() is the secret-free module map put into the status
  *   - restartModule() re-applies a module after configure/enable changes
- * (obs-controller moved to modules/obs-controller/ and runs through the
+ * (obs-controller and kick-stats moved to modules/ and run through the
  * registry in modules/registry.backend.ts)
  */
 import { startKickChat, stopKickChat } from "./kick-chat";
-import { startKickStats, stopKickStats } from "./kick-stats";
 import {
     type ModulesState,
     KICK_CHAT_MODULE,
-    KICK_STATS_MODULE,
     state,
 } from "../state";
 
@@ -25,21 +23,16 @@ export const moduleEnabled = (id: string): boolean => {
 };
 
 export function startModules(): void {
-    if (moduleEnabled(KICK_STATS_MODULE)) startKickStats();
     if (moduleEnabled(KICK_CHAT_MODULE)) startKickChat();
 }
 
 export function stopModules(): void {
-    stopKickStats();
     stopKickChat();
 }
 
 /** Re-apply one module after a configure/enable/disable change. */
 export function restartModule(id: string): void {
     switch (id) {
-        case KICK_STATS_MODULE:
-            startKickStats();   // stops itself first; a fresh channel is picked up
-            break;
         case KICK_CHAT_MODULE:
             startKickChat();
             break;
@@ -51,12 +44,6 @@ export function configureModule(id: string, config: Record<string, unknown>): vo
     const m = mods();
     if (!m) return;
     switch (id) {
-        case KICK_STATS_MODULE: {
-            if (typeof config.enabled === "boolean") m["kick-stats"].enabled = config.enabled;
-            if (typeof config.channel === "string") m["kick-stats"].channel = config.channel;
-            restartModule(id);
-            break;
-        }
         case KICK_CHAT_MODULE: {
             if (typeof config.enabled === "boolean") m["kick-chat"].enabled = config.enabled;
             if (typeof config.channel === "string") m["kick-chat"].channel = config.channel;

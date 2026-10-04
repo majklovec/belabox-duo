@@ -48,7 +48,7 @@ import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
-import { callModule, encoderServices, getModule, moduleStatuses, modemServices, obsServices, restartRegisteredModule, srtlaServices } from "../modules/registry.backend";
+import { callModule, encoderServices, getModule, kickStatsServices, moduleStatuses, modemServices, obsServices, restartRegisteredModule, srtlaServices } from "../modules/registry.backend";
 import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo, SrtlaState } from "../modules/types";
 import {
 	ApiError,
@@ -67,7 +67,6 @@ import {
 	requireString,
 } from "./params";
 import { kickChatHistory } from "./modules/kick-chat";
-import { kickStatsLatest } from "./modules/kick-stats";
 import { configureModule, moduleEnabled, modulesView, restartModule } from "./modules";
 import { removePipelineRepository, syncPipelineRepository } from "./pipelineRepos";
 import { applyRemoteSettings } from "./remote";
@@ -344,6 +343,7 @@ const METHOD_OWNER: Record<string, string> = {
 	"obs.request": "obs-controller",
 	"obs.requestBatch": "obs-controller",
 	"obs.setEventSubscriptions": "obs-controller",
+	"kick.stats.get": "kick-stats",
 };
 
 const moduleDispatch = (method: string, params: Record<string, unknown>): Promise<unknown> =>
@@ -559,6 +559,12 @@ const methods: Record<string, Method> = {
 			obsServices.configure(config);
 			saveState();
 			void restartRegisteredModule(id);
+		} else if (id === KICK_STATS_MODULE) {
+			// Registered module: the kick-stats slice is applied by the module
+			// itself, then re-applied through the registry
+			kickStatsServices.configure(config);
+			saveState();
+			void restartRegisteredModule(id);
 		} else {
 			configureModule(id, config);
 			saveState();
@@ -608,10 +614,10 @@ const methods: Record<string, Method> = {
 	},
 
 	// -------------------------------------------------------------------- kick
-	"kick.stats.get": () => ({ stats: kickStatsLatest() }),
+	"kick.stats.get": () => moduleDispatch("kick.stats.get", {}),
 	"kick.chat.get": (p) => {
 		const limit = optionalInt(p, "limit", 500, 1, 1000);
-		return { messages: kickChatHistory(limit), stats: kickStatsLatest() };
+		return { messages: kickChatHistory(limit), stats: kickStatsServices.latest() };
 	},
 };
 

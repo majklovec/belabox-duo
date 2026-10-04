@@ -344,16 +344,10 @@ rpc.on("log", (data) => applyLog(data as LogEvent));
 // Module events (carried with a `module` tag, routed by their name here)
 // ----------------------------------------------------------------------
 const KICK_CHAT_CAP = 500;
-const KICK_SPARK_CAP = 20;
 
 rpc.on("obs.event", (data) => dispatchFrontendEvent("obs.event", data));
 
-rpc.on("kick.stats", (data) => {
-	st.kick.stats = data as KickStats;
-	st.kick.spark.push(st.kick.stats?.viewers ?? 0);
-	if (st.kick.spark.length > KICK_SPARK_CAP) st.kick.spark.shift();
-	m.redraw();
-});
+rpc.on("kick.stats", (data) => dispatchFrontendEvent("kick.stats", data));
 
 rpc.on("kick.chat", (data) => {
 	const ev = data as {

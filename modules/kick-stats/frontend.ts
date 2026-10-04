@@ -1,9 +1,12 @@
-/* kick-stats module UI: current viewers (large), a 20-sample ring sparkline of viewer counts,
- * follower count and a live badge. Samples arrive via `kick.stats` pushes, routed in store.ts. */
+/* kick-stats module UI: current viewers (large), a 20-sample ring sparkline of
+ * viewer counts, follower count and a live badge. Samples arrive via `kick.stats`
+ * pushes. */
 import m from "mithril";
-import { badge, Card } from "../components/ui";
-import { t } from "../i18n";
-import { st } from "./store";
+import { badge, Card } from "../../public/ts/components/ui";
+import type { KickStats } from "../../public/types";
+import { t } from "../../public/ts/i18n";
+import { st } from "../../public/ts/device/store";
+import type { BrowserModule } from "../types";
 
 const SPARK_W = 120;
 const SPARK_H = 32;
@@ -19,7 +22,7 @@ function sparkline(samples: number[]): m.Vnode | null {
 		m("polyline", { points, fill: "none", "stroke-width": "2" }));
 }
 
-export function kickStatsCard(): m.Vnode {
+function kickStatsCard(): m.Vnode {
 	const enabled = st.modules["kick-stats"]?.enabled;
 	const s = st.kick.stats;
 	return m(
@@ -41,3 +44,19 @@ export function kickStatsCard(): m.Vnode {
 		],
 	);
 }
+
+function handleEvent(event: string, data: unknown): void {
+	if (event !== "kick.stats") return;
+	st.kick.stats = data as KickStats;
+	st.kick.spark.push(st.kick.stats?.viewers ?? 0);
+	if (st.kick.spark.length > SPARK_CAP) st.kick.spark.shift();
+	m.redraw();
+}
+
+export const kickStatsModule: BrowserModule = {
+	id: "kick-stats",
+	title: "Kick stats",
+	component: () => kickStatsCard(),
+	defaultWidth: "full",
+	handleEvent,
+};
