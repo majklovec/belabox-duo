@@ -2,7 +2,7 @@
 import type { CeraConfig } from "../src/encoders/ceracoder";
 import type { AudioSource, EncoderState } from "../src/encoder";
 import type { Language } from "../src/i18n";
-import type { ModemInfo } from "../src/modems";
+import type { ModemInfo } from "../modules/types";
 import type { Iface, ModemConfig } from "../src/routing";
 import type { SrtlaState } from "../src/srtla";
 import type { SrtlaControlState } from "../src/srtlaControl";

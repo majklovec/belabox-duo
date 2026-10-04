@@ -5,8 +5,8 @@ import { badge, Page } from "./components/ui";
 import { encoderCard } from "./device/encoder";
 import { interfacesCard } from "./device/interfaces";
 import { LogCard } from "./device/log";
-import { modemsCard } from "./device/modems";
 import { srtlaCard } from "./device/srtla";
+import { moduleCard } from "../../modules/registry.frontend";
 import { act, st } from "./device/store";
 import { t } from "./i18n";
 import { gearIcon, roleTag } from "./icons";
@@ -58,7 +58,7 @@ const App: m.Component = {
 		const hasRelay = !!status && role !== "encoder";
 		const children = [
 			hasEncoder && encoderCard(status),
-			hasRelay && [srtlaCard(status), interfacesCard(status), modemsCard(status)],
+			hasRelay && [srtlaCard(status), interfacesCard(status), moduleCard("modems", status)],
 		];
 		return m(
 			Page,

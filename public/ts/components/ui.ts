@@ -33,18 +33,23 @@ export interface CardProps {
 	title?: Child;
 	/** Actions on the right of the title row (.card-head). */
 	headActions?: m.Children;
+	/** Extra class(es) on the <section.card> root (module scoping, e.g. `mod-modems`). */
+	class?: string;
 }
 
 export const Card: m.Component<CardProps> = {
-	view: ({ attrs: { title, headActions }, children }) =>
+	view: ({ attrs: { title, headActions, class: extra }, children }) =>
 		m(
 			"section.card",
-			title === undefined
-				? null
-				: headActions === undefined
-					? m("h2", title)
-					: m("div.card-head", m("h2", title), m("div.actions", headActions)),
-			children,
+			extra === undefined ? {} : { class: extra },
+			[
+				title === undefined
+					? null
+					: headActions === undefined
+						? m("h2", title)
+						: m("div.card-head", m("h2", title), m("div.actions", headActions)),
+				children, // nested arrays are flattened by mithril
+			],
 		),
 };
 

@@ -60,6 +60,7 @@ import { encoder, loadEncoder } from "./src/encoder";
 import { flushLog, logEvent } from "./src/eventlog";
 import { t } from "./src/i18n";
 import { startModules, stopModules } from "./src/modules";
+import { startModules as startRegistryModules, stopModules as stopRegistryModules } from "./modules/registry.backend";
 import { startRemote, stopRemote } from "./src/remote";
 import { runAutostart } from "./src/stream";
 import { reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
@@ -75,6 +76,7 @@ async function main(): Promise<void> {
         logEvent("info", "Service", t("log.stopped_signal", signal));
         stopRemote();
         stopModules();   // obs-controller socket, kick poller, kick chat
+        stopRegistryModules();   // modules/<id>/backend.ts stop()s
         await stopInterfaceMonitor();
         await encoder().stop();
         await stopSrtla();
@@ -107,7 +109,9 @@ async function main(): Promise<void> {
     startApiServer();
     if (REMOTE_URL) startRemote();
 
-    // 5. Start enabled modules (obs-controller / kick-stats / kick-chat)
+    // 5. Start enabled modules (modules/ registry: moved modules) and the
+    //    legacy set (obs-controller / kick-stats / kick-chat, until they move)
+    void startRegistryModules();
     startModules();
 
     // 6. Resume the last stream if autostart is enabled (retries until it succeeds)

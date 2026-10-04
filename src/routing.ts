@@ -6,7 +6,8 @@ import { readFile } from "node:fs/promises";
 import { DEBOUNCE_MS, DRY_RUN, UPLINKS_FILE } from "./config";
 import { ip, query } from "./exec";
 import { writeFileAtomic } from "./files";
-import { detectModems, type ModemInfo, modemNetworkIface } from "./modems";
+import { modemServices } from "../modules/registry.backend";
+import type { ModemInfo } from "../modules/types";
 import { notifyStateChange, saveState, state } from "./state";
 import { errorMessage, readLines } from "./util";
 
@@ -60,12 +61,12 @@ async function linkSpeed(iface: string): Promise<number | undefined> {
 export async function detectInterfaces(modems?: ModemInfo[]): Promise<Iface[]> {
 	const [addrs, modemList] = await Promise.all([
 		query("ip", ["-o", "-4", "addr", "show", "up"]),
-		modems ?? detectModems(),
+		modems ?? modemServices.detect(),
 	]);
 	const modemByIface = new Map<string, ModemInfo>();
 	await Promise.all(
 		modemList.map(async (m) => {
-			const ifName = await modemNetworkIface(m);
+			const ifName = await modemServices.modemIface(m);
 			if (ifName) modemByIface.set(ifName, m);
 		}),
 	);

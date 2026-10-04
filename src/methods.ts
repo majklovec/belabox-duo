@@ -50,7 +50,8 @@ import { AUDIO_CODECS, AUDIO_DEFAULT, type EncoderConfig, encoder, listAudioSour
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
-import { connectModem, detectModems, disconnectModem, resetModem, setModemEnabled } from "./modems";
+import { callModule, moduleStatuses, modemServices } from "../modules/registry.backend";
+import type { ModemInfo } from "../modules/types";
 import {
 	ApiError,
 	checkColor,
@@ -99,8 +100,10 @@ const effectiveRole = (): Role => state.settings.role ?? ROLE;
 export async function buildStatus() {
 	const role = effectiveRole();
 	const enc = encoder();
-	// One ModemManager scan serves both the interface enrichment and the modem list
-	const modems = await detectModems();
+	// Module status fragments (modems module provides the modem list); one
+	// ModemManager scan serves both the interface enrichment and the modem list
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const modems = (await moduleStatuses().then((f) => f.modems) as any) as ModemInfo[];
 	const [interfaces, audioSources] = await Promise.all([
 		detectInterfaces(modems),
 		role !== "relay" ? listAudioSources() : [],
@@ -321,6 +324,22 @@ async function updateSettings(p: Params): Promise<object> {
 // ----------------------------------------------------------------------
 // Method table
 // ----------------------------------------------------------------------
+/**
+ * Which module owns each RPC method (dispatched through the backend
+ * registry; methods.ts never imports concrete modules). Extended as each
+ * module migrates (see TODO.md).
+ */
+const METHOD_OWNER: Record<string, string> = {
+	"modems.enable": "modems",
+	"modems.disable": "modems",
+	"modems.reset": "modems",
+	"modems.connect": "modems",
+	"modems.disconnect": "modems",
+};
+
+const moduleDispatch = (method: string, params: Record<string, unknown>): Promise<unknown> =>
+	callModule(METHOD_OWNER[method]!, method, params);
+
 const modemAction =
 	(action: string, fn: (index: number) => Promise<boolean>): Method =>
 	async (p) => {
@@ -390,7 +409,7 @@ const methods: Record<string, Method> = {
 	reconfigure: reconfigureAndReload,
 
 	"modems.list": async () => {
-		const modems = await detectModems();
+		const modems = await modemServices.detect();
 		const all = await detectInterfaces(modems);
 		return { selection: state.selection, selected: resolveSelection(all), modems };
 	},
@@ -416,11 +435,11 @@ const methods: Record<string, Method> = {
 	},
 
 	// Monitor picks up the resulting netlink events and pushes a status update
-	"modems.enable": modemAction("enable", (i) => setModemEnabled(i, true)),
-	"modems.disable": modemAction("disable", (i) => setModemEnabled(i, false)),
-	"modems.reset": modemAction("reset", resetModem),
-	"modems.connect": modemAction("connect", connectModem),
-	"modems.disconnect": modemAction("disconnect", disconnectModem),
+	"modems.enable": modemAction("enable", (i) => moduleDispatch("modems.enable", { index: i }) as Promise<boolean>),
+	"modems.disable": modemAction("disable", (i) => moduleDispatch("modems.disable", { index: i }) as Promise<boolean>),
+	"modems.reset": modemAction("reset", (i) => moduleDispatch("modems.reset", { index: i }) as Promise<boolean>),
+	"modems.connect": modemAction("connect", (i) => moduleDispatch("modems.connect", { index: i }) as Promise<boolean>),
+	"modems.disconnect": modemAction("disconnect", (i) => moduleDispatch("modems.disconnect", { index: i }) as Promise<boolean>),
 
 	"srtla.status": () => ({ srtla: srtlaStatus() }),
 
