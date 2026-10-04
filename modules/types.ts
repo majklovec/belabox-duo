@@ -65,6 +65,77 @@ export interface ModemInfo {
 	simPath?: string;
 }
 
+// ----------------------------------------------------------------------
+// Encoder module data types (shared by backend, state.ts, public/types.ts)
+// ----------------------------------------------------------------------
+
+/** A GStreamer pipeline file under PIPELINES_DIR. */
+export interface Pipeline {
+	id: string;       // path relative to PIPELINES_DIR
+	group: string;    // first directory component ("" for top-level files)
+	name: string;     // file name
+	asrc: boolean;    // captures from an ALSA card (source can be changed / removed)
+	acodec: boolean;  // encodes AAC (can be switched to Opus)
+	overlay: boolean; // has the bitrate text overlay
+}
+
+/** An available audio capture source (ALSA card id + display name). */
+export interface AudioSource { id: string; name: string; }
+
+/** Complete encoder start / restart configuration (drafts kept in state). */
+export interface EncoderConfig {
+	pipeline: string;
+	host: string;         // SRT destination (the relay, or 127.0.0.1 when combined)
+	port: string;
+	minBitrate: number;   // kbps
+	maxBitrate: number;   // kbps
+	latency: number;      // SRT latency, ms
+	delay: number;        // audio delay, ms
+	streamid?: string;
+	audioSource?: string; // ALSA card id, "default" or "none"
+	audioCodec?: "aac" | "opus";
+	bitrateOverlay?: boolean;
+}
+
+/** Live encoder state surfaced through status. */
+export interface EncoderState {
+	running: boolean;
+	pid?: number;
+	config?: EncoderConfig;   // last used; kept after stop so the UI can prefill
+	startedAt?: number;
+	restarts?: number;
+	lastError?: string;
+}
+
+export type CeraBalancer = "adaptive" | "fixed" | "aimd";
+
+/** Tuning of the adaptive (default) ceracoder balancer. */
+export interface AdaptiveTuning {
+	incrStep: number;      // Kbps
+	decrStep: number;      // Kbps
+	incrInterval: number;  // ms
+	decrInterval: number;  // ms
+}
+
+/** Tuning of the AIMD ceracoder balancer. */
+export interface AimdTuning {
+	incrStep: number;      // Kbps
+	decrMult: number;      // fraction of the bitrate kept on congestion (0-1)
+	incrInterval: number;  // ms
+	decrInterval: number;  // ms
+}
+
+/** Bitrate bounds (kbps) shared by wire validation and the UI, single source. */
+export const BITRATE_KBPS = { min: 300, max: 30_000 } as const;
+
+/** ceracoder parameters persisted in the device config (`ceracoder` section). */
+export interface CeraConfig {
+	balancer: CeraBalancer;
+	minBitrate: number;    // Kbps
+	adaptive: AdaptiveTuning;
+	aimd: AimdTuning;
+}
+
 /** A browser-side module: the card component plus the events it reacts to. */
 export interface BrowserModule {
 	id: string;

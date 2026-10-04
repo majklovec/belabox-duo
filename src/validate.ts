@@ -34,6 +34,7 @@ export const modulesForRole = (role: Role): string[] => {
 export const isRole = (v: unknown): v is Role => (ROLES as readonly unknown[]).includes(v);
 
 /** Encoder bitrate bounds (kbps). */
-export const BITRATE_KBPS = { min: 300, max: 30_000 } as const;
+// Single source: modules/types.ts (shared type contract of the module system).
+export { BITRATE_KBPS } from "../modules/types";
 
 export const DEFAULT_COLOR = "#3b82f6";

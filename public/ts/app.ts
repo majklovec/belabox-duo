@@ -2,7 +2,6 @@
  * role-specific function, and the event log. The WebSocket client mutates state and redraws. */
 import m from "mithril";
 import { badge, Page } from "./components/ui";
-import { encoderCard } from "./device/encoder";
 import { interfacesCard } from "./device/interfaces";
 import { LogCard } from "./device/log";
 import { srtlaCard } from "./device/srtla";
@@ -57,7 +56,7 @@ const App: m.Component = {
 		const hasEncoder = !!status && role !== "relay";
 		const hasRelay = !!status && role !== "encoder";
 		const children = [
-			hasEncoder && encoderCard(status),
+			hasEncoder && moduleCard("encoder", status),
 			hasRelay && [srtlaCard(status), interfacesCard(status), moduleCard("modems", status)],
 		];
 		return m(

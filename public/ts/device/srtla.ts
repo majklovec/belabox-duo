@@ -19,7 +19,7 @@ import {
 import { since } from "../util";
 import { t } from "../i18n";
 import { act, busy, enabled, fields, press, st } from "./store";
-import { encoderStart, streamButtons } from "./encoder";
+import { encoderStart, streamButtons } from "./store";
 
 type SrtlaOptions = Status["state"]["srtlaOptions"];
 

@@ -16,8 +16,8 @@ import type {
 	SrtlaStatsEvent,
 	Status,
 } from "../../types";
-import type { KeysOf } from "../components/ui";
-import { setHeaderColor } from "../util";
+import { actions, button, type KeysOf } from "../components/ui";
+import { optionalNumber, setHeaderColor } from "../util";
 import { t } from "../i18n";
 import { type Params, RpcClient, RpcError, socketUrl } from "../services/rpc";
 import { applyLog, log } from "./log";
@@ -137,6 +137,48 @@ export async function act<T = unknown>(key: string | null, method: string, param
 export function press(id: StateButton, method: string, params?: Params): void {
 	if (enabled(id)) void act(id, method, params);
 }
+
+// ----------------------------------------------------------------------
+// Stream start actions (shared by the encoder and SRTLA cards)
+// ----------------------------------------------------------------------
+export const selectedPipeline = (): Pipeline | undefined => st.pipelines.find((p) => p.id === fields.pipeline);
+
+/** Submit the encoder / stream form (see the encoder module card for the fields). */
+export function encoderStart(): void {
+	const status = st.status;
+	if (!status) return;
+	const pipeline = selectedPipeline();
+	const common = {
+		pipeline: fields.pipeline,
+		minBitrate: optionalNumber(fields.minBitrate),
+		maxBitrate: optionalNumber(fields.maxBitrate),
+		latency: optionalNumber(fields.latency),
+		delay: optionalNumber(fields.delay),
+		streamid: fields.streamid || undefined,
+		// Options the selected pipeline does not support are hidden; do not send their stale values
+		audioSource: pipeline?.asrc ? fields.audioSource || undefined : "default",
+		audioCodec: pipeline?.acodec ? fields.audioCodec || undefined : undefined,
+		bitrateOverlay: pipeline?.overlay ? fields.bitrateOverlay : false,
+	};
+	if (status.role === "combined") {
+		if (!fields.remoteHost || !fields.remotePort) return;
+		press("encoder-start", "stream.start", { ...common, remoteHost: fields.remoteHost, remotePort: fields.remotePort });
+	} else {
+		if (!fields.encHost || !fields.encPort) return;
+		press("encoder-start", "encoder.start", { ...common, host: fields.encHost, port: fields.encPort });
+	}
+}
+
+/** Start / Stop buttons for the stream (encoder card, or the SRTLA card of a combined device). */
+export const streamButtons = (stopMethod: string) =>
+	actions(
+		button(t("ui.start"), { type: "submit", disabled: !enabled("encoder-start") }),
+		button(t("ui.stop"), {
+			class: "danger",
+			disabled: !enabled("encoder-stop"),
+			onclick: () => press("encoder-stop", stopMethod),
+		}),
+	);
 
 // ----------------------------------------------------------------------
 // Status → form prefill

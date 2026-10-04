@@ -1,32 +1,56 @@
 /*
- * Encoder management for encoder / combined devices: pipeline discovery and the
- * `Encoder` base class (start / stop with automatic restart, live bitrate changes).
+ * Encoder module (modules/encoder/backend.ts).
  *
- * The concrete encoder is chosen by ENCODER_BIN (see encoder()):
- *   belacoder.ts  Belacoder — bitrate file (-b, min / max in bit/s)
- *   ceracoder.ts  Ceracoder — INI config (-c) with balancer tuning
- * Both take the same pipeline / SRT arguments and re-read their bitrate settings on SIGHUP.
+ * Encoder management for encoder / combined devices: pipeline discovery, the
+ * `Encoder` base class (start / stop with automatic restart, live bitrate
+ * changes) and the concrete encoders:
+ *   Belacoder  — bitrate control through a file holding the min and max
+ *                bitrate in bit/s (its -b flag)
+ *   Ceracoder  — INI config (-c) with balancer tuning
+ * Both take the same pipeline / SRT arguments and re-read their bitrate
+ * settings on SIGHUP.
  *
  * Pipelines are GStreamer pipeline files under PIPELINES_DIR, including
  * subdirectories (generic/, rk3588/, jetson/, custom/, ...). A pipeline's id
  * is its path relative to that directory, e.g. "rk3588/h265_hdmi_1440p25".
  *
- * Before launch the pipeline is adapted like belaUI does: the ALSA capture card
- * can be swapped or audio dropped, AAC can be replaced by Opus, and the bitrate
- * text overlay is removed unless requested. The result goes to a temp file.
+ * Before launch the pipeline is adapted like belaUI does: the ALSA capture
+ * card can be swapped or audio dropped, AAC can be replaced by Opus, and the
+ * bitrate text overlay is removed unless requested. The result goes to a
+ * temp file.
+ *
+ * Shared data types (EncoderConfig, EncoderState, Pipeline, AudioSource,
+ * ceracoder tuning types) live in modules/types.ts. The encoders are chosen by
+ * ENCODER_BIN (see loadEncoder()).
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve, sep } from "node:path";
-import { DRY_RUN, ENCODER_BIN, IS_CERA, PIPELINES_DIR } from "./config";
-import { logEvent } from "./eventlog";
-import { writeFileAtomic } from "./files";
-import { t } from "./i18n";
-import { notifyStateChange, saveState, state } from "./state";
-import { Supervisor } from "./supervisor";
-import { errorMessage, readLines } from "./util";
-import { BITRATE_KBPS } from "./validate";
-
+import {
+	BITRATE_FILE,
+	CERACODER_CONF,
+	DRY_RUN,
+	ENCODER_BIN,
+	IS_CERA,
+	PIPELINES_DIR,
+} from "../../src/config";
+import { logEvent } from "../../src/eventlog";
+import { writeFileAtomic } from "../../src/files";
+import { t } from "../../src/i18n";
+import { notifyStateChange, saveState, state } from "../../src/state";
+import { Supervisor } from "../../src/supervisor";
+import { errorMessage, readLines } from "../../src/util";
+import { BITRATE_KBPS } from "../types";
+import type {
+	AudioSource,
+	CeraBalancer,
+	CeraConfig,
+	DeviceModule,
+	EncoderConfig,
+	EncoderState,
+	ModuleContext,
+	Pipeline,
+} from "../types";
 const RESTART_DELAY_MS = 2_000;
 const STOP_TIMEOUT_MS = 5_000;
 const PIPELINE_TMP = join(tmpdir(), "srtla_belacoder_pipeline");
@@ -40,41 +64,9 @@ const BITRATE_OVERLAY = /textoverlay[^!]*name=overlay[^!]*!/g;
 export const AUDIO_DEFAULT = "default";   // keep the card named in the pipeline
 export const AUDIO_NONE = "none";         // strip the audio branch
 export const AUDIO_CODECS = ["aac", "opus"] as const;
-export type AudioCodec = (typeof AUDIO_CODECS)[number];
 
-export interface Pipeline {
-    id: string;       // path relative to PIPELINES_DIR
-    group: string;    // first directory component ("" for top-level files)
-    name: string;     // file name
-    asrc: boolean;    // captures from an ALSA card (source can be changed / removed)
-    acodec: boolean;  // encodes AAC (can be switched to Opus)
-    overlay: boolean; // has the bitrate text overlay
-}
 
-export interface AudioSource { id: string; name: string; }
 
-export interface EncoderConfig {
-    pipeline: string;
-    host: string;         // SRT destination (the relay, or 127.0.0.1 when combined)
-    port: string;
-    minBitrate: number;   // kbps
-    maxBitrate: number;   // kbps
-    latency: number;      // SRT latency, ms
-    delay: number;        // audio delay, ms
-    streamid?: string;
-    audioSource?: string; // ALSA card id, AUDIO_DEFAULT or AUDIO_NONE
-    audioCodec?: AudioCodec;
-    bitrateOverlay?: boolean;
-}
-
-export interface EncoderState {
-    running: boolean;
-    pid?: number;
-    config?: EncoderConfig;   // last used; kept after stop so the UI can prefill
-    startedAt?: number;
-    restarts?: number;
-    lastError?: string;
-}
 
 const pipelinesRoot = resolve(PIPELINES_DIR);
 
@@ -180,7 +172,7 @@ async function resolvePipeline(id: string): Promise<string> {
 // The encoder logs a lot; keep the last line that looks like a problem for the UI
 const ERROR_LINE = /error|fail|stall|unable|cannot|could not/i;
 
-export abstract class Encoder {
+abstract class Encoder {
     protected readonly name: string;
     private readonly supervisor = new Supervisor("Encoder", RESTART_DELAY_MS, (code) => this.onExit(code));
 
@@ -305,23 +297,222 @@ export abstract class Encoder {
     }
 }
 
+
+// ----------------------------------------------------------------------
+// Concrete encoders
+// ----------------------------------------------------------------------
+class Belacoder extends Encoder {
+    protected bitrateArgs(): string[] {
+        return ["-b", BITRATE_FILE];
+    }
+
+    protected writeBitrateControl(minKbps: number, maxKbps: number): Promise<void> {
+        const text = `${minKbps * 1000}\n${maxKbps * 1000}\n`;
+        return this.writeControlFile(BITRATE_FILE, text, ` ${text.replace(/\n/g, " ")}`);
+    }
+}
+
+
+// ceracoder (https://github.com/CERALIVE/ceracoder): the Ceracoder encoder and
+// its bitrate-control parameters (validation of UI updates, the INI config).
+//
+// When ENCODER_BIN points at ceracoder instead of belacoder, the encoder takes
+// its bitrate settings from a config file (-c) rather than the legacy bitrate
+// file (-b), and re-reads it on SIGHUP. Max bitrate and SRT latency live in
+// the encoder config (belacoder uses the same values), everything else in the
+// persisted ceracoder section.
+const CERA_BALANCERS = ["adaptive", "fixed", "aimd"] as const;
+
+const DEFAULT_CERA_CONFIG: CeraConfig = {
+	balancer: "adaptive",
+	minBitrate: 500,
+	adaptive: { incrStep: 30, decrStep: 100, incrInterval: 500, decrInterval: 200 },
+	aimd: { incrStep: 50, decrMult: 0.75, incrInterval: 500, decrInterval: 200 },
+};
+
+type Range = readonly [min: number, max: number];
+const STEP: Range = [1, 10_000];
+const INTERVAL: Range = [10, 60_000];
+/** Integer bounds per tuning field; `null` marks aimd.decrMult, a fraction in (0, 1). */
+const TUNING_RANGES = {
+	adaptive: { incrStep: STEP, decrStep: STEP, incrInterval: INTERVAL, decrInterval: INTERVAL },
+	aimd: { incrStep: STEP, decrMult: null, incrInterval: INTERVAL, decrInterval: INTERVAL },
+} as const;
+
+function intInRange(value: unknown, key: string, [min, max]: Range): number {
+	const n = Number(value);
+	if (!Number.isInteger(n) || n < min || n > max) {
+		throw new Error(`${key} must be an integer between ${min} and ${max}`);
+	}
+	return n;
+}
+
+/**
+ * Validate and merge a partial update (as sent by the UI) over the current
+ * settings; returns the complete new config. Throws on invalid values.
+ */
+function mergeCeraConfig(current: CeraConfig, partial: unknown): CeraConfig {
+	const p = (partial && typeof partial === "object" ? partial : {}) as Record<string, unknown>;
+	if (p.balancer != null && !CERA_BALANCERS.includes(p.balancer as CeraBalancer)) {
+		throw new Error(`Invalid balancer: ${String(p.balancer)}`);
+	}
+	const merged: CeraConfig = {
+		balancer: (p.balancer as CeraBalancer | undefined) ?? current.balancer,
+		minBitrate: p.minBitrate == null
+			? current.minBitrate
+			: intInRange(p.minBitrate, "minBitrate", [BITRATE_KBPS.min, BITRATE_KBPS.max]),
+		adaptive: { ...current.adaptive },
+		aimd: { ...current.aimd },
+	};
+
+	for (const group of ["adaptive", "aimd"] as const) {
+		const update = p[group];
+		if (update == null) continue;
+		if (typeof update !== "object") throw new Error(`${group} must be an object`);
+		const target = merged[group] as unknown as Record<string, number>;
+		for (const [key, range] of Object.entries(TUNING_RANGES[group])) {
+			const value = (update as Record<string, unknown>)[key];
+			const name = `${group}.${key}`;
+			if (range) {
+				if (value !== undefined) target[key] = intInRange(value, name, range);
+				continue;
+			}
+			const n = value === undefined ? target[key] : Number(value);
+			if (!Number.isFinite(n) || n <= 0 || n >= 1) {
+				throw new Error(`${name} must be a number between 0 and 1 (exclusive)`);
+			}
+			target[key] = n;
+		}
+	}
+	return merged;
+}
+
+/** Render the INI config as ceracoder's -c flag consumes it. */
+function ceraConfText(cfg: CeraConfig, maxBitrate: number, latency: number): string {
+	const section = (name: string, values: Record<string, number | string>) =>
+		[`[${name}]`, ...Object.entries(values).map(([k, v]) => `${k} = ${v}`), ""];
+	// Fixed key order (the persisted config sorts keys alphabetically)
+	const tuning = (group: "adaptive" | "aimd") =>
+		Object.fromEntries(Object.keys(TUNING_RANGES[group]).map((k) => [
+			k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`),
+			(cfg[group] as unknown as Record<string, number>)[k],
+		]));
+	return [
+		"# Generated by belabox-duo — do not hand-edit (use the control UI)",
+		"",
+		...section("general", { min_bitrate: cfg.minBitrate, max_bitrate: maxBitrate, balancer: cfg.balancer }),
+		...section("srt", { latency }),
+		...section("adaptive", tuning("adaptive")),
+		...section("aimd", tuning("aimd")),
+	].join("\n");
+}
+
+class Ceracoder extends Encoder {
+	/** Bitrate-control settings as persisted in the device state (defaults applied). */
+	config(): CeraConfig {
+		return state.ceracoder ?? DEFAULT_CERA_CONFIG;
+	}
+
+	/** Validate and persist a partial settings update, rewrite the INI and reload a running encoder. */
+	async update(partial: unknown): Promise<CeraConfig> {
+		const next = mergeCeraConfig(this.config(), partial);
+		state.ceracoder = next;
+		await this.writeBitrateControl(next.minBitrate, state.encoder.config?.maxBitrate ?? 5000);
+		this.reload();
+		await saveState();
+		return next;
+	}
+
+	override setBitrate(minKbps: number, maxKbps: number) {
+		// The INI reads the min from the persisted ceracoder section; keep it in sync
+		state.ceracoder = { ...this.config(), minBitrate: minKbps };
+		return super.setBitrate(minKbps, maxKbps);
+	}
+
+	protected bitrateArgs(): string[] {
+		return ["-c", CERACODER_CONF];
+	}
+
+	/** The min comes from the ceracoder section, the latency from the encoder config. */
+	protected writeBitrateControl(_minKbps: number, maxKbps: number): Promise<void> {
+		const latency = state.encoder.config?.latency ?? 2000;
+		return this.writeControlFile(CERACODER_CONF, ceraConfText(this.config(), maxKbps, latency));
+	}
+}
+
+
+// ----------------------------------------------------------------------
+// Module entry
+// ----------------------------------------------------------------------
+/** The device's encoder (see loadEncoder()). */
+function encoder(): Encoder {
+	if (!instance) throw new Error("encoder not loaded yet (call loadEncoder() at startup)");
+	return instance;
+}
+
 let instance: Encoder | null = null;
 
 /**
- * Create the device's encoder: Ceracoder when ENCODER_BIN is ceracoder, else Belacoder.
- * Called once at startup (client.ts). The subclasses import this module for the base
- * class, so they are imported dynamically here: a static import cycle would run
- * `class … extends Encoder` before Encoder exists.
+ * Create the device's encoder: Ceracoder when ENCODER_BIN is ceracoder, else
+ * Belacoder. Called once at startup (client.ts via the registry).
  */
-export async function loadEncoder(): Promise<Encoder> {
-    instance ??= IS_CERA
-        ? new (await import("./encoders/ceracoder")).Ceracoder(ENCODER_BIN)
-        : new (await import("./encoders/belacoder")).Belacoder(ENCODER_BIN);
-    return instance;
+export function loadEncoder(): Encoder {
+	instance ??= IS_CERA ? new Ceracoder(ENCODER_BIN) : new Belacoder(ENCODER_BIN);
+	return instance;
 }
 
-/** The device's encoder (see loadEncoder()). */
-export function encoder(): Encoder {
-    if (!instance) throw new Error("encoder not loaded yet (call loadEncoder() at startup)");
-    return instance;
-}
+export const encoderServices = {
+	loadEncoder,
+	encoder,
+	listPipelines,
+	listAudioSources,
+	AUDIO_CODECS,
+	AUDIO_DEFAULT,
+	AUDIO_NONE,
+	isCera: (enc: Encoder): boolean => enc instanceof Ceracoder,
+	/** Persisted ceracoder settings, or null when the encoder is not ceracoder. */
+	ceracoderConfig: (): CeraConfig | null => {
+		const enc = encoder();
+		return enc instanceof Ceracoder ? enc.config() : null;
+	},
+};
+
+const methods = ["encoder.status", "encoder.start", "encoder.stop", "encoder.bitrate", "ceracoder.set"] as const;
+
+export const encoderModule: DeviceModule = {
+	id: "encoder",
+	title: "Encoder",
+	configSchema: null,
+	secretFields: [],
+	async start(_ctx: ModuleContext) {},
+	async stop() {
+		await encoder().stop();
+	},
+	methods,
+	events: [],
+	async dispatch(method, params) {
+		switch (method) {
+			case "encoder.status":
+				return encoder().status();
+			case "encoder.start":
+				await encoder().start(params as unknown as EncoderConfig);
+				return encoder().status();
+			case "encoder.stop":
+				await encoder().stop();
+				return encoder().status();
+			case "encoder.bitrate":
+				return encoder().setBitrate(Number(params["minBitrate"]), Number(params["maxBitrate"]));
+			case "ceracoder.set": {
+				const enc = encoder();
+				if (!(enc instanceof Ceracoder)) throw new Error("The device encoder is not ceracoder");
+				return enc.update(params);
+			}
+			default:
+				throw new Error(`unknown method ${method}`);
+		}
+	},
+	async status() {
+		const enc = encoder();
+		return { ceracoder: enc instanceof Ceracoder ? enc.config() : null };
+	},
+};

@@ -44,14 +44,12 @@
  * responses carry `"logged": true` so clients do not log them a second time.
  */
 import { randomUUID } from "node:crypto";
-import { Ceracoder } from "./encoders/ceracoder";
 import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
-import { AUDIO_CODECS, AUDIO_DEFAULT, type EncoderConfig, encoder, listAudioSources, listPipelines } from "./encoder";
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
-import { callModule, moduleStatuses, modemServices } from "../modules/registry.backend";
-import type { ModemInfo } from "../modules/types";
+import { callModule, encoderServices, moduleStatuses, modemServices } from "../modules/registry.backend";
+import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo } from "../modules/types";
 import {
 	ApiError,
 	checkColor,
@@ -99,14 +97,15 @@ const effectiveRole = (): Role => state.settings.role ?? ROLE;
 
 export async function buildStatus() {
 	const role = effectiveRole();
-	const enc = encoder();
-	// Module status fragments (modems module provides the modem list); one
-	// ModemManager scan serves both the interface enrichment and the modem list
+	const enc = encoderServices.encoder();
+	// Module status fragments (modems module provides the modem list, encoder
+	// the ceracoder settings); one ModemManager scan serves both the interface
+	// enrichment and the modem list
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const modems = (await moduleStatuses().then((f) => f.modems) as any) as ModemInfo[];
 	const [interfaces, audioSources] = await Promise.all([
 		detectInterfaces(modems),
-		role !== "relay" ? listAudioSources() : [],
+		role !== "relay" ? encoderServices.listAudioSources() : [],
 	]);
 	return {
 		role,
@@ -129,7 +128,7 @@ export async function buildStatus() {
 		srtlaControl: srtlaControlState(),
 		monitor: { running: isMonitorRunning(), reloadMode: RELOAD_MODE },
 		// null when the encoder binary is not ceracoder; the UI hides its settings then
-		ceracoder: enc instanceof Ceracoder ? enc.config() : null,
+		ceracoder: encoderServices.ceracoderConfig(),
 		// Module system: enabled flags + non-secret settings (secrets => {configured})
 		modules: modulesView(),
 	};
@@ -174,9 +173,9 @@ function parseEncoderConfig(p: Params, host: string, port: string): EncoderConfi
 	const prev = state.encoder.config;
 	const streamid = p.streamid === undefined || p.streamid === "" ? undefined : requireString(p, "streamid");
 	const audioSource = p.audioSource === undefined || p.audioSource === ""
-		? prev?.audioSource ?? AUDIO_DEFAULT
+		? prev?.audioSource ?? encoderServices.AUDIO_DEFAULT
 		: requireString(p, "audioSource");
-	const audioCodec = oneOf(p.audioCodec ?? prev?.audioCodec ?? "aac", "audioCodec", AUDIO_CODECS);
+	const audioCodec = oneOf(p.audioCodec ?? prev?.audioCodec ?? "aac", "audioCodec", encoderServices.AUDIO_CODECS);
 	if (p.bitrateOverlay !== undefined) requireBoolean(p, "bitrateOverlay");
 	const { minBitrate, maxBitrate } = parseBitrates(p);
 	return {
@@ -212,7 +211,7 @@ async function startStream(p: Params) {
 	const cfg = parseEncoderConfig(p, "127.0.0.1", listenPort);
 	cancelAutostart();
 	await startChecked(() => startCombined({ remoteHost, remotePort, listenPort }, cfg));
-	return { srtla: srtlaStatus(), encoder: encoder().status() };
+	return { srtla: srtlaStatus(), encoder: encoderServices.encoder().status() };
 }
 
 // ----------------------------------------------------------------------
@@ -330,6 +329,11 @@ async function updateSettings(p: Params): Promise<object> {
  * module migrates (see TODO.md).
  */
 const METHOD_OWNER: Record<string, string> = {
+	"encoder.status": "encoder",
+	"encoder.start": "encoder",
+	"encoder.stop": "encoder",
+	"encoder.bitrate": "encoder",
+	"ceracoder.set": "encoder",
 	"modems.enable": "modems",
 	"modems.disable": "modems",
 	"modems.reset": "modems",
@@ -394,8 +398,8 @@ const methods: Record<string, Method> = {
 		hostname: state.settings.hostname ?? "",
 		color: state.settings.color ?? DEFAULT_COLOR,
 		language: uiLanguage(),
-		pipelines: await listPipelines(),
-		audioSources: await listAudioSources(),
+		pipelines: await encoderServices.listPipelines(),
+		audioSources: await encoderServices.listAudioSources(),
 	}),
 
 	"setup.complete": setupComplete,
@@ -481,7 +485,7 @@ const methods: Record<string, Method> = {
 		return result;
 	},
 
-	"pipelines.list": async () => ({ dir: PIPELINES_DIR, pipelines: await listPipelines() }),
+	"pipelines.list": async () => ({ dir: PIPELINES_DIR, pipelines: await encoderServices.listPipelines() }),
 
 	"pipelines.repositories.add": async (p) => {
 		const repository = requireString(p, "repository").trim();
@@ -508,29 +512,28 @@ const methods: Record<string, Method> = {
 		return { repositories, results };
 	},
 
-	"encoder.status": () => ({ encoder: encoder().status() }),
+	"encoder.status": () => ({ encoder: encoderServices.encoder().status() }),
 
 	"encoder.start": manual(async (p) => {
 		const cfg = parseEncoderConfig(p, requireHost(p, "host"), requirePort(p, "port"));
-		return { encoder: await startChecked(() => encoder().start(cfg)) };
+		return { encoder: await startChecked(() => moduleDispatch("encoder.start", cfg as unknown as Record<string, unknown>) as Promise<EncoderState>) };
 	}),
 
 	"encoder.stop": manual(async () => {
-		await encoder().stop();
-		return { encoder: encoder().status() };
+		await moduleDispatch("encoder.stop", {});
+		return { encoder: encoderServices.encoder().status() };
 	}),
 
 	"encoder.bitrate": async (p) => {
 		if (p.minBitrate === undefined && p.maxBitrate === undefined) throw new ApiError("maxBitrate or minBitrate is required");
 		const { minBitrate, maxBitrate } = parseBitrates(p, true);
-		return { encoder: await encoder().setBitrate(minBitrate, maxBitrate) };
+		return { encoder: (await moduleDispatch("encoder.bitrate", { minBitrate, maxBitrate })) as EncoderState };
 	},
 
 	"ceracoder.set": async (p) => {
-		const enc = encoder();
-		if (!(enc instanceof Ceracoder)) throw new ApiError("The device encoder is not ceracoder");
+		if (!encoderServices.isCera(encoderServices.encoder())) throw new ApiError("The device encoder is not ceracoder");
 		try {
-			return { ceracoder: await enc.update(p) };
+			return { ceracoder: (await moduleDispatch("ceracoder.set", p)) as CeraConfig };
 		} catch (e: unknown) {
 			throw new ApiError(errorMessage(e));
 		}
@@ -540,7 +543,7 @@ const methods: Record<string, Method> = {
 
 	"stream.stop": manual(async () => {
 		await stopCombined();
-		return { srtla: srtlaStatus(), encoder: encoder().status() };
+		return { srtla: srtlaStatus(), encoder: encoderServices.encoder().status() };
 	}),
 
 	"autostart.set": async (p) => {

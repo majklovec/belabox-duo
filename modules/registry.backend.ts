@@ -17,14 +17,21 @@ import { logEvent } from "../src/eventlog";
 import { pushModuleEvent } from "../src/push";
 import { state } from "../src/state";
 import type { DeviceModule, ModuleContext } from "./types";
-// import { encoderModule } from "./encoder/backend";
+import { encoderModule, encoderServices } from "./encoder/backend";
 // import { srtlaModule } from "./srtla/backend";
 import { detectModems, modemNetworkIface, modemsModule } from "./modems/backend";
 // import { obsModule } from "./obs-controller/backend";
 // import { kickStatsModule } from "./kick-stats/backend";
 // import { kickChatModule } from "./kick-chat/backend";
 
-export const ALL_MODULES: DeviceModule[] = [modemsModule];
+export const ALL_MODULES: DeviceModule[] = [encoderModule, modemsModule];
+
+/**
+ * Encoder services consumed by the core (stream orchestration in stream.ts,
+ * status build, shutdown in client.ts) — the registry is the door into the
+ * encoder module.
+ */
+export { encoderServices };
 
 /** Module by id, or undefined. */
 export const getModule = (id: string) => ALL_MODULES.find((m) => m.id === id);

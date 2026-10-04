@@ -10,15 +10,16 @@ import m from "mithril";
 import type { BrowserModule } from "./types";
 import type { Status } from "../public/types";
 
-// import { encoderFrontend } from "./encoder/frontend";
+import { encoderModule } from "./encoder/frontend";
 // import { srtlaFrontend } from "./srtla/frontend";
-import { modemsFrontend } from "./modems/frontend";
+import { modemsModule } from "./modems/frontend";
 // import { obsFrontend } from "./obs-controller/frontend";
 // import { kickStatsFrontend } from "./kick-stats/frontend";
 // import { kickChatFrontend } from "./kick-chat/frontend";
 
 export const FRONTEND_MODULES: BrowserModule[] = [
-	modemsFrontend,
+	encoderModule,
+	modemsModule,
 ];
 
 export const getFrontendModule = (id: string) => FRONTEND_MODULES.find((mod) => mod.id === id);

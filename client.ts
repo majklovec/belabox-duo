@@ -56,18 +56,17 @@
 
 import { startApiServer } from "./src/api";
 import { argv, HAS_RELAY, REMOTE_URL, ROLE } from "./src/config";
-import { encoder, loadEncoder } from "./src/encoder";
 import { flushLog, logEvent } from "./src/eventlog";
 import { t } from "./src/i18n";
 import { startModules, stopModules } from "./src/modules";
-import { startModules as startRegistryModules, stopModules as stopRegistryModules } from "./modules/registry.backend";
+import { encoderServices, startModules as startRegistryModules, stopModules as stopRegistryModules } from "./modules/registry.backend";
 import { startRemote, stopRemote } from "./src/remote";
 import { runAutostart } from "./src/stream";
 import { reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
 import { maybeStartSrtla, reloadSrtla, stopSrtla } from "./src/srtla";
 
 async function main(): Promise<void> {
-    await loadEncoder();
+    void encoderServices.loadEncoder();
     console.log(`=== SRTLA Bonding Setup (Bun) — role: ${ROLE} ===\n`);
 
     const shutdown = async (signal: string) => {
@@ -78,7 +77,7 @@ async function main(): Promise<void> {
         stopModules();   // obs-controller socket, kick poller, kick chat
         stopRegistryModules();   // modules/<id>/backend.ts stop()s
         await stopInterfaceMonitor();
-        await encoder().stop();
+        await encoderServices.encoder().stop();
         await stopSrtla();
         await flushLog();
         process.exit(0);

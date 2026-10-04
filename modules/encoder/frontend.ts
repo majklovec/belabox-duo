@@ -1,7 +1,7 @@
 /* Encoder card: status rows, the stream form and (on ceracoder devices) bitrate control. */
 import m from "mithril";
-import type { CeraBalancer, Pipeline, Status } from "../../types";
-import { BITRATE_KBPS } from "../../../src/validate";
+import type { CeraBalancer, Pipeline, Status } from "../../public/types";
+import { BITRATE_KBPS } from "../../public/types";
 import {
 	actions,
 	audioCodecOptions,
@@ -21,48 +21,21 @@ import {
 	numberAttrs,
 	options,
 	select,
-} from "../components/ui";
-import { optionalNumber, since } from "../util";
-import { t } from "../i18n";
-import { cera, enabled, fields, press, st, touched } from "./store";
-
-const selectedPipeline = (): Pipeline | undefined => st.pipelines.find((p) => p.id === fields.pipeline);
-
-export function encoderStart(): void {
-	const status = st.status;
-	if (!status) return;
-	const pipeline = selectedPipeline();
-	const common = {
-		pipeline: fields.pipeline,
-		minBitrate: optionalNumber(fields.minBitrate),
-		maxBitrate: optionalNumber(fields.maxBitrate),
-		latency: optionalNumber(fields.latency),
-		delay: optionalNumber(fields.delay),
-		streamid: fields.streamid || undefined,
-		// Options the selected pipeline does not support are hidden; do not send their stale values
-		audioSource: pipeline?.asrc ? fields.audioSource || undefined : "default",
-		audioCodec: pipeline?.acodec ? fields.audioCodec || undefined : undefined,
-		bitrateOverlay: pipeline?.overlay ? fields.bitrateOverlay : false,
-	};
-	if (status.role === "combined") {
-		if (!fields.remoteHost || !fields.remotePort) return;
-		press("encoder-start", "stream.start", { ...common, remoteHost: fields.remoteHost, remotePort: fields.remotePort });
-	} else {
-		if (!fields.encHost || !fields.encPort) return;
-		press("encoder-start", "encoder.start", { ...common, host: fields.encHost, port: fields.encPort });
-	}
-}
-
-/** Start / Stop buttons for the stream (encoder card, or the SRTLA card of a combined device). */
-export const streamButtons = (stopMethod: string) =>
-	actions(
-		button(t("ui.start"), { type: "submit", disabled: !enabled("encoder-start") }),
-		button(t("ui.stop"), {
-			class: "danger",
-			disabled: !enabled("encoder-stop"),
-			onclick: () => press("encoder-stop", stopMethod),
-		}),
-	);
+} from "../../public/ts/components/ui";
+import { t } from "../../public/ts/i18n";
+import { optionalNumber, since } from "../../public/ts/util";
+import {
+	cera,
+	enabled,
+	encoderStart,
+	fields,
+	press,
+	selectedPipeline,
+	st,
+	streamButtons,
+	touched,
+} from "../../public/ts/device/store";
+import type { BrowserModule } from "../types";
 
 // ----------------------------------------------------------------------
 // ceracoder bitrate control
@@ -168,12 +141,12 @@ function statusRows(status: Status): [string, Child][] {
 	];
 }
 
-export function encoderCard(status: Status): m.Vnode {
+function encoderCard(status: Status): m.Vnode {
 	const combined = status.role === "combined";
 	const pipeline = selectedPipeline();
 	return m(
 		Card,
-		{ title: t("dev.card.encoder") },
+		{ title: t("dev.card.encoder"), class: "mod-encoder" },
 		definitionList(statusRows(status)),
 		form(
 			{ onSubmit: encoderStart },
@@ -243,3 +216,11 @@ export function encoderCard(status: Status): m.Vnode {
 		),
 	);
 }
+
+
+export const encoderModule: BrowserModule = {
+	id: "encoder",
+	title: "Encoder",
+	defaultWidth: "full",
+	component: encoderCard,
+};

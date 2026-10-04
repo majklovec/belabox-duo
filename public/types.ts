@@ -1,16 +1,15 @@
 /* Wire types shared by the device UI, the device list and the control server. */
-import type { CeraConfig } from "../src/encoders/ceracoder";
-import type { AudioSource, EncoderState } from "../src/encoder";
+import type { AudioSource, CeraConfig, EncoderState, ModemInfo } from "../modules/types";
 import type { Language } from "../src/i18n";
-import type { ModemInfo } from "../modules/types";
 import type { Iface, ModemConfig } from "../src/routing";
 import type { SrtlaState } from "../src/srtla";
 import type { SrtlaControlState } from "../src/srtlaControl";
 import type { SrtlaOptions, SrtlaTarget, StreamTarget } from "../src/state";
 import type { Role } from "../src/validate";
 
-export type { CeraBalancer, CeraConfig } from "../src/encoders/ceracoder";
-export type { AudioSource, EncoderState, Pipeline } from "../src/encoder";
+export { BITRATE_KBPS } from "../modules/types";
+export type { CeraBalancer, CeraConfig, ModemInfo } from "../modules/types";
+export type { AudioSource, EncoderConfig, EncoderState, Pipeline } from "../modules/types";
 export type { SrtlaLinkStats, SrtlaMode, SrtlaStats, SrtlaStatsEvent } from "../src/srtlaControl";
 export type { Role, SrtlaState, StreamTarget };
 

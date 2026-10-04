@@ -48,7 +48,7 @@ function modemPanel(modem: ModemInfo): m.Vnode {
 	);
 }
 
-export const modemsFrontend: BrowserModule = {
+export const modemsModule: BrowserModule = {
 	id: "modems",
 	title: "Modems",
 	defaultWidth: "full",
