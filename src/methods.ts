@@ -48,7 +48,7 @@ import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
-import { callModule, encoderServices, getModule, kickStatsServices, moduleStatuses, modemServices, obsServices, restartRegisteredModule, srtlaServices } from "../modules/registry.backend";
+import { callModule, encoderServices, getModule, kickChatServices, kickStatsServices, moduleStatuses, modemServices, obsServices, restartRegisteredModule, srtlaServices } from "../modules/registry.backend";
 import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo, SrtlaState } from "../modules/types";
 import {
 	ApiError,
@@ -66,8 +66,7 @@ import {
 	requirePort,
 	requireString,
 } from "./params";
-import { kickChatHistory } from "./modules/kick-chat";
-import { configureModule, moduleEnabled, modulesView, restartModule } from "./modules";
+import { configureModule, moduleEnabled, modulesView } from "./modules";
 import { removePipelineRepository, syncPipelineRepository } from "./pipelineRepos";
 import { applyRemoteSettings } from "./remote";
 import { detectInterfaces, isMonitorRunning, type ModemConfig, reconfigure, resolveSelection, setSelection } from "./routing";
@@ -343,6 +342,7 @@ const METHOD_OWNER: Record<string, string> = {
 	"obs.request": "obs-controller",
 	"obs.requestBatch": "obs-controller",
 	"obs.setEventSubscriptions": "obs-controller",
+	"kick.chat.get": "kick-chat",
 	"kick.stats.get": "kick-stats",
 };
 
@@ -535,8 +535,8 @@ const methods: Record<string, Method> = {
 		const modules = (state.settings.modules ??= defaultModules(ROLE));
 		modules[id].enabled = true;
 		saveState();
-		if (getModule(id)) void restartRegisteredModule(id);
-		else restartModule(id);
+		// relay has no running state to re-apply; real modules go through the registry
+		void restartRegisteredModule(id);
 		return { ok: true, modules: modulesView() };
 	},
 	"modules.disable": (p) => {
@@ -544,8 +544,8 @@ const methods: Record<string, Method> = {
 		const modules = (state.settings.modules ??= defaultModules(ROLE));
 		modules[id].enabled = false;
 		saveState();
-		if (getModule(id)) void restartRegisteredModule(id);
-		else restartModule(id);
+		// relay has no running state to re-apply; real modules go through the registry
+		void restartRegisteredModule(id);
 		return { ok: true, modules: modulesView() };
 	},
 	"modules.configure": (p) => {
@@ -563,6 +563,12 @@ const methods: Record<string, Method> = {
 			// Registered module: the kick-stats slice is applied by the module
 			// itself, then re-applied through the registry
 			kickStatsServices.configure(config);
+			saveState();
+			void restartRegisteredModule(id);
+		} else if (id === KICK_CHAT_MODULE) {
+			// Registered module: the kick-chat slice is applied by the module
+			// itself, then re-applied through the registry
+			kickChatServices.configure(config);
 			saveState();
 			void restartRegisteredModule(id);
 		} else {
@@ -615,9 +621,11 @@ const methods: Record<string, Method> = {
 
 	// -------------------------------------------------------------------- kick
 	"kick.stats.get": () => moduleDispatch("kick.stats.get", {}),
-	"kick.chat.get": (p) => {
+	"kick.chat.get": async (p) => {
 		const limit = optionalInt(p, "limit", 500, 1, 1000);
-		return { messages: kickChatHistory(limit), stats: kickStatsServices.latest() };
+		const r = (await moduleDispatch("kick.chat.get", { limit })) as { messages: Array<Record<string, unknown>> };
+		// kick.chat.get also surfaces the latest kick.stats sample (cross-module)
+		return { messages: r.messages, stats: kickStatsServices.latest() };
 	},
 };
 

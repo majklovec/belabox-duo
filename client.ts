@@ -59,7 +59,6 @@ import { startApiServer } from "./src/api";
 import { argv, HAS_RELAY, REMOTE_URL, ROLE } from "./src/config";
 import { flushLog, logEvent } from "./src/eventlog";
 import { t } from "./src/i18n";
-import { startModules, stopModules } from "./src/modules";
 import { encoderServices, startModules as startRegistryModules, stopModules as stopRegistryModules } from "./modules/registry.backend";
 import { startRemote, stopRemote } from "./src/remote";
 import { runAutostart } from "./src/stream";
@@ -75,7 +74,6 @@ async function main(): Promise<void> {
         // Before stopRemote so the control server still receives it
         logEvent("info", "Service", t("log.stopped_signal", signal));
         stopRemote();
-        stopModules();   // kick poller, kick chat
         stopRegistryModules();   // modules/<id>/backend.ts stop()s
         await stopInterfaceMonitor();
         await encoderServices.encoder().stop();
@@ -109,10 +107,8 @@ async function main(): Promise<void> {
     startApiServer();
     if (REMOTE_URL) startRemote();
 
-    // 5. Start enabled modules (modules/ registry: moved modules) and the
-    //    legacy set (kick-stats / kick-chat, until they move)
+    // 5. Start enabled modules (modules/ registry)
     void startRegistryModules();
-    startModules();
 
     // 6. Resume the last stream if autostart is enabled (retries until it succeeds)
     runAutostart();

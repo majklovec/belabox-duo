@@ -15,7 +15,7 @@ import { srtlaModule } from "./srtla/frontend";
 import { modemsModule } from "./modems/frontend";
 import { obsControllerModule } from "./obs-controller/frontend";
 import { kickStatsModule } from "./kick-stats/frontend";
-// import { kickChatFrontend } from "./kick-chat/frontend";
+import { kickChatModule } from "./kick-chat/frontend";
 
 export const FRONTEND_MODULES: BrowserModule[] = [
 	encoderModule,
@@ -23,6 +23,7 @@ export const FRONTEND_MODULES: BrowserModule[] = [
 	modemsModule,
 	obsControllerModule,
 	kickStatsModule,
+	kickChatModule,
 ];
 
 export const getFrontendModule = (id: string) => FRONTEND_MODULES.find((mod) => mod.id === id);
