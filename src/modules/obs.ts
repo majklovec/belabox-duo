@@ -15,6 +15,9 @@ import { pushModuleEvent } from "../push";
 import { OBS_MODULE, state } from "../state";
 
 // op5 events forwarded to the UI; the ones an operator dashboard reacts to.
+// OBS v5 output events carry no "Current" prefix — they are StreamStateChanged /
+// RecordStateChanged (the names the dashboards already listen for), unlike the
+// scene/input events above.
 const FORWARDED_EVENTS = [
     "CurrentProgramSceneChanged",
     "CurrentPreviewSceneChanged",
@@ -26,8 +29,8 @@ const FORWARDED_EVENTS = [
     "SceneItemRemoved",
     "MediaInputPlaybackStateChanged",
     "MediaInputStateChanged",
-    "CurrentStreamStateChanged",
-    "CurrentRecordingStateChanged",
+    "StreamStateChanged",
+    "RecordStateChanged",
 ] as const;
 
 let obsClient: ObsClient | null = null;

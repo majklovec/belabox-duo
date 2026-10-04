@@ -152,27 +152,34 @@ export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
 			}
 			m.redraw();
 		});
-		// Warm start: pull last snapshots (a 409 means the module is not enabled there)
-		const kinds = (dash?.widgets ?? []).map((w) => w.type);
-		if (kinds.includes("obs")) {
-			rpc
-				.call("obs.request", { requestType: "GetVersion" })
-				.then(() => (live.obsConnected = true))
-				.catch(() => undefined);
-		}
-		if (kinds.includes("kick-stats")) {
-			rpc
-				.call<{ stats?: KickStats }>("kick.stats.get")
-				.then((r) => (live.kickStats = r.stats))
-				.catch(() => undefined);
-		}
-		if (kinds.includes("kick-chat")) {
-			rpc
-				.call<{ messages?: KickChatMessage[]; stats?: KickStats }>("kick.chat.get", { limit: KICK_CHAT_CAP })
-				.then((r) => (live.kickChat = (r.messages ?? []).slice(0, KICK_CHAT_CAP)))
-				.catch(() => undefined);
-		}
-		void rpc.call("status").catch(() => undefined);
+		// Warm start: pull last snapshots once the socket is open (a 409 means the
+		// module is not enabled there). `call` rejects before the socket is OPEN, so
+		// this must run from the "open" event — initial connect and every reconnect.
+		rpc.on("open", () => {
+			const kinds = (dash?.widgets ?? []).map((w) => w.type);
+			if (kinds.includes("obs")) {
+				rpc
+					.call("obs.request", { requestType: "GetVersion" })
+					.then(() => {
+						live.obsConnected = true;
+						m.redraw();
+					})
+					.catch(() => undefined);
+			}
+			if (kinds.includes("kick-stats")) {
+				rpc
+					.call<{ stats?: KickStats }>("kick.stats.get")
+					.then((r) => (live.kickStats = r.stats))
+					.catch(() => undefined);
+			}
+			if (kinds.includes("kick-chat")) {
+				rpc
+					.call<{ messages?: KickChatMessage[]; stats?: KickStats }>("kick.chat.get", { limit: KICK_CHAT_CAP })
+					.then((r) => (live.kickChat = (r.messages ?? []).slice(0, KICK_CHAT_CAP)))
+					.catch(() => undefined);
+			}
+			void rpc.call("status").catch(() => undefined);
+		});
 	}
 }
 

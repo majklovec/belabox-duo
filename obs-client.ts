@@ -504,7 +504,10 @@ export class ObsClient {
     const res = await this.sendBatch(batch);
     for (const r of res.results) {
       if (!r.requestStatus.result) {
-        this.opts.log(`state replay: ${r.requestType} failed`, r.requestStatus);
+        // 506 = UNSUPPORTED_REQUEST: OBS has no preview scene until
+        // Multi-View is enabled — an expected state, not a fault
+        if (r.requestStatus.code !== 506)
+          this.opts.log(`state replay: ${r.requestType} failed`, r.requestStatus);
         continue;
       }
       const ev = mapResponseToEvent(r);
@@ -587,7 +590,9 @@ const LIVENESS_TIMEOUT_MS = 45_000;
 // The obs-controller module tag the control server / dashboards expect
 const OBS_MODULE = "obs-controller";
 
-// op5 events forwarded to the control server (mirrors src/modules/obs.ts)
+// op5 events forwarded to the control server (mirrors src/modules/obs.ts).
+// Note: OBS v5 output events carry no "Current" prefix — it is StreamStateChanged /
+// RecordStateChanged (the same names mapResponseToEvent uses), not *CurrentRecordingStateChanged*.
 const FORWARDED_EVENTS = [
   "CurrentProgramSceneChanged",
   "CurrentPreviewSceneChanged",
@@ -599,8 +604,8 @@ const FORWARDED_EVENTS = [
   "SceneItemRemoved",
   "MediaInputPlaybackStateChanged",
   "MediaInputStateChanged",
-  "CurrentStreamStateChanged",
-  "CurrentRecordingStateChanged",
+  "StreamStateChanged",
+  "RecordStateChanged",
 ] as const;
 
 // Case-insensitive event-name -> subscription bit (same names methods.ts accepts)
