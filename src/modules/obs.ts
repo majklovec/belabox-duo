@@ -10,7 +10,7 @@ import {
     OBS_DISCONNECTED_EVENT,
     DEFAULT_EVENT_SUBSCRIPTIONS,
     EventSubscription,
-} from "./obs-client";
+} from "../../obs-client";
 import { pushModuleEvent } from "../push";
 import { OBS_MODULE, state } from "../state";
 

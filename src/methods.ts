@@ -71,7 +71,7 @@ import { kickChatHistory } from "./modules/kick-chat";
 import { kickStatsLatest } from "./modules/kick-stats";
 import { obsClientFor } from "./modules/obs";
 import { configureModule, moduleEnabled, modulesView, restartModule } from "./modules";
-import { type ObsClient, type ObsRequestBatch, EventSubscription } from "./modules/obs-client";
+import { type ObsClient, type ObsRequestBatch, EventSubscription } from "../obs-client";
 import { removePipelineRepository, syncPipelineRepository } from "./pipelineRepos";
 import { applyRemoteSettings } from "./remote";
 import { detectInterfaces, isMonitorRunning, type ModemConfig, reconfigure, resolveSelection, setSelection } from "./routing";

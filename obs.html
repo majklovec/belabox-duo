@@ -445,12 +445,6 @@
         <main class="deck" id="deck"></main>
       </section>
     </div>
-
-    <!-- ─── Footer ─── -->
-    <footer class="footer">
-      <button id="addSceneBtn">+ Add Scene Button</button>
-      <button id="addActionBtn">+ Add Action Button</button>
-    </footer>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.8/dist/obs-ws.min.js"></script>
@@ -469,8 +463,8 @@
 
     const deckEl = document.getElementById('deck');
     const refreshBtn = document.getElementById('refreshBtn');
-    const addSceneBtn = document.getElementById('addSceneBtn');
-    const addActionBtn = document.getElementById('addActionBtn');
+    // const addSceneBtn = document.getElementById('addSceneBtn');
+    // const addActionBtn = document.getElementById('addActionBtn');
 
     const previewImg = document.getElementById('previewImg');
     const previewWrapper = document.getElementById('previewWrapper');
@@ -933,34 +927,34 @@
       }
     });
 
-    addSceneBtn.addEventListener('click', () => {
-      if (!obs.identified) return;
-      const name = prompt('Enter scene name to add as button:');
-      if (!name) return;
-      if (!scenes.some(s => s.sceneName === name)) {
-        alert('Scene not found. Use "Refresh Scenes" to load current scenes.');
-        return;
-      }
-      if (deckEl.querySelector(`.deck-button[data-scene-name="${CSS.escape(name)}"]`)) {
-        alert('Button already exists.');
-        return;
-      }
-      const btn = createDeckButton({
-        label: name, icon: '🎬', type: 'scene',
-        onClick: async () => {
-          await obs.call('SetCurrentProgramScene', { sceneName: name });
-          setActiveScene(name);
-        },
-      });
-      btn.dataset.sceneName = name;
-      deckEl.appendChild(btn);
-    });
+    // addSceneBtn.addEventListener('click', () => {
+    // if (!obs.identified) return;
+    // const name = prompt('Enter scene name to add as button:');
+    // if (!name) return;
+    // if (!scenes.some(s => s.sceneName === name)) {
+    //   alert('Scene not found. Use "Refresh Scenes" to load current scenes.');
+    //   return;
+    // }
+    // if (deckEl.querySelector(`.deck-button[data-scene-name="${CSS.escape(name)}"]`)) {
+    //   alert('Button already exists.');
+    //   return;
+    // }
+    // const btn = createDeckButton({
+    //   label: name, icon: '🎬', type: 'scene',
+    //   onClick: async () => {
+    //     await obs.call('SetCurrentProgramScene', { sceneName: name });
+    //     setActiveScene(name);
+    //   },
+    // });
+    // btn.dataset.sceneName = name;
+    // deckEl.appendChild(btn);
+    // });
 
-    addActionBtn.addEventListener('click', () => {
-      addActionButton('Custom Action', '⚡', async () => {
-        alert('Configure your custom OBS action here!');
-      });
-    });
+    // addActionBtn.addEventListener('click', () => {
+    //   addActionButton('Custom Action', '⚡', async () => {
+    //     alert('Configure your custom OBS action here!');
+    //   });
+    // });
 
     // Preview controls
     previewSourceSel.addEventListener('change', () => {

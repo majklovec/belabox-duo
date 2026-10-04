@@ -1,14 +1,14 @@
 {
   "dashboards": [
     {
-      "id": "4122e778-96df-4982-8145-1194799c4816",
-      "name": "csacas",
+      "id": "2b13aea8-f86e-408d-af3a-9e57f1166d7a",
+      "name": "test",
       "widgets": [
         {
-          "id": "dca59b52-22a8-4fb1-979d-4e8a66bc5394",
-          "deviceId": "987a6288-fbeb-4d8f-acab-600b2b32bfa0",
-          "type": "status",
-          "name": "dasd",
+          "id": "5cf83e2a-ecfb-44f7-8ada-2043bf209204",
+          "deviceId": "5acf7e34-02b3-4454-80d1-8c93ede3b2c1",
+          "type": "obs",
+          "name": "aaa",
           "width": 6
         }
       ]
