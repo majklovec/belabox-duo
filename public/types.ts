@@ -1,8 +1,7 @@
 /* Wire types shared by the device UI, the device list and the control server. */
-import type { AudioSource, CeraConfig, EncoderState, ModemInfo } from "../modules/types";
+import type { AudioSource, CeraConfig, EncoderState, ModemInfo, SrtlaState } from "../modules/types";
 import type { Language } from "../src/i18n";
 import type { Iface, ModemConfig } from "../src/routing";
-import type { SrtlaState } from "../src/srtla";
 import type { SrtlaControlState } from "../src/srtlaControl";
 import type { SrtlaOptions, SrtlaTarget, StreamTarget } from "../src/state";
 import type { Role } from "../src/validate";

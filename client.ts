@@ -22,11 +22,12 @@
  *   state.ts        persistent state (config file) + in-memory process state
  *   modems.ts       ModemManager integration
  *   routing.ts      interface detection, selection, routing, uplinks, monitor
- *   srtla.ts        srtla_send process management (srtlaControl.ts: its JSON-RPC socket)
- *   encoder.ts      pipelines + Encoder base class (process management, bitrate changes)
- *   belacoder.ts    Belacoder encoder (bitrate file)
- *   ceracoder.ts    Ceracoder encoder (INI config, balancer tuning)
+ *   srtlaControl.ts srtla_send control-socket JSON-RPC (low-level, kept in src/)
  *   stream.ts       combined srtla_send + encoder start/stop, autostart
+ *
+ * Device modules (modules/<id>/, see modules/README.md):
+ *   encoder/      pipelines + Belacoder/Ceracoder (process management, bitrate changes)
+ *   srtla/        srtla_send process management
  *   eventlog.ts     persistent event log shown in the web UI (--log-file)
  *   methods.ts      WebSocket API methods + dispatch (params.ts: parameter validation)
  *   push.ts         status / stats / log pushes to the local UI and the control server
@@ -63,7 +64,7 @@ import { encoderServices, startModules as startRegistryModules, stopModules as s
 import { startRemote, stopRemote } from "./src/remote";
 import { runAutostart } from "./src/stream";
 import { reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
-import { maybeStartSrtla, reloadSrtla, stopSrtla } from "./src/srtla";
+import { srtlaServices } from "./modules/registry.backend";
 
 async function main(): Promise<void> {
     void encoderServices.loadEncoder();
@@ -78,7 +79,7 @@ async function main(): Promise<void> {
         stopRegistryModules();   // modules/<id>/backend.ts stop()s
         await stopInterfaceMonitor();
         await encoderServices.encoder().stop();
-        await stopSrtla();
+        await srtlaServices.stopSrtla();
         await flushLog();
         process.exit(0);
     };
@@ -98,10 +99,10 @@ async function main(): Promise<void> {
         console.log(`Initial uplinks: ${result.ips.join(", ")}`);
 
         // 2. Start srtla_send if requested (uses the file we just wrote)
-        await maybeStartSrtla(argv);
+        await srtlaServices.maybeStartSrtla(argv);
 
         // 3. Start the monitor (will reload srtla_send on changes); encoders have nothing to watch
-        startInterfaceMonitor(reloadSrtla);
+        startInterfaceMonitor(srtlaServices.reloadSrtla);
     }
 
     // 4. Start the local API and, if configured, the remote control link

@@ -4,7 +4,6 @@ import m from "mithril";
 import { badge, Page } from "./components/ui";
 import { interfacesCard } from "./device/interfaces";
 import { LogCard } from "./device/log";
-import { srtlaCard } from "./device/srtla";
 import { moduleCard } from "../../modules/registry.frontend";
 import { act, st } from "./device/store";
 import { t } from "./i18n";
@@ -57,7 +56,7 @@ const App: m.Component = {
 		const hasRelay = !!status && role !== "encoder";
 		const children = [
 			hasEncoder && moduleCard("encoder", status),
-			hasRelay && [srtlaCard(status), interfacesCard(status), moduleCard("modems", status)],
+			hasRelay && [moduleCard("srtla", status), interfacesCard(status), moduleCard("modems", status)],
 		];
 		return m(
 			Page,

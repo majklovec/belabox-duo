@@ -11,7 +11,7 @@ import type { BrowserModule } from "./types";
 import type { Status } from "../public/types";
 
 import { encoderModule } from "./encoder/frontend";
-// import { srtlaFrontend } from "./srtla/frontend";
+import { srtlaModule } from "./srtla/frontend";
 import { modemsModule } from "./modems/frontend";
 // import { obsFrontend } from "./obs-controller/frontend";
 // import { kickStatsFrontend } from "./kick-stats/frontend";
@@ -19,6 +19,7 @@ import { modemsModule } from "./modems/frontend";
 
 export const FRONTEND_MODULES: BrowserModule[] = [
 	encoderModule,
+	srtlaModule,
 	modemsModule,
 ];
 

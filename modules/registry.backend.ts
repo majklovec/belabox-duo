@@ -18,13 +18,13 @@ import { pushModuleEvent } from "../src/push";
 import { state } from "../src/state";
 import type { DeviceModule, ModuleContext } from "./types";
 import { encoderModule, encoderServices } from "./encoder/backend";
-// import { srtlaModule } from "./srtla/backend";
+import { srtlaModule, srtlaServices } from "./srtla/backend";
 import { detectModems, modemNetworkIface, modemsModule } from "./modems/backend";
 // import { obsModule } from "./obs-controller/backend";
 // import { kickStatsModule } from "./kick-stats/backend";
 // import { kickChatModule } from "./kick-chat/backend";
 
-export const ALL_MODULES: DeviceModule[] = [encoderModule, modemsModule];
+export const ALL_MODULES: DeviceModule[] = [encoderModule, srtlaModule, modemsModule];
 
 /**
  * Encoder services consumed by the core (stream orchestration in stream.ts,
@@ -32,6 +32,12 @@ export const ALL_MODULES: DeviceModule[] = [encoderModule, modemsModule];
  * encoder module.
  */
 export { encoderServices };
+
+/**
+ * SRTLA services consumed by the core (stream orchestration in stream.ts,
+ * autostart and shutdown in client.ts, status build, method dispatch).
+ */
+export { srtlaServices };
 
 /** Module by id, or undefined. */
 export const getModule = (id: string) => ALL_MODULES.find((m) => m.id === id);

@@ -48,8 +48,8 @@ import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
-import { callModule, encoderServices, moduleStatuses, modemServices } from "../modules/registry.backend";
-import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo } from "../modules/types";
+import { callModule, encoderServices, moduleStatuses, modemServices, srtlaServices } from "../modules/registry.backend";
+import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo, SrtlaState } from "../modules/types";
 import {
 	ApiError,
 	checkColor,
@@ -74,10 +74,8 @@ import { type ObsClient, type ObsRequestBatch, EventSubscription } from "../obs-
 import { removePipelineRepository, syncPipelineRepository } from "./pipelineRepos";
 import { applyRemoteSettings } from "./remote";
 import { detectInterfaces, isMonitorRunning, type ModemConfig, reconfigure, resolveSelection, setSelection } from "./routing";
-import { reloadSrtla, setSrtlaOptions, srtlaStatus, startSrtla, stopSrtla } from "./srtla";
-import { latestSrtlaStats, SRTLA_MODES, srtlaControlState } from "./srtlaControl";
 import {
-	ALL_MODULES, completeSetup, defaultModules, type SrtlaOptions,
+	ALL_MODULES, completeSetup, defaultModules, type SrtlaOptions, type SrtlaOptionsResult,
 	saveState, setupRequired, type SrtlaTarget, state, uiLanguage,
 	OBS_MODULE, KICK_STATS_MODULE, KICK_CHAT_MODULE,
 } from "./state";
@@ -112,7 +110,7 @@ export async function buildStatus() {
 		setupRequired,
 		state: {
 			selection: state.selection,
-			srtla: srtlaStatus(),
+			srtla: srtlaServices.srtlaStatus(),
 			encoder: enc.status(),
 			stream: state.stream,
 			srtlaTarget: state.srtlaTarget,
@@ -125,7 +123,7 @@ export async function buildStatus() {
 		modems: role !== "encoder" ? modems : [],
 		audioSources,
 		uplinksFile: UPLINKS_FILE,
-		srtlaControl: srtlaControlState(),
+		srtlaControl: srtlaServices.controlState(),
 		monitor: { running: isMonitorRunning(), reloadMode: RELOAD_MODE },
 		// null when the encoder binary is not ceracoder; the UI hides its settings then
 		ceracoder: encoderServices.ceracoderConfig(),
@@ -138,7 +136,7 @@ export async function buildStatus() {
 async function reconfigureAndReload() {
 	const result = await reconfigure();
 	if (!result.ok) throw new ApiError(result.error ?? "reconfigure failed", 500);
-	if (result.changed) await reloadSrtla();
+	if (result.changed) await srtlaServices.reloadSrtla();
 	return result;
 }
 
@@ -211,7 +209,7 @@ async function startStream(p: Params) {
 	const cfg = parseEncoderConfig(p, "127.0.0.1", listenPort);
 	cancelAutostart();
 	await startChecked(() => startCombined({ remoteHost, remotePort, listenPort }, cfg));
-	return { srtla: srtlaStatus(), encoder: encoderServices.encoder().status() };
+	return { srtla: srtlaServices.srtlaStatus(), encoder: encoderServices.encoder().status() };
 }
 
 // ----------------------------------------------------------------------
@@ -250,7 +248,7 @@ async function setupComplete(p: Params): Promise<object> {
 			remotePort: requirePort(p, "srtlaRemotePort"),
 		};
 		srtlaOptions = {
-			mode: oneOf(requireString(p, "srtlaMode"), "srtlaMode", SRTLA_MODES),
+			mode: oneOf(requireString(p, "srtlaMode"), "srtlaMode", srtlaServices.modes),
 			quality: requireBoolean(p, "srtlaQuality"),
 		};
 	}
@@ -334,6 +332,12 @@ const METHOD_OWNER: Record<string, string> = {
 	"encoder.stop": "encoder",
 	"encoder.bitrate": "encoder",
 	"ceracoder.set": "encoder",
+	"srtla.status": "srtla",
+	"srtla.start": "srtla",
+	"srtla.stop": "srtla",
+	"srtla.reload": "srtla",
+	"srtla.stats": "srtla",
+	"srtla.options": "srtla",
 	"modems.enable": "modems",
 	"modems.disable": "modems",
 	"modems.reset": "modems",
@@ -445,43 +449,43 @@ const methods: Record<string, Method> = {
 	"modems.connect": modemAction("connect", (i) => moduleDispatch("modems.connect", { index: i }) as Promise<boolean>),
 	"modems.disconnect": modemAction("disconnect", (i) => moduleDispatch("modems.disconnect", { index: i }) as Promise<boolean>),
 
-	"srtla.status": () => ({ srtla: srtlaStatus() }),
+	"srtla.status": () => ({ srtla: srtlaServices.srtlaStatus() }),
 
 	"srtla.start": manual(async (p) => {
 		const listenPort = requirePort(p, "listenPort");
 		const remoteHost = requireHost(p, "remoteHost");
 		const remotePort = requirePort(p, "remotePort");
 		try {
-			return { srtla: await startSrtla(listenPort, remoteHost, remotePort) };
+			return { srtla: await startChecked(() => moduleDispatch("srtla.start", { listenPort, remoteHost, remotePort }) as Promise<SrtlaState>) };
 		} catch (e: unknown) {
 			throw new ApiError(errorMessage(e), 409);
 		}
 	}),
 
 	"srtla.stop": manual(async () => {
-		await stopSrtla();
-		return { srtla: srtlaStatus() };
+		await moduleDispatch("srtla.stop", {});
+		return { srtla: srtlaServices.srtlaStatus() };
 	}),
 
 	"srtla.reload": async () => {
-		await reloadSrtla();
-		return { srtla: srtlaStatus() };
+		await moduleDispatch("srtla.reload", {});
+		return { srtla: srtlaServices.srtlaStatus() };
 	},
 
-	"srtla.stats": () => latestSrtlaStats(),
+	"srtla.stats": () => srtlaServices.latestStats(),
 
 	"srtla.options": async (p) => {
 		const opts: SrtlaOptions = {};
-		if (p.mode !== undefined) opts.mode = oneOf(p.mode, "mode", SRTLA_MODES);
+		if (p.mode !== undefined) opts.mode = oneOf(p.mode, "mode", srtlaServices.modes);
 		if (p.quality !== undefined) opts.quality = requireBoolean(p, "quality");
 		if (opts.mode === undefined && opts.quality === undefined) throw new ApiError("mode or quality is required");
-		let result: Awaited<ReturnType<typeof setSrtlaOptions>>;
+		let result: SrtlaOptionsResult;
 		try {
-			result = await setSrtlaOptions(opts);
+			result = (await moduleDispatch("srtla.options", { mode: opts.mode, quality: opts.quality })) as SrtlaOptionsResult;
 		} catch (e: unknown) {
 			throw new ApiError(errorMessage(e), 502);
 		}
-		if (!result.applied && srtlaStatus().running) logEvent("warn", "SRTLA", t("log.no_control_socket"));
+		if (!result.applied && srtlaServices.srtlaStatus().running) logEvent("warn", "SRTLA", t("log.no_control_socket"));
 		return result;
 	},
 
@@ -543,7 +547,7 @@ const methods: Record<string, Method> = {
 
 	"stream.stop": manual(async () => {
 		await stopCombined();
-		return { srtla: srtlaStatus(), encoder: encoderServices.encoder().status() };
+		return { srtla: srtlaServices.srtlaStatus(), encoder: encoderServices.encoder().status() };
 	}),
 
 	"autostart.set": async (p) => {

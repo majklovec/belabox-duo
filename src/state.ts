@@ -12,12 +12,11 @@
 import { randomUUID } from "node:crypto";
 
 import { CONFIG_EXISTS, CONFIG_FILE, DRY_RUN, INITIAL_CONFIG } from "./config";
-import type { CeraConfig, EncoderConfig, EncoderState } from "../modules/types";
+import type { CeraConfig, EncoderConfig, EncoderState, SrtlaState } from "../modules/types";
 import { writeFileAtomic } from "./files";
 import { asLanguage, DEFAULT_LANGUAGE, type Language, setCurrentLanguage } from "./i18n";
 import type { ModemConfig } from "./routing";
 import type { SrtlaMode } from "./srtlaControl";
-import type { SrtlaState } from "./srtla";
 import { stableStringify } from "./util";
 import { DEFAULT_COLOR, modulesForRole, type Role } from "./validate";
 
@@ -39,6 +38,9 @@ export interface DeviceSettings {
 
 /** srtla_send scheduler settings; applied live over the control socket and on every start. */
 export interface SrtlaOptions { mode?: SrtlaMode; quality?: boolean; }
+
+/** Result of persisting+applying scheduler settings (`applied` is false until the next start). */
+export interface SrtlaOptionsResult { options: SrtlaOptions; applied: boolean; }
 
 /** Last target of a combined-device stream (`stream.start`), kept for the UI to prefill. */
 export interface StreamTarget { remoteHost: string; remotePort: string; listenPort: string; }

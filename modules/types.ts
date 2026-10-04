@@ -136,6 +136,18 @@ export interface CeraConfig {
 	aimd: AimdTuning;
 }
 
+/** Runtime state of srtla_send, published under `state.srtla`. */
+export interface SrtlaState {
+	running: boolean;
+	pid?: number;
+	listenPort?: string;
+	remoteHost?: string;
+	remotePort?: string;
+	startedAt?: number;
+	lastReloadAt?: number;
+	reloadCount?: number;
+}
+
 /** A browser-side module: the card component plus the events it reacts to. */
 export interface BrowserModule {
 	id: string;

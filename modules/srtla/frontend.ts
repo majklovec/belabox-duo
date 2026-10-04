@@ -1,6 +1,6 @@
 /* SRTLA card: srtla_send state, the receiver form and the scheduler options. */
 import m from "mithril";
-import type { Status } from "../../types";
+import type { Status } from "../../public/types";
 import {
 	actions,
 	badge,
@@ -15,11 +15,11 @@ import {
 	form,
 	input,
 	schedulerOptions,
-} from "../components/ui";
-import { since } from "../util";
-import { t } from "../i18n";
-import { act, busy, enabled, fields, press, st } from "./store";
-import { encoderStart, streamButtons } from "./store";
+} from "../../public/ts/components/ui";
+import { since } from "../../public/ts/util";
+import { t } from "../../public/ts/i18n";
+import { act, busy, enabled, encoderStart, fields, press, st, streamButtons } from "../../public/ts/device/store";
+import type { BrowserModule } from "../types";
 
 type SrtlaOptions = Status["state"]["srtlaOptions"];
 
@@ -52,12 +52,12 @@ function controlBadge(status: Status): Child {
 	return m("span.muted", { title: t("dev.control_unavailable_title") }, t("dev.control_unavailable"));
 }
 
-export function srtlaCard(status: Status): m.Vnode {
+function srtlaCard(status: Status): m.Vnode {
 	const s = status.state.srtla;
 	const combined = status.role === "combined";
 	return m(
 		Card,
-		{ title: t("dev.card.srtla") },
+		{ title: t("dev.card.srtla"), class: "mod-srtla" },
 		definitionList([
 			[
 				t("dev.row.state"),
@@ -135,3 +135,10 @@ export function srtlaCard(status: Status): m.Vnode {
 		),
 	);
 }
+
+export const srtlaModule: BrowserModule = {
+	id: "srtla",
+	title: "SRTLA",
+	defaultWidth: "full",
+	component: srtlaCard,
+};
