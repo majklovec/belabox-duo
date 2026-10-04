@@ -75,7 +75,7 @@ async function main(): Promise<void> {
         // Before stopRemote so the control server still receives it
         logEvent("info", "Service", t("log.stopped_signal", signal));
         stopRemote();
-        stopModules();   // obs-controller socket, kick poller, kick chat
+        stopModules();   // kick poller, kick chat
         stopRegistryModules();   // modules/<id>/backend.ts stop()s
         await stopInterfaceMonitor();
         await encoderServices.encoder().stop();
@@ -110,7 +110,7 @@ async function main(): Promise<void> {
     if (REMOTE_URL) startRemote();
 
     // 5. Start enabled modules (modules/ registry: moved modules) and the
-    //    legacy set (obs-controller / kick-stats / kick-chat, until they move)
+    //    legacy set (kick-stats / kick-chat, until they move)
     void startRegistryModules();
     startModules();
 

@@ -20,11 +20,11 @@ import type { DeviceModule, ModuleContext } from "./types";
 import { encoderModule, encoderServices } from "./encoder/backend";
 import { srtlaModule, srtlaServices } from "./srtla/backend";
 import { detectModems, modemNetworkIface, modemsModule } from "./modems/backend";
-// import { obsModule } from "./obs-controller/backend";
+import { obsControllerModule, obsServices } from "./obs-controller/backend";
 // import { kickStatsModule } from "./kick-stats/backend";
 // import { kickChatModule } from "./kick-chat/backend";
 
-export const ALL_MODULES: DeviceModule[] = [encoderModule, srtlaModule, modemsModule];
+export const ALL_MODULES: DeviceModule[] = [encoderModule, srtlaModule, modemsModule, obsControllerModule];
 
 /**
  * Encoder services consumed by the core (stream orchestration in stream.ts,
@@ -38,6 +38,13 @@ export { encoderServices };
  * autostart and shutdown in client.ts, status build, method dispatch).
  */
 export { srtlaServices };
+
+/**
+ * OBS services consumed by the core — the obs.* method dispatch in methods.ts
+ * sends requests to the module's client; `configure` receives the obs fields
+ * of a modules.configure call.
+ */
+export { obsServices };
 
 /** Module by id, or undefined. */
 export const getModule = (id: string) => ALL_MODULES.find((m) => m.id === id);
@@ -87,6 +94,14 @@ export async function startModules(): Promise<void> {
 /** Stop every registered module. */
 export async function stopModules(): Promise<void> {
 	for (const mod of ALL_MODULES) await mod.stop();
+}
+
+/** Restart one registered module (stop, then start when settings-enabled). */
+export async function restartRegisteredModule(id: string): Promise<void> {
+	const mod = getModule(id);
+	if (!mod) return;
+	await mod.stop();
+	if (moduleSettingsEnabled(id)) await mod.start(makeCtx(mod));
 }
 
 /**

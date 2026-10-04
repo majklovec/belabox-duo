@@ -21,6 +21,7 @@ import { optionalNumber, setHeaderColor } from "../util";
 import { t } from "../i18n";
 import { type Params, RpcClient, RpcError, socketUrl } from "../services/rpc";
 import { applyLog, log } from "./log";
+import { dispatchFrontendEvent } from "../../../modules/registry.frontend";
 
 export const st = {
 	socketOpen: false,
@@ -136,6 +137,40 @@ export async function act<T = unknown>(key: string | null, method: string, param
 /** A state button's action: runs only when the button is enabled. */
 export function press(id: StateButton, method: string, params?: Params): void {
 	if (enabled(id)) void act(id, method, params);
+}
+
+// ----------------------------------------------------------------------
+// OBS passthrough helpers (obs-websocket v5 payloads travel verbatim;
+// the obs-controller module answers these on the device side)
+// ----------------------------------------------------------------------
+interface ObsRequestResponse<T> {
+	requestType: string;
+	requestId: string;
+	requestStatus: { result: boolean; code: number; comment?: string };
+	responseData?: T;
+}
+
+export function obsRequest<T = Record<string, unknown>>(
+	requestType: string,
+	requestData: Record<string, unknown> = {},
+): Promise<ObsRequestResponse<T> | undefined> {
+	return act(
+		null,
+		"obs.request",
+		{ requestType, requestId: crypto.randomUUID(), requestData },
+	) as Promise<ObsRequestResponse<T> | undefined>;
+}
+
+export function obsBatch(
+	requests: Array<{ requestType: string; requestData?: Record<string, unknown> }>,
+	opts?: { haltOnFailure?: boolean; executionType?: 0 | 1 | 2 },
+): Promise<{ requestId: string; results: ObsRequestResponse<Record<string, unknown>>[] } | undefined> {
+	return act(null, "obs.requestBatch", {
+		requestId: crypto.randomUUID(),
+		requests: requests.map((r) => ({ ...r, requestId: crypto.randomUUID() })),
+		haltOnFailure: opts?.haltOnFailure ?? false,
+		executionType: opts?.executionType ?? 0,
+	});
 }
 
 // ----------------------------------------------------------------------
@@ -311,29 +346,7 @@ rpc.on("log", (data) => applyLog(data as LogEvent));
 const KICK_CHAT_CAP = 500;
 const KICK_SPARK_CAP = 20;
 
-rpc.on("obs.event", (data) => {
-	const ev = data as { eventType?: string; eventData?: Record<string, unknown> };
-	const d = (ev.eventData ?? {}) as Record<string, unknown>;
-	switch (ev.eventType) {
-		case "CurrentProgramSceneChanged":
-			st.obs.scene = (d.sceneName as string) ?? null;
-			st.obs.connected = true;
-			break;
-		case "StreamStateChanged":
-			st.obs.streaming = d.outputActive === true;
-			st.obs.connected = true;
-			break;
-		case "RecordStateChanged":
-			st.obs.recording = d.outputActive === true;
-			st.obs.connected = true;
-			break;
-		case "ObsDisconnected":
-			st.obs.connected = false;
-			st.obs.scene = null;
-			break;
-	}
-	m.redraw();
-});
+rpc.on("obs.event", (data) => dispatchFrontendEvent("obs.event", data));
 
 rpc.on("kick.stats", (data) => {
 	st.kick.stats = data as KickStats;

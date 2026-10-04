@@ -1,0 +1,5 @@
+/* obs-controller module — no module-specific styles.
+ * The card composes the shared core components (Card, badge, definitionList)
+ * so its look comes from public/css/style.css; the .mod-obs-controller class
+ * on the card root exists for future scoping.
+ */

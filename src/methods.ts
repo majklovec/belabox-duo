@@ -48,7 +48,7 @@ import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
-import { callModule, encoderServices, moduleStatuses, modemServices, srtlaServices } from "../modules/registry.backend";
+import { callModule, encoderServices, getModule, moduleStatuses, modemServices, obsServices, restartRegisteredModule, srtlaServices } from "../modules/registry.backend";
 import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo, SrtlaState } from "../modules/types";
 import {
 	ApiError,
@@ -68,9 +68,7 @@ import {
 } from "./params";
 import { kickChatHistory } from "./modules/kick-chat";
 import { kickStatsLatest } from "./modules/kick-stats";
-import { obsClientFor } from "./modules/obs";
 import { configureModule, moduleEnabled, modulesView, restartModule } from "./modules";
-import { type ObsClient, type ObsRequestBatch, EventSubscription } from "../obs-client";
 import { removePipelineRepository, syncPipelineRepository } from "./pipelineRepos";
 import { applyRemoteSettings } from "./remote";
 import { detectInterfaces, isMonitorRunning, type ModemConfig, reconfigure, resolveSelection, setSelection } from "./routing";
@@ -343,6 +341,9 @@ const METHOD_OWNER: Record<string, string> = {
 	"modems.reset": "modems",
 	"modems.connect": "modems",
 	"modems.disconnect": "modems",
+	"obs.request": "obs-controller",
+	"obs.requestBatch": "obs-controller",
+	"obs.setEventSubscriptions": "obs-controller",
 };
 
 const moduleDispatch = (method: string, params: Record<string, unknown>): Promise<unknown> =>
@@ -363,36 +364,6 @@ const manual =
 		return fn(p);
 	};
 
-
-const EVENT_SUBSCRIPTION_NAMES: Record<string, number> = {
-	General: EventSubscription.General,
-	Config: EventSubscription.Config,
-	Scenes: EventSubscription.Scenes,
-	Inputs: EventSubscription.Inputs,
-	Transitions: EventSubscription.Transitions,
-	Filters: EventSubscription.Filters,
-	Outputs: EventSubscription.Outputs,
-	SceneItems: EventSubscription.SceneItems,
-	MediaInputs: EventSubscription.MediaInputs,
-	Vendors: EventSubscription.Vendors,
-	Ui: EventSubscription.Ui,
-	InputVolumeMeters: EventSubscription.InputVolumeMeters,
-	InputActiveStateChanged: EventSubscription.InputActiveStateChanged,
-	InputShowStateChanged: EventSubscription.InputShowStateChanged,
-	SceneItemTransformChanged: EventSubscription.SceneItemTransformChanged,
-};
-
-/** The live client, or a 409 asking the operator to enable the module. */
-/** Case-insensitive: the map is keyed by upper-cased event names. */
-const EVENT_SUBSCRIPTION_LOOKUP: Record<string, number> = Object.fromEntries(
-	Object.entries(EVENT_SUBSCRIPTION_NAMES).map(([name, bit]) => [name.toUpperCase(), bit]),
-);
-
-const requiredObsClient = (): ObsClient => {
-	const client = obsClientFor();
-	if (!client) throw new ApiError("The obs-controller module is not running", 409);
-	return client;
-};
 
 const methods: Record<string, Method> = {
 	status: buildStatus,
@@ -564,7 +535,8 @@ const methods: Record<string, Method> = {
 		const modules = (state.settings.modules ??= defaultModules(ROLE));
 		modules[id].enabled = true;
 		saveState();
-		restartModule(id);
+		if (getModule(id)) void restartRegisteredModule(id);
+		else restartModule(id);
 		return { ok: true, modules: modulesView() };
 	},
 	"modules.disable": (p) => {
@@ -572,7 +544,8 @@ const methods: Record<string, Method> = {
 		const modules = (state.settings.modules ??= defaultModules(ROLE));
 		modules[id].enabled = false;
 		saveState();
-		restartModule(id);
+		if (getModule(id)) void restartRegisteredModule(id);
+		else restartModule(id);
 		return { ok: true, modules: modulesView() };
 	},
 	"modules.configure": (p) => {
@@ -580,14 +553,21 @@ const methods: Record<string, Method> = {
 		const config =
 			p.config && typeof p.config === "object" && !Array.isArray(p.config) ? (p.config as Record<string, unknown>) : {};
 		state.settings.modules ??= defaultModules(ROLE);
-		configureModule(id, config);
-		saveState();
+		if (id === OBS_MODULE) {
+			// Registered module: the obs slice is applied by the module itself,
+			// then re-applied through the registry
+			obsServices.configure(config);
+			saveState();
+			void restartRegisteredModule(id);
+		} else {
+			configureModule(id, config);
+			saveState();
+		}
 		return { ok: true, modules: modulesView() };
 	},
 
 	// -------------------------------------------------------------------- obs
-	"obs.request": async (p) => {
-		const client = requiredObsClient();
+	"obs.request": (p) => {
 		const requestType = requireString(p, "requestType");
 		const requestId = typeof p.requestId === "string" && p.requestId ? p.requestId : crypto.randomUUID();
 		const requestData =
@@ -595,10 +575,9 @@ const methods: Record<string, Method> = {
 				? (p.requestData as Record<string, unknown>)
 				: {};
 		// op7 passthrough: the obs-websocket v5 response `d`, statuses unmapped
-		return client.sendRequest({ requestType, requestId, requestData });
+		return moduleDispatch("obs.request", { requestType, requestId, requestData });
 	},
-	"obs.requestBatch": async (p) => {
-		const client = requiredObsClient();
+	"obs.requestBatch": (p) => {
 		const requests = p.requests;
 		if (!Array.isArray(requests) || !requests.length) throw new ApiError("requests must be a non-empty array");
 		for (const r of requests) {
@@ -607,7 +586,8 @@ const methods: Record<string, Method> = {
 			}
 		}
 		const requestId = typeof p.requestId === "string" && p.requestId ? p.requestId : crypto.randomUUID();
-		const batch: ObsRequestBatch = {
+		// op9 passthrough: the obs-websocket v5 batch response `d`
+		return moduleDispatch("obs.requestBatch", {
 			requestId,
 			requests: requests.map((r) => {
 				const it = r as Record<string, unknown>;
@@ -619,19 +599,12 @@ const methods: Record<string, Method> = {
 			}),
 			...(p.haltOnFailure !== undefined ? { haltOnFailure: !!p.haltOnFailure } : {}),
 			...(p.executionType !== undefined ? { executionType: p.executionType as 0 | 1 | 2 } : {}),
-		};
-		// op9 passthrough: the obs-websocket v5 batch response `d`
-		return client.sendBatch(batch);
+		});
 	},
 	"obs.setEventSubscriptions": (p) => {
-		const client = requiredObsClient();
 		const names = optionalStringList(p, "eventSubscriptions") ?? [];
-		const intents = names.reduce(
-			(acc: number, name) => acc | (EVENT_SUBSCRIPTION_LOOKUP[name.toUpperCase()] ?? EventSubscription.None),
-			0,
-		);
-		client.setEventSubscriptions(intents);
-		return { ok: true, eventSubscriptions: intents };
+		const intents = obsServices.subscriptionMask(names);
+		return moduleDispatch("obs.setEventSubscriptions", { eventSubscriptions: intents });
 	},
 
 	// -------------------------------------------------------------------- kick

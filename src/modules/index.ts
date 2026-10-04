@@ -1,19 +1,18 @@
 /*
- * Module runner: starts/stops the obs-controller, kick-stats and kick-chat
- * modules according to settings.modules, and exposes helpers for the API:
+ * Module runner: starts/stops the kick-stats and kick-chat modules according
+ * to settings.modules, and exposes helpers for the API:
  *   - moduleEnabled / moduleAllowed gate the module-owned methods (409)
  *   - modulesView() is the secret-free module map put into the status
  *   - restartModule() re-applies a module after configure/enable changes
+ * (obs-controller moved to modules/obs-controller/ and runs through the
+ * registry in modules/registry.backend.ts)
  */
-import { kickChatConnected, startKickChat, stopKickChat } from "./kick-chat";
-import { kickStatsLatest, startKickStats, stopKickStats } from "./kick-stats";
-import { obsClientFor, restartObsModule, startObsModule, stopObsModule } from "./obs";
+import { startKickChat, stopKickChat } from "./kick-chat";
+import { startKickStats, stopKickStats } from "./kick-stats";
 import {
     type ModulesState,
-    type ObsModuleConfig,
     KICK_CHAT_MODULE,
     KICK_STATS_MODULE,
-    OBS_MODULE,
     state,
 } from "../state";
 
@@ -26,13 +25,11 @@ export const moduleEnabled = (id: string): boolean => {
 };
 
 export function startModules(): void {
-    if (moduleEnabled(OBS_MODULE)) startObsModule();
     if (moduleEnabled(KICK_STATS_MODULE)) startKickStats();
     if (moduleEnabled(KICK_CHAT_MODULE)) startKickChat();
 }
 
 export function stopModules(): void {
-    stopObsModule();
     stopKickStats();
     stopKickChat();
 }
@@ -40,9 +37,6 @@ export function stopModules(): void {
 /** Re-apply one module after a configure/enable/disable change. */
 export function restartModule(id: string): void {
     switch (id) {
-        case OBS_MODULE:
-            restartObsModule();
-            break;
         case KICK_STATS_MODULE:
             startKickStats();   // stops itself first; a fresh channel is picked up
             break;
@@ -57,15 +51,6 @@ export function configureModule(id: string, config: Record<string, unknown>): vo
     const m = mods();
     if (!m) return;
     switch (id) {
-        case OBS_MODULE: {
-            const obs = m["obs-controller"];
-            if (typeof config.enabled === "boolean") obs.enabled = config.enabled;
-            if (typeof config.obsUrl === "string") obs.obsUrl = config.obsUrl;
-            if (typeof config.obsPassword === "string" && config.obsPassword !== undefined) obs.obsPassword = config.obsPassword;
-            if (typeof config.sceneEvents === "boolean") obs.sceneEvents = config.sceneEvents;
-            restartModule(id);
-            break;
-        }
         case KICK_STATS_MODULE: {
             if (typeof config.enabled === "boolean") m["kick-stats"].enabled = config.enabled;
             if (typeof config.channel === "string") m["kick-stats"].channel = config.channel;
@@ -92,7 +77,7 @@ export function configureModule(id: string, config: Record<string, unknown>): vo
 export function modulesView(): object {
     const m = mods();
     if (!m) return {};
-    const obs: ObsModuleConfig = m["obs-controller"];
+    const obs = m["obs-controller"];
     const chat = m["kick-chat"];
     return {
         relay: m.relay,
@@ -109,16 +94,5 @@ export function modulesView(): object {
             channel: chat.channel,
             token: chat.token ? { configured: true } : { configured: false },
         },
-    };
-}
-
-/** Per-module live state for status (obs identified flag, kick latest stats). */
-export function moduleStatesView(): object {
-    return {
-        "obs-controller": obsClientFor()
-            ? { connected: obsClientFor()?.connected ?? false, identified: obsClientFor()?.identified ?? false }
-            : null,
-        "kick-stats": kickStatsLatest(),
-        "kick-chat": { connected: kickChatConnected() },
     };
 }
