@@ -8,14 +8,25 @@ import type { Child } from "../util";
 
 export type { Child };
 
-/** <header> + <main> page skeleton. The header always carries the language selector on
- * its right edge, followed by the page's own `headerRight` actions. */
-export const Page: m.Component<{ title: m.Children; headerRight?: m.Children }> = {
+/** <header> + <main> page skeleton. The header carries the optional main menu, then the
+ * language selector and the page's own `headerRight` actions on its right edge. */
+export const Page: m.Component<{ title: m.Children; nav?: m.Children; headerRight?: m.Children }> = {
 	view: (v) => [
-		m("header", m("h1", v.attrs.title), m("span.actions", m(LanguageSelect), v.attrs.headerRight)),
+		m(
+			"header",
+			m("h1", v.attrs.title),
+			[v.attrs.nav !== undefined ? m("nav.main-nav", v.attrs.nav) : null, m("span.actions", m(LanguageSelect), v.attrs.headerRight)],
+		),
 		m("main", v.children),
 	],
 };
+
+/** Main menu of the control server: the device list and the dashboards page. */
+export const serverNav = (active: "devices" | "dashboards"): m.Vnode =>
+	m("span", [
+		m("a", { href: "/", class: active === "devices" ? "nav-link active" : "nav-link" }, t("mgmt.devices")),
+		m("a", { href: "/dashboards/", class: active === "dashboards" ? "nav-link active" : "nav-link" }, t("dash.title")),
+	]);
 
 export interface CardProps {
 	/** Bare <h2> title. Use `headActions` for the title-plus-actions row. */

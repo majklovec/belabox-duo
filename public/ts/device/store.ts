@@ -4,7 +4,18 @@
 import m from "mithril";
 import { label, type LogEvent, methodLog } from "../../../src/logMessages";
 import { errorMessage } from "../../../src/util";
-import type { CeraBalancer, DeviceInfo, Pipeline, Role, SrtlaStats, SrtlaStatsEvent, Status } from "../../types";
+import type {
+	CeraBalancer,
+	DeviceInfo,
+	KickChatMessage,
+	KickStats,
+	ModulesView,
+	Pipeline,
+	Role,
+	SrtlaStats,
+	SrtlaStatsEvent,
+	Status,
+} from "../../types";
 import type { KeysOf } from "../components/ui";
 import { setHeaderColor } from "../util";
 import { t } from "../i18n";
@@ -22,6 +33,15 @@ export const st = {
 	pipelines: [] as Pipeline[],
 	pipelineDir: "",
 	autostartBusy: false,
+	// Module system: persisted settings + live module state
+	modules: {} as ModulesView,
+	obs: { connected: false, scene: null as string | null, streaming: false, recording: false },
+	kick: {
+		stats: null as KickStats | null,
+		chat: [] as KickChatMessage[],
+		spark: [] as number[],
+		connected: false,
+	},
 };
 
 /** Form fields; strings as typed, converted on submit. */
@@ -178,6 +198,7 @@ function syncFromStatus(status: Status): void {
 function applyStatus(status: Status): void {
 	if (!status?.state) return;
 	st.status = status;
+	st.modules = status.modules ?? st.modules;
 	awaitingStatus.clear();
 	if (lastRole !== status.role) touched.clear();
 	lastRole = status.role;
@@ -241,3 +262,60 @@ rpc.on("device", (data) => {
 	m.redraw();
 });
 rpc.on("log", (data) => applyLog(data as LogEvent));
+
+// ----------------------------------------------------------------------
+// Module events (carried with a `module` tag, routed by their name here)
+// ----------------------------------------------------------------------
+const KICK_CHAT_CAP = 500;
+const KICK_SPARK_CAP = 20;
+
+rpc.on("obs.event", (data) => {
+	const ev = data as { eventType?: string; eventData?: Record<string, unknown> };
+	const d = (ev.eventData ?? {}) as Record<string, unknown>;
+	switch (ev.eventType) {
+		case "CurrentProgramSceneChanged":
+			st.obs.scene = (d.sceneName as string) ?? null;
+			st.obs.connected = true;
+			break;
+		case "StreamStateChanged":
+			st.obs.streaming = d.outputActive === true;
+			st.obs.connected = true;
+			break;
+		case "RecordStateChanged":
+			st.obs.recording = d.outputActive === true;
+			st.obs.connected = true;
+			break;
+		case "ObsDisconnected":
+			st.obs.connected = false;
+			st.obs.scene = null;
+			break;
+	}
+	m.redraw();
+});
+
+rpc.on("kick.stats", (data) => {
+	st.kick.stats = data as KickStats;
+	st.kick.spark.push(st.kick.stats?.viewers ?? 0);
+	if (st.kick.spark.length > KICK_SPARK_CAP) st.kick.spark.shift();
+	m.redraw();
+});
+
+rpc.on("kick.chat", (data) => {
+	const ev = data as {
+		message?: KickChatMessage;
+		reconnect?: boolean;
+		messages?: KickChatMessage[];
+		disconnected?: boolean;
+	};
+	if (ev.disconnected) st.kick.connected = false;
+	if (ev.reconnect) {
+		st.kick.connected = true;
+		st.kick.chat = (ev.messages ?? []).slice(-KICK_CHAT_CAP);
+	} else if (ev.message) {
+		st.kick.connected = true;
+		const chat = st.kick.chat;
+		if (!chat.some((x) => String(x.id) === String(ev.message!.id))) chat.push(ev.message);
+		if (chat.length > KICK_CHAT_CAP) chat.splice(0, chat.length - KICK_CHAT_CAP);
+	}
+	m.redraw();
+});

@@ -157,6 +157,8 @@ function settingsCard(): m.Vnode {
 						["relay", t("role.relay")],
 						["encoder", t("role.encoder")],
 						["combined", t("role.combined")],
+						["obs", t("role.obs")],
+						["custom", t("role.custom")],
 					]),
 				),
 			),

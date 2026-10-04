@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>YouTube Chat</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      overflow: hidden;
+    }
+
+    #chat {
+      position: fixed;
+      inset: 0;
+      padding: 10px 14px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 4px;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .9), 0 0 4px rgba(0, 0, 0, .7);
+    }
+
+    .m {
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      animation: fade .2s ease;
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    .u {
+      font-weight: 700;
+      margin-right: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="chat"></div>
+  <script>
+    (function () {
+      // ── Read video ID from URL (?v=xxxx or ?video=xxxx)
+      var params = new URLSearchParams(window.location.search);
+      var VIDEO_ID = params.get('v') || params.get('video') || '';
+      if (!VIDEO_ID) {
+        document.getElementById('chat').textContent = 'Error: add ?v=VIDEO_ID to the URL';
+        return;
+      }
+
+      var box = document.getElementById('chat');
+      var MAX = 100;
+      var API_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'; // YouTube's public web key
+      var liveChatId = null;
+      var nextPageToken = null;
+      var pollTimer = null;
+
+      function addLine(text, color) {
+        var d = document.createElement('div');
+        d.className = 'm';
+        d.style.color = color || '#fff';
+        d.textContent = text;
+        box.appendChild(d);
+        while (box.children.length > MAX) box.removeChild(box.firstChild);
+      }
+
+      function render(msg) {
+        var snippet = msg.snippet || {};
+        var author = snippet.authorDisplayName || 'unknown';
+        var text = (snippet.displayMessage || '').trim();
+        if (!text) return;
+
+        var row = document.createElement('div');
+        row.className = 'm';
+
+        var user = document.createElement('span');
+        user.className = 'u';
+        user.textContent = author + ':';
+        row.appendChild(user);
+
+        var t = document.createElement('span');
+        t.textContent = text;
+        row.appendChild(t);
+
+        box.appendChild(row);
+        while (box.children.length > MAX) box.removeChild(box.firstChild);
+      }
+
+      // Step 1: get liveChatId from video
+      function getLiveChatId() {
+        var url = 'https://www.youtube.com/youtubei/v1/player?key=' + API_KEY;
+        return fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoId: VIDEO_ID,
+            context: {
+              client: {
+                clientName: 'WEB',
+                clientVersion: '2.20240101.00.00'
+              }
+            }
+          })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var id = data && data.liveStreamingDetails && data.liveStreamingDetails.activeLiveChatId;
+            if (!id) throw new Error('No live chat found. Is the stream live?');
+            return id;
+          });
+      }
+
+      // Step 2: poll for messages
+      function pollChat() {
+        var url = 'https://www.youtube.com/youtubei/v1/live_chat/get_live_chat?key=' + API_KEY;
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            context: {
+              client: {
+                clientName: 'WEB',
+                clientVersion: '2.20240101.00.00'
+              }
+            },
+            continuation: nextPageToken
+          })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var actions = data.continuationContents &&
+              data.continuationContents.liveChatContinuation &&
+              data.continuationContents.liveChatContinuation.actions;
+            if (actions) {
+              actions.forEach(function (action) {
+                if (action.addChatItemAction) {
+                  var item = action.addChatItemAction.item;
+                  if (item && item.liveChatTextMessageRenderer) {
+                    render({
+                      snippet: {
+                        authorDisplayName: item.liveChatTextMessageRenderer.authorName &&
+                          item.liveChatTextMessageRenderer.authorName.simpleText,
+                        displayMessage: item.liveChatTextMessageRenderer.message &&
+                          item.liveChatTextMessageRenderer.message.runs &&
+                          item.liveChatTextMessageRenderer.message.runs[0] &&
+                          item.liveChatTextMessageRenderer.message.runs[0].text
+                      }
+                    });
+                  }
+                }
+              });
+            }
+
+            // get next token
+            var newToken = data.continuationContents &&
+              data.continuationContents.liveChatContinuation &&
+              data.continuationContents.liveChatContinuation.continuations &&
+              data.continuationContents.liveChatContinuation.continuations[0] &&
+              data.continuationContents.liveChatContinuation.continuations[0].nextContinuationData &&
+              data.continuationContents.liveChatContinuation.continuations[0].nextContinuationData.continuation;
+            nextPageToken = newToken || null;
+
+            var timeout = (data.continuationContents &&
+              data.continuationContents.liveChatContinuation &&
+              data.continuationContents.liveChatContinuation.continuations &&
+              data.continuationContents.liveChatContinuation.continuations[0] &&
+              data.continuationContents.liveChatContinuation.continuations[0].nextContinuationData &&
+              data.continuationContents.liveChatContinuation.continuations[0].nextContinuationData.timeoutMs) || 3000;
+
+            if (nextPageToken) {
+              pollTimer = setTimeout(pollChat, timeout);
+            }
+          })
+          .catch(function (err) {
+            addLine('Error: ' + err.message, '#ff5252');
+          });
+      }
+
+      // Init
+      getLiveChatId()
+        .then(function (id) {
+          liveChatId = id;
+          // get initial continuation token
+          var url = 'https://www.youtube.com/youtubei/v1/live_chat/get_live_chat?key=' + API_KEY;
+          return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              context: {
+                client: {
+                  clientName: 'WEB',
+                  clientVersion: '2.20240101.00.00'
+                }
+              },
+              continuation: id
+            })
+          });
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var cont = data.continuationContents &&
+            data.continuationContents.liveChatContinuation &&
+            data.continuationContents.liveChatContinuation.continuations;
+          if (cont && cont[0] && cont[0].nextContinuationData) {
+            nextPageToken = cont[0].nextContinuationData.continuation;
+          }
+          if (nextPageToken) pollChat();
+          else addLine('Waiting for chat...', '#f0c040');
+        })
+        .catch(function (err) {
+          addLine('Error: ' + err.message, '#ff5252');
+        });
+    })();
+  </script>
+</body>
+
+</html>

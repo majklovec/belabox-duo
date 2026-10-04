@@ -15,6 +15,12 @@
  *   GET  /d/<id>/setup/    setup wizard for one device
  *   WS   /d/<id>/ws        browser ⇄ device; same protocol as the relay's local /ws
  *   GET  /api/devices      JSON list of known devices
+ *   GET  /dashboards/      server dashboards: compose dashboards from the modules
+ *                          of connected devices (public/dashboards.html)
+ *   GET  /api/dashboards   JSON list of dashboards
+ *   POST /api/dashboards   create a dashboard {name, widgets}
+ *   PUT  /api/dashboards/<id>   replace a dashboard {name, widgets}
+ *   DEL  /api/dashboards/<id>   remove a dashboard
  *   WS   /device           device connections (Authorization: Bearer <token>, x-device-id: <id>,
  *                          x-device-role: relay|encoder|combined)
  *   GET  /healthz          liveness (no auth)
@@ -42,12 +48,16 @@
  *            --ui-password / SRTLA_UI_PASSWORD)
  *   --no-auth disables both (local testing only).
  *
+ * Dashboards are a server-level feature: the dashboards page composes them from the
+ * modules of connected devices and persists them to --dashboards (default
+ * dashboards.json, created on the first change).
+ *
  * Usage:
  *   SRTLA_DEVICE_TOKEN=devsecret SRTLA_UI_PASSWORD=uipass bun server.ts --port 8090
  */
 import type { ServerWebSocket } from "bun";
-import { createHash, timingSafeEqual } from "node:crypto";
-import type { DeviceInfo, DeviceSummary, SrtlaStats, SrtlaStatsEvent, Status } from "./public/types";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import type { DeviceInfo, DeviceSummary, ServerDashboard, ServerDashboardWidget, SrtlaStats, SrtlaStatsEvent, Status, WidgetType } from "./public/types";
 import { arg, argFail, flag, intArg } from "./src/args";
 import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
 import { isLanguage, type Language, translate } from "./src/i18n";
@@ -64,6 +74,7 @@ const DEVICES_FILE = arg("--devices");
 const UI_USER      = arg("--ui-user", process.env.SRTLA_UI_USER ?? "admin");
 const UI_PASSWORD  = arg("--ui-password", process.env.SRTLA_UI_PASSWORD ?? "");
 const NO_AUTH      = flag("--no-auth");
+const DASHBOARDS_FILE = arg("--dashboards", "dashboards.json");
 
 const STALE_DEVICE_MS   = 5 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 30 * 1000;
@@ -72,6 +83,8 @@ const REQUEST_TIMEOUT_MS = 60_000;
 const ID_RE = /^[\w.-]{1,64}$/;
 // /d/<id>, /d/<id>/, /d/<id>/ws, /d/<id>/settings[/], /d/<id>/setup[/]
 const DEVICE_PATH_RE = /^\/d\/([^/]+)(?:(\/)(?:(ws)|(settings|setup)(\/)?)?)?$/;
+const WIDGET_TYPES: WidgetType[] = ["obs", "stats", "status", "relay", "encoder", "kick-stats", "kick-chat"];
+const DASH_PATH_RE = /^\/api\/dashboards(?:\/([\w.-]{1,64}))?$/;
 const viewersTopic = (id: string) => `viewers:${id}`;
 
 // ----------------------------------------------------------------------
@@ -122,7 +135,7 @@ const unauthorized = () =>
 // ----------------------------------------------------------------------
 // Frontend (bundled once at startup so it can sit behind auth)
 // ----------------------------------------------------------------------
-const PAGES = ["devices", "index", "settings", "setup"] as const;
+const PAGES = ["devices", "index", "settings", "setup", "dashboards", "dashboardedit", "dashboardview"] as const;
 type PageName = (typeof PAGES)[number];
 const pages = {} as Record<PageName, string>;
 const assets = new Map<string, Blob>();
@@ -348,6 +361,105 @@ function onViewerMessage(ws: Socket, deviceId: string, raw: string | Buffer): vo
 }
 
 // ----------------------------------------------------------------------
+// Server dashboards: composed from the modules of connected devices, persisted
+// to DASHBOARDS_FILE (created on the first change)
+// ----------------------------------------------------------------------
+interface DashboardsFile {
+	dashboards: ServerDashboard[];
+}
+
+function parseWidgets(raw: unknown): ServerDashboardWidget[] {
+	if (!Array.isArray(raw)) throw new ApiError("widgets is required");
+	return raw.map((w) => {
+		const item = (w && typeof w === "object" ? w : {}) as Record<string, unknown>;
+		const type = item.type;
+		if (typeof type !== "string" || !WIDGET_TYPES.includes(type as WidgetType)) {
+			throw new ApiError(`Unknown widget type: ${String(type)}`);
+		}
+		const deviceId = item.deviceId;
+		if (typeof deviceId !== "string" || deviceId === "") throw new ApiError("Widget needs a deviceId");
+		const width = Number(item.width);
+		if (![4, 6, 12].includes(width)) throw new ApiError("Widget width must be 4, 6 or 12");
+		const name = typeof item.name === "string" && item.name ? item.name : type;
+		return { id: randomUUID(), deviceId, type: type as WidgetType, name, width: width as 4 | 6 | 12 };
+	});
+}
+
+let dashboards: ServerDashboard[] = [];
+{
+	try {
+		const loaded = (await Bun.file(DASHBOARDS_FILE).json()) as DashboardsFile;
+		if (loaded && Array.isArray(loaded.dashboards)) dashboards = loaded.dashboards;
+	} catch {
+		// No file yet: start empty
+	}
+}
+
+function saveDashboards(): void {
+	const file = Bun.file(DASHBOARDS_FILE);
+	file.write(JSON.stringify({ dashboards }, null, 2)).catch((err: unknown) =>
+		console.error(`[dashboards] persist ${DASHBOARDS_FILE}:`, err),
+	);
+}
+
+class ApiError extends Error {
+	constructor(message: string, readonly code = 400) {
+		super(message);
+	}
+}
+
+function dashError(code: number, message: string): Response {
+	return Response.json({ ok: false, error: message, code });
+}
+
+async function dashApi(req: Request, url: URL): Promise<Response> {
+	try {
+		const m = url.pathname.match(DASH_PATH_RE);
+		if (!m) return Response.json({ ok: false, error: "Not found", code: 404 });
+		const id = m[1];
+		if (!id) {
+			if (req.method === "GET") return Response.json({ ok: true, dashboards });
+			if (req.method === "POST") {
+				const body = (await req.json()) as { name?: unknown; widgets?: unknown };
+				const name = typeof body.name === "string" ? body.name.trim() : "";
+				if (!name) return dashError(400, "Dashboard needs a name");
+				const dashboard: ServerDashboard = { id: randomUUID(), name, widgets: parseWidgets(body.widgets) };
+				dashboards.push(dashboard);
+				saveDashboards();
+				return Response.json({ ok: true, dashboard, dashboards }, { status: 201 });
+			}
+			return Response.json({ ok: false, error: "Method not allowed", code: 405 });
+		}
+		// Mutations need a body (JSON); the device list is a separate GET
+		const dashboardsById = dashboards.find((d) => d.id === id);
+		if (req.method === "DELETE") {
+			if (!dashboardsById) return dashError(404, "Unknown dashboard");
+			dashboards = dashboards.filter((d) => d.id !== id);
+			saveDashboards();
+			return Response.json({ ok: true, dashboards });
+		}
+		if (req.method === "PUT") {
+			if (!dashboardsById) return dashError(404, "Unknown dashboard");
+			const body = (await req.json()) as { name?: unknown; widgets?: unknown };
+			const name = typeof body.name === "string" ? body.name.trim() : "";
+			if (!name) return dashError(400, "Dashboard needs a name");
+			dashboardsById.name = name;
+			dashboardsById.widgets = parseWidgets(body.widgets);
+			saveDashboards();
+			return Response.json({ ok: true, dashboard: dashboardsById, dashboards });
+		}
+		if (req.method === "GET") {
+			if (!dashboardsById) return dashError(404, "Unknown dashboard");
+			return Response.json({ ok: true, dashboard: dashboardsById });
+		}
+		return Response.json({ ok: false, error: "Method not allowed", code: 405 });
+	} catch (err: unknown) {
+		const code = err instanceof ApiError ? err.code : 500;
+		return dashError(code, err instanceof Error ? err.message : "Internal error");
+	}
+}
+
+// ----------------------------------------------------------------------
 // HTTP / WebSocket server
 // ----------------------------------------------------------------------
 function summaries(): DeviceSummary[] {
@@ -357,6 +469,7 @@ function summaries(): DeviceSummary[] {
             statusAt: d.statusAt,
             srtla: d.status?.state?.srtla,
             encoder: d.status?.state?.encoder,
+            modules: d.status?.modules,
             maxBitrate: d.status?.state?.encoder?.config?.maxBitrate,
             ...(d.stats
                 ? {
@@ -416,6 +529,12 @@ const server = Bun.serve({
 
         if (path === "/") return htmlResponse("devices");
         if (path === "/api/devices") return Response.json(summaries());
+        if (path === "/dashboards/") return htmlResponse("dashboards");
+        if (path.startsWith("/api/dashboards")) return dashApi(req, url);
+        if (path.startsWith("/dashboards/view/") || path.startsWith("/dashboards/edit/")) {
+            const page: PageName = path.startsWith("/dashboards/view/") ? "dashboardview" : "dashboardedit";
+            return htmlResponse(page);
+        }
         if (path.startsWith("/assets/")) {
             const asset = assets.get(path.slice("/assets/".length));
             return asset

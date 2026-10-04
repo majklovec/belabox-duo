@@ -67,12 +67,21 @@ import {
 	requirePort,
 	requireString,
 } from "./params";
+import { kickChatHistory } from "./modules/kick-chat";
+import { kickStatsLatest } from "./modules/kick-stats";
+import { obsClientFor } from "./modules/obs";
+import { configureModule, moduleEnabled, modulesView, restartModule } from "./modules";
+import { type ObsClient, type ObsRequestBatch, EventSubscription } from "./modules/obs-client";
 import { removePipelineRepository, syncPipelineRepository } from "./pipelineRepos";
 import { applyRemoteSettings } from "./remote";
 import { detectInterfaces, isMonitorRunning, type ModemConfig, reconfigure, resolveSelection, setSelection } from "./routing";
 import { reloadSrtla, setSrtlaOptions, srtlaStatus, startSrtla, stopSrtla } from "./srtla";
 import { latestSrtlaStats, SRTLA_MODES, srtlaControlState } from "./srtlaControl";
-import { completeSetup, type SrtlaOptions, saveState, setupRequired, type SrtlaTarget, state, uiLanguage } from "./state";
+import {
+	ALL_MODULES, completeSetup, defaultModules, type SrtlaOptions,
+	saveState, setupRequired, type SrtlaTarget, state, uiLanguage,
+	OBS_MODULE, KICK_STATS_MODULE, KICK_CHAT_MODULE,
+} from "./state";
 import { cancelAutostart, setAutostart, startCombined, stopCombined } from "./stream";
 import { errorMessage, scrubUrl, textOf } from "./util";
 import { BITRATE_KBPS, DEFAULT_COLOR, type Role, ROLES } from "./validate";
@@ -118,6 +127,8 @@ export async function buildStatus() {
 		monitor: { running: isMonitorRunning(), reloadMode: RELOAD_MODE },
 		// null when the encoder binary is not ceracoder; the UI hides its settings then
 		ceracoder: enc instanceof Ceracoder ? enc.config() : null,
+		// Module system: enabled flags + non-secret settings (secrets => {configured})
+		modules: modulesView(),
 	};
 }
 
@@ -325,6 +336,37 @@ const manual =
 		return fn(p);
 	};
 
+
+const EVENT_SUBSCRIPTION_NAMES: Record<string, number> = {
+	General: EventSubscription.General,
+	Config: EventSubscription.Config,
+	Scenes: EventSubscription.Scenes,
+	Inputs: EventSubscription.Inputs,
+	Transitions: EventSubscription.Transitions,
+	Filters: EventSubscription.Filters,
+	Outputs: EventSubscription.Outputs,
+	SceneItems: EventSubscription.SceneItems,
+	MediaInputs: EventSubscription.MediaInputs,
+	Vendors: EventSubscription.Vendors,
+	Ui: EventSubscription.Ui,
+	InputVolumeMeters: EventSubscription.InputVolumeMeters,
+	InputActiveStateChanged: EventSubscription.InputActiveStateChanged,
+	InputShowStateChanged: EventSubscription.InputShowStateChanged,
+	SceneItemTransformChanged: EventSubscription.SceneItemTransformChanged,
+};
+
+/** The live client, or a 409 asking the operator to enable the module. */
+/** Case-insensitive: the map is keyed by upper-cased event names. */
+const EVENT_SUBSCRIPTION_LOOKUP: Record<string, number> = Object.fromEntries(
+	Object.entries(EVENT_SUBSCRIPTION_NAMES).map(([name, bit]) => [name.toUpperCase(), bit]),
+);
+
+const requiredObsClient = (): ObsClient => {
+	const client = obsClientFor();
+	if (!client) throw new ApiError("The obs-controller module is not running", 409);
+	return client;
+};
+
 const methods: Record<string, Method> = {
 	status: buildStatus,
 
@@ -488,11 +530,99 @@ const methods: Record<string, Method> = {
 	},
 
 	"log.list": () => ({ entries: logEntries() }),
+
+	// ---------------------------------------------------------------- modules
+	"modules.list": () => ({ modules: modulesView() }),
+	"modules.enable": (p) => {
+		const id = oneOf(requireString(p, "id"), "id", ALL_MODULES);
+		const modules = (state.settings.modules ??= defaultModules(ROLE));
+		modules[id].enabled = true;
+		saveState();
+		restartModule(id);
+		return { ok: true, modules: modulesView() };
+	},
+	"modules.disable": (p) => {
+		const id = oneOf(requireString(p, "id"), "id", ALL_MODULES);
+		const modules = (state.settings.modules ??= defaultModules(ROLE));
+		modules[id].enabled = false;
+		saveState();
+		restartModule(id);
+		return { ok: true, modules: modulesView() };
+	},
+	"modules.configure": (p) => {
+		const id = oneOf(requireString(p, "id"), "id", ALL_MODULES);
+		const config =
+			p.config && typeof p.config === "object" && !Array.isArray(p.config) ? (p.config as Record<string, unknown>) : {};
+		state.settings.modules ??= defaultModules(ROLE);
+		configureModule(id, config);
+		saveState();
+		return { ok: true, modules: modulesView() };
+	},
+
+	// -------------------------------------------------------------------- obs
+	"obs.request": async (p) => {
+		const client = requiredObsClient();
+		const requestType = requireString(p, "requestType");
+		const requestId = typeof p.requestId === "string" && p.requestId ? p.requestId : crypto.randomUUID();
+		const requestData =
+			p.requestData && typeof p.requestData === "object" && !Array.isArray(p.requestData)
+				? (p.requestData as Record<string, unknown>)
+				: {};
+		// op7 passthrough: the obs-websocket v5 response `d`, statuses unmapped
+		return client.sendRequest({ requestType, requestId, requestData });
+	},
+	"obs.requestBatch": async (p) => {
+		const client = requiredObsClient();
+		const requests = p.requests;
+		if (!Array.isArray(requests) || !requests.length) throw new ApiError("requests must be a non-empty array");
+		for (const r of requests) {
+			if (!r || typeof r !== "object" || typeof (r as Record<string, unknown>).requestType !== "string") {
+				throw new ApiError("Each request needs a string requestType");
+			}
+		}
+		const requestId = typeof p.requestId === "string" && p.requestId ? p.requestId : crypto.randomUUID();
+		const batch: ObsRequestBatch = {
+			requestId,
+			requests: requests.map((r) => {
+				const it = r as Record<string, unknown>;
+				return {
+					requestType: it.requestType as string,
+					requestId: typeof it.requestId === "string" && it.requestId ? it.requestId : crypto.randomUUID(),
+					...(it.requestData ? { requestData: it.requestData as Record<string, unknown> } : {}),
+				};
+			}),
+			...(p.haltOnFailure !== undefined ? { haltOnFailure: !!p.haltOnFailure } : {}),
+			...(p.executionType !== undefined ? { executionType: p.executionType as 0 | 1 | 2 } : {}),
+		};
+		// op9 passthrough: the obs-websocket v5 batch response `d`
+		return client.sendBatch(batch);
+	},
+	"obs.setEventSubscriptions": (p) => {
+		const client = requiredObsClient();
+		const names = optionalStringList(p, "eventSubscriptions") ?? [];
+		const intents = names.reduce(
+			(acc: number, name) => acc | (EVENT_SUBSCRIPTION_LOOKUP[name.toUpperCase()] ?? EventSubscription.None),
+			0,
+		);
+		client.setEventSubscriptions(intents);
+		return { ok: true, eventSubscriptions: intents };
+	},
+
+	// -------------------------------------------------------------------- kick
+	"kick.stats.get": () => ({ stats: kickStatsLatest() }),
+	"kick.chat.get": (p) => {
+		const limit = optionalInt(p, "limit", 500, 1, 1000);
+		return { messages: kickChatHistory(limit), stats: kickStatsLatest() };
+	},
 };
 
 function methodAllowed(name: string): boolean {
 	const role = effectiveRole();
 	if (name.startsWith("stream.")) return role === "combined";
+	// Module-owned API surface: 409 when the owning module is disabled
+	if (name.startsWith("obs.") && !moduleEnabled(OBS_MODULE)) return false;
+	if (name.startsWith("kick.stats") && !moduleEnabled(KICK_STATS_MODULE)) return false;
+	if (name.startsWith("kick.chat") && !moduleEnabled(KICK_CHAT_MODULE)) return false;
 	if (name.startsWith("encoder.") || name.startsWith("ceracoder.") || name === "pipelines.list") return role !== "relay";
 	if (name.startsWith("modems.") || name.startsWith("srtla.") || name === "reconfigure") return role !== "encoder";
 	return true;

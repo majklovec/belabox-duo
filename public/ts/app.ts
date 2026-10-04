@@ -30,7 +30,7 @@ async function setAutostart(enabled: boolean): Promise<void> {
 	m.redraw();
 }
 
-function headerRight(): m.Children {
+function headerRight(): m.Children[] {
 	const status = st.status;
 	return [
 		m(
@@ -56,6 +56,10 @@ const App: m.Component = {
 		const role = status?.role;
 		const hasEncoder = !!status && role !== "relay";
 		const hasRelay = !!status && role !== "encoder";
+		const children = [
+			hasEncoder && encoderCard(status),
+			hasRelay && [srtlaCard(status), interfacesCard(status), modemsCard(status)],
+		];
 		return m(
 			Page,
 			{
@@ -66,8 +70,7 @@ const App: m.Component = {
 				],
 				headerRight: headerRight(),
 			},
-			hasEncoder && encoderCard(status),
-			hasRelay && [srtlaCard(status), interfacesCard(status), modemsCard(status)],
+			children,
 			m(LogCard),
 		);
 	},

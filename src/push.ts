@@ -21,7 +21,10 @@ export interface StatusSink {
 	statsIntervalMs?: number;
 }
 
-const event = (name: string, data: unknown): string => JSON.stringify({ type: "event", event: name, data });
+// `module` tags module-generated pushes (obs/kick); core events leave it out,
+// so their frame shape is unchanged for existing clients.
+const event = (name: string, data: unknown, module?: string): string =>
+	JSON.stringify({ type: "event", event: name, data, ...(module ? { module } : {}) });
 
 export const statusEvent = async (): Promise<string> => event("status", await buildStatus());
 
@@ -62,6 +65,16 @@ function broadcastStats(ev: SrtlaStatsEvent): void {
 		msg ??= statsEvent(ev);
 		sink.send(msg);
 	}
+}
+
+/**
+ * Generic push for module-generated events (obs / kick), tagged with the
+ * module ID so clients can route them. Sent to every currently active sink;
+ * no deduplication, no per-stats throttling.
+ */
+export function pushModuleEvent(name: string, data: unknown, module: string): void {
+	const msg = event(name, data, module);
+	for (const sink of activeSinks()) sink.send(msg);
 }
 
 let subscribed = false;

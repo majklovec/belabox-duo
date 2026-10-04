@@ -1,0 +1,17 @@
+{
+  "dashboards": [
+    {
+      "id": "4122e778-96df-4982-8145-1194799c4816",
+      "name": "csacas",
+      "widgets": [
+        {
+          "id": "dca59b52-22a8-4fb1-979d-4e8a66bc5394",
+          "deviceId": "987a6288-fbeb-4d8f-acab-600b2b32bfa0",
+          "type": "status",
+          "name": "dasd",
+          "width": 6
+        }
+      ]
+    }
+  ]
+}

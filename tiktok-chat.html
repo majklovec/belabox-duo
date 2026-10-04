@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>TikTok Chat</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      overflow: hidden;
+    }
+
+    #chat {
+      position: fixed;
+      inset: 0;
+      padding: 10px 14px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 4px;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .9), 0 0 4px rgba(0, 0, 0, .7);
+    }
+
+    .m {
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      animation: fade .2s ease;
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    .u {
+      font-weight: 700;
+      margin-right: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="chat"></div>
+  <script>
+    (function () {
+      // ── Read username from URL (?user=xxxx)
+      var params = new URLSearchParams(window.location.search);
+      var USERNAME = params.get('user') || params.get('u') || '';
+      if (!USERNAME) {
+        document.getElementById('chat').textContent = 'Error: add ?user=USERNAME to the URL';
+        return;
+      }
+      USERNAME = USERNAME.replace(/^@/, ''); // strip leading @
+
+      var box = document.getElementById('chat');
+      var MAX = 100;
+      var ws = null;
+      var reconnectTimer = null;
+      var reconnectDelay = 2000;
+
+      function addLine(text, color) {
+        var d = document.createElement('div');
+        d.className = 'm';
+        d.style.color = color || '#fff';
+        d.textContent = text;
+        box.appendChild(d);
+        while (box.children.length > MAX) box.removeChild(box.firstChild);
+      }
+
+      function render(payload) {
+        var user = payload.user || {};
+        var username = user.uniqueId || user.nickname || 'unknown';
+        var text = payload.comment || '';
+
+        var row = document.createElement('div');
+        row.className = 'm';
+
+        var u = document.createElement('span');
+        u.className = 'u';
+        u.textContent = username + ':';
+        row.appendChild(u);
+
+        var t = document.createElement('span');
+        t.textContent = text;
+        row.appendChild(t);
+
+        box.appendChild(row);
+        while (box.children.length > MAX) box.removeChild(box.firstChild);
+      }
+
+      function connect() {
+        ws = new WebSocket('wss://api.tik.tools');
+
+        ws.onopen = function () {
+          console.log('[TikTok] Connected');
+          reconnectDelay = 2000;
+          // Send subscribe message (format used by tiktok-live-events)
+          ws.send(JSON.stringify({
+            type: 'subscribe',
+            username: USERNAME
+          }));
+        };
+
+        ws.onmessage = function (ev) {
+          var msg;
+          try { msg = JSON.parse(ev.data); } catch (e) { return; }
+
+          // tiktok-live-events emits { event: 'chat', data: {...} }
+          if (msg.event === 'chat' && msg.data) {
+            render(msg.data);
+          } else if (msg.event === 'error') {
+            addLine('Error: ' + (msg.data && msg.data.message || 'unknown'), '#ff5252');
+          }
+        };
+
+        ws.onerror = function () {
+          addLine('WebSocket error', '#ff5252');
+        };
+
+        ws.onclose = function (ev) {
+          console.log('[TikTok] Closed', ev.code);
+          addLine('Connection closed (' + ev.code + '). Reconnecting...', '#f0c040');
+          clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(connect, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 1.5, 30000);
+        };
+      }
+
+      connect();
+    })();
+  </script>
+</body>
+
+</html>

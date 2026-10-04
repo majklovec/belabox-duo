@@ -90,6 +90,34 @@ header {
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* Main menu in the server header (device list / dashboards) */
+.main-nav {
+  display: flex;
+  gap: 0.25rem;
+  margin-right: 0.75rem;
+}
+
+.nav-link {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+  opacity: 0.75;
+}
+
+.nav-link:hover {
+  opacity: 1;
+  border-color: var(--border);
+}
+
+.nav-link.active {
+  opacity: 1;
+  font-weight: 600;
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--header-color) 12%, transparent);
+}
+
 /* Language selector in the page header */
 .lang-select {
   padding: 0.35rem 0.6rem;
@@ -831,5 +859,185 @@ td.num {
 @media (max-width: 640px) {
   .wiz-sub {
     display: none;
+  }
+}
+
+/* ---------------------------------------------------------------- dashboards */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--gap, 16px);
+  margin: 16px 0;
+}
+.dashboard-grid > .dashboard-item {
+  min-width: 0;
+}
+.dashboard-grid > .dash-w-4 {
+  grid-column: span 4;
+}
+.dashboard-grid > .dash-w-6 {
+  grid-column: span 6;
+}
+.dashboard-grid > .dash-w-12 {
+  grid-column: span 12;
+}
+.dashboard-grid > .dashboard-item > .card {
+  height: 100%;
+}
+@media (max-width: 900px) {
+  .dashboard-grid > .dash-w-4,
+  .dashboard-grid > .dash-w-6 {
+    grid-column: span 12;
+  }
+}
+
+/* Kick chat feed */
+.kick-chat-feed {
+  max-height: 320px;
+  overflow-y: auto;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  background: var(--card-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+.kick-chat-line .chat-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--ring);
+  color: var(--accent-hover);
+  vertical-align: middle;
+}
+.kick-chat-line .chat-user {
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+/* Kick stats card */
+.kick-stats-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.kick-stats-top .big {
+  font-size: 2rem;
+  font-weight: 700;
+}
+.kick-stats-top .kick-viewers {
+  color: var(--accent-hover);
+}
+.kick-title {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 4px 0;
+}
+.kick-spark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+svg.spark polyline {
+  stroke: var(--accent);
+  fill: none;
+}
+
+/* Editor tabs */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.tab {
+  background: var(--card-subtle);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: var(--t);
+}
+.tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Editor tables + toolbars */
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+.dash-table th,
+.dash-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.dash-table tr.active td {
+  background: var(--ring);
+}
+.dash-table .actions-cell {
+  white-space: nowrap;
+  text-align: right;
+}
+.dash-toolbar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.dash-empty {
+  padding: 12px 0;
+}
+.dash-empty .dash-toolbar {
+  gap: 10px;
+}
+.dash-empty-text {
+  font-weight: 600;
+}
+.dash-row-link {
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.dash-row-link:hover {
+  text-decoration: underline;
+}
+.dash-name {
+  font-weight: 600;
+}
+.dash-name-input {
+  font-size: 1.05em;
+  font-weight: 600;
+  width: min(320px, 60vw);
+}
+.config-cell {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+p.message {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-grid > .dashboard-item {
+    grid-column: 1 / -1 !important;
   }
 }

@@ -1,7 +1,7 @@
 /* Control server device list — a Mithril view of a polling fetch every few seconds. */
 import m from "mithril";
 import type { DeviceSummary } from "../types";
-import { type BadgeKind, badge, Card, type Child, encoderIssueBadge, Page } from "./components/ui";
+import { type BadgeKind, badge, Card, type Child, encoderIssueBadge, Page, serverNav } from "./components/ui";
 import { t } from "./i18n";
 import { icon, roleTag } from "./icons";
 import { formatBitrate, mountPage, since } from "./util";
@@ -108,7 +108,7 @@ const App: m.Component = {
 		const headers = columnHeaders();
 		return m(
 			Page,
-			{ title: t("mgmt.title"), headerRight: badge(state.connText, state.connKind) },
+			{ title: t("mgmt.title"), nav: serverNav("devices"), headerRight: badge(state.connText, state.connKind) },
 			m(
 				Card,
 				{ title: t("mgmt.devices") },

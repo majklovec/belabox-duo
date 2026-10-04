@@ -84,6 +84,9 @@ async function startSaved(): Promise<boolean> {
             if (!cfg || !state.stream) return false;
             if (!encoder().status().running) await startCombined(state.stream, cfg);
             return true;
+        default:
+            // obs/custom roles have no stream of their own
+            return false;
     }
 }
 
