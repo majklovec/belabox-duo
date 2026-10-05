@@ -15,6 +15,7 @@ import type {
 	WidgetType,
 } from "../types";
 import { badge, type Child } from "./components/ui";
+import { createObsPanel, type ObsEvent, type ObsPanel, type ObsRequestResult } from "../../modules/obs-controller/frontend";
 import { t } from "./i18n";
 import { roleTag } from "./icons";
 import { RpcClient, socketUrl } from "./services/rpc";
@@ -278,25 +279,39 @@ function encoderWidget(deviceId: string, conn: Connection | undefined): m.Childr
 const moduleEnabledOn = (d: DeviceSummary | undefined, key: string): boolean =>
 	!(d?.modules && (d.modules as unknown as Record<string, { enabled?: boolean } | undefined>)[key]?.enabled);
 
-function obsWidget(deviceId: string, conn: Connection | undefined): m.Children {
-	const d = deviceById(deviceId);
+/** One panel instance per obs widget (its own timers, VU canvas, pending guards). */
+const obsPanels = new Map<string, ObsPanel>();
+
+/** The full control panel (preview, scenes, output actions, VU meter), not just the status rows. */
+function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Children {
+	const d = deviceById(w.deviceId);
 	if (moduleEnabledOn(d, "obs-controller")) return [badge(t("dash.widget_module_off"), "warn")];
 	if (!conn || !d?.online) return [badge(t("dev.badge.offline"), "off")];
-	const live = conn.live;
-	const rows: [string, Child][] = [];
-	if (live.obsScene) rows.push([t("dash.widget.scene"), live.obsScene]);
-	rows.push([
-		t("dash.widget.streaming"),
-		live.obsStreaming ? badge(t("dev.badge.streaming"), "on") : badge(t("dev.badge.stopped"), "off"),
-	]);
-	rows.push([
-		t("dash.widget.recording"),
-		live.obsRecording ? badge(t("dev.badge.streaming"), "on") : badge(t("dev.badge.stopped"), "off"),
-	]);
-	return [
-		badge(live.obsConnected ? t("dev.badge.online") : t("dev.badge.offline"), live.obsConnected ? "on" : "off"),
-		widgetTable(rows),
-	];
+	let panel = obsPanels.get(w.id);
+	if (!panel) {
+		panel = createObsPanel({
+			send: <T = Record<string, unknown>>(type: string, data?: Record<string, unknown>) =>
+				conn.rpc.call<ObsRequestResult<T> | undefined>("obs.request", {
+					requestType: type,
+					requestId: crypto.randomUUID(),
+					requestData: data ?? {},
+				}),
+			onEvent: (h) => conn.rpc.on("obs.event", (data) => h(data as ObsEvent)),
+			mirror: (s) => {
+				conn.live.obsConnected = s.connected;
+				conn.live.obsStreaming = s.streaming;
+				conn.live.obsRecording = s.recording;
+				if (s.scene) conn.live.obsScene = s.scene;
+			},
+			startConnected: () => conn.live.obsConnected,
+			onDestroy: () => obsPanels.delete(w.id),
+		});
+		obsPanels.set(w.id, panel);
+	}
+	const p: ObsPanel = panel; // const binding — panel may be narrowed away by the closures above
+	// The dashboard widget card is shared by all widget types, so scope the module CSS
+	// with the same .mod-obs-controller class the device page's card root gets.
+	return m("div.mod-obs-controller", [...p.head(), p.component()]);
 }
 
 function kickStatsWidget(deviceId: string, conn: Connection | undefined): m.Children {
@@ -346,7 +361,7 @@ export function widgetView(w: ServerDashboardWidget): m.Vnode {
 		case "stats": body = statsWidget(w.deviceId, conn); break;
 		case "relay": body = relayWidget(w.deviceId, conn); break;
 		case "encoder": body = encoderWidget(w.deviceId, conn); break;
-		case "obs": body = obsWidget(w.deviceId, conn); break;
+		case "obs": body = obsWidget(w, conn); break;
 		case "kick-stats": body = kickStatsWidget(w.deviceId, conn); break;
 		case "kick-chat": body = kickChatWidget(w.deviceId, conn); break;
 		default: body = statusWidget(w.deviceId, conn);

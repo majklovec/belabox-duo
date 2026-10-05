@@ -191,11 +191,15 @@ export class ObsClient {
   private readonly listeners = new Map<string, Set<EventHandler>>();
 
   constructor(opts: ObsClientOptions) {
+    // Normalize log args so Error objects surface as plain messages —
+    // console.log prints them as stack traces with source frames.
+    const userLog = opts.log ?? (() => {});
     this.opts = {
       autoConnect: true,
       disableReconnect: false,
-      log: () => {},
       ...opts,
+      log: (msg, ...rest) =>
+        userLog(msg, ...rest.map((x) => (x instanceof Error ? x.message : x))),
     };
     this.eventSubscriptions =
       opts.eventSubscriptions ?? DEFAULT_EVENT_SUBSCRIPTIONS;
@@ -310,7 +314,19 @@ export class ObsClient {
         else resolve();
       };
 
-      const ws = new WebSocket(this.opts.url);
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(this.opts.url);
+      } catch (err) {
+        // e.g. an invalid URL throws synchronously and never fires `close`,
+        // so the close-handler would never schedule a reconnect. Log and
+        // keep retrying with backoff like any other failed connect.
+        this.opts.log("obs connect failed", err);
+        reject(err instanceof Error ? err : new Error(String(err)));
+        if (!this.closedByUser && !this.opts.disableReconnect)
+          this.scheduleReconnect();
+        return;
+      }
       this.ws = ws;
 
       ws.addEventListener("message", (ev: MessageEvent) => {
@@ -347,7 +363,7 @@ export class ObsClient {
       });
 
       ws.addEventListener("error", (ev: Event) =>
-        this.opts.log("obs ws error", ev),
+        this.opts.log("obs ws error", (ev as ErrorEvent).message ?? String(ev)),
       );
 
       ws.addEventListener("close", (ev: CloseEvent) => {
@@ -606,6 +622,9 @@ const FORWARDED_EVENTS = [
   "MediaInputStateChanged",
   "StreamStateChanged",
   "RecordStateChanged",
+  // The VU meter needs the per-input level events (absent from the defaults above).
+  "InputVolumeMeters",
+  "InputMute",
 ] as const;
 
 // Case-insensitive event-name -> subscription bit (same names methods.ts accepts)
@@ -647,6 +666,8 @@ async function main(): Promise<void> {
   const obs = new ObsClient({
     url: obsUrl,
     ...(obsPassword ? { password: obsPassword } : {}),
+    // The VU meter needs the InputVolumeMeters bit (absent from the defaults).
+    eventSubscriptions: DEFAULT_EVENT_SUBSCRIPTIONS | EventSubscription.InputVolumeMeters,
     log: (msg, ...rest) => console.log(`[obs] ${msg}`, ...rest),
   });
 

@@ -21,8 +21,8 @@ export class RpcClient {
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private destroyed = false;
 
-	constructor(private readonly makeUrl: () => string) {
-		this.connect();
+		constructor(private readonly makeUrl: () => string, autoConnect = true) {
+		if (autoConnect) this.connect();
 	}
 
 	get open(): boolean {
@@ -75,6 +75,11 @@ export class RpcClient {
 	/** Drop the socket; the auto-reconnect fires and "open" handlers re-fetch state. */
 	reconnect(): void {
 		this.ws?.close();
+	}
+
+	/** Connect if not already (for clients built with autoConnect: false). */
+	ensureConnected(): void {
+		if (!this.ws) this.connect();
 	}
 
 	private connect = (): void => {

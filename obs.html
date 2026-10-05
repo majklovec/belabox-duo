@@ -39,6 +39,9 @@
       padding: 12px 16px;
       border-radius: 12px;
       border: 1px solid #3a3a3a;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
 
     .connection {
@@ -58,7 +61,7 @@
     }
 
     .connection input#wsUrl {
-      width: 200px;
+      width: 220px;
     }
 
     .connection input#wsPassword {
@@ -95,6 +98,56 @@
     .status.connected {
       background: #1a3a1a;
       color: #6bff6b;
+    }
+
+    /* Diagnostic panel */
+    .diagnostics {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .diagnostics.visible {
+      display: flex;
+    }
+
+    .diag-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .diag-icon {
+      flex-shrink: 0;
+      width: 16px;
+    }
+
+    .diag-ok {
+      color: #6bff6b;
+    }
+
+    .diag-fail {
+      color: #ff6b6b;
+    }
+
+    .diag-warn {
+      color: #ffb86b;
+    }
+
+    .diag-info {
+      color: #8ac4ff;
+    }
+
+    .diag-detail {
+      color: #888;
+      font-size: 11px;
+      margin-left: 24px;
     }
 
     /* ============================================================
@@ -386,8 +439,12 @@
         <input id="wsUrl" type="text" placeholder="ws://127.0.0.1:4455" value="ws://127.0.0.1:4455" />
         <input id="wsPassword" type="password" placeholder="Password (optional)" />
         <button id="connectBtn">Connect</button>
+        <button id="diagnoseBtn" title="Test connectivity step by step">🔍 Diagnose</button>
         <span id="status" class="status">Disconnected</span>
       </div>
+
+      <!-- Diagnostic output -->
+      <div class="diagnostics" id="diagnostics"></div>
     </header>
 
     <!-- ─── Main body: preview + deck ─── -->
@@ -445,26 +502,36 @@
         <main class="deck" id="deck"></main>
       </section>
     </div>
+
+    <!-- ─── Footer ─── -->
+    <footer class="footer">
+      <button id="addSceneBtn">+ Add Scene Button</button>
+      <button id="addActionBtn">+ Add Action Button</button>
+    </footer>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.8/dist/obs-ws.min.js"></script>
+  <!-- Standalone global build: exposes window.OBSWebSocket (class) -->
+  <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js"></script>
   <script>
     // ============================================================
     //  OBS Stream Deck + VU Meter + Preview (5s polling)
     // ============================================================
 
-    const { OBSWebSocket, EventSubscription } = OBSWebSocket_JS;
+    const EventSubscription = OBSWebSocket.EventSubscription;
+    const obs = new OBSWebSocket();
 
     // --- DOM refs ---
     const wsUrlInput = document.getElementById('wsUrl');
     const wsPasswordInput = document.getElementById('wsPassword');
     const connectBtn = document.getElementById('connectBtn');
+    const diagnoseBtn = document.getElementById('diagnoseBtn');
     const statusSpan = document.getElementById('status');
+    const diagnosticsEl = document.getElementById('diagnostics');
 
     const deckEl = document.getElementById('deck');
     const refreshBtn = document.getElementById('refreshBtn');
-    // const addSceneBtn = document.getElementById('addSceneBtn');
-    // const addActionBtn = document.getElementById('addActionBtn');
+    const addSceneBtn = document.getElementById('addSceneBtn');
+    const addActionBtn = document.getElementById('addActionBtn');
 
     const previewImg = document.getElementById('previewImg');
     const previewWrapper = document.getElementById('previewWrapper');
@@ -482,14 +549,173 @@
     const vuCtx = vuCanvas.getContext('2d');
     const vuInputSel = document.getElementById('vuInput');
 
-    // --- OBS client ---
-    const obs = new OBSWebSocket();
-
     // --- State ---
     let currentScene = null;
     let scenes = [];
     let audioInputs = [];
     let selectedVuInput = null;
+
+    // ============================================================
+    //  DIAGNOSTICS
+    // ============================================================
+    function diagLog(icon, cls, text, detail) {
+      const row = document.createElement('div');
+      row.className = 'diag-row';
+      row.innerHTML =
+        `<span class="diag-icon ${cls}">${icon}</span>` +
+        `<span>${text}</span>`;
+      diagnosticsEl.appendChild(row);
+
+      if (detail) {
+        const d = document.createElement('div');
+        d.className = 'diag-detail';
+        d.textContent = detail;
+        diagnosticsEl.appendChild(d);
+      }
+    }
+
+    function diagClear() {
+      diagnosticsEl.innerHTML = '';
+      diagnosticsEl.classList.add('visible');
+    }
+
+    /**
+     * Runs a raw WebSocket test against the given URL with a timeout.
+     * Returns { ok, code, reason, elapsed }.
+     */
+    function rawWebSocketTest(url, timeoutMs = 4000) {
+      return new Promise((resolve) => {
+        const start = performance.now();
+        let settled = false;
+        let ws;
+
+        const finish = (ok, code, reason) => {
+          if (settled) return;
+          settled = true;
+          const elapsed = Math.round(performance.now() - start);
+          try { ws && ws.close(); } catch (_) { }
+          resolve({ ok, code, reason, elapsed });
+        };
+
+        try {
+          ws = new WebSocket(url);
+        } catch (e) {
+          finish(false, null, 'Invalid URL: ' + e.message);
+          return;
+        }
+
+        ws.onopen = () => finish(true, 1000, 'opened');
+
+        ws.onclose = (ev) => finish(false, ev.code, ev.reason || '(no reason)');
+
+        ws.onerror = () => {
+          // onerror fires before onclose; don't resolve here — let onclose do it
+        };
+
+        setTimeout(() => finish(false, 'timeout', `no response in ${timeoutMs}ms`), timeoutMs);
+      });
+    }
+
+    async function runDiagnostics() {
+      diagClear();
+
+      const url = wsUrlInput.value.trim() || 'ws://127.0.0.1:4455';
+      const password = wsPasswordInput.value.trim() || undefined;
+
+      diagLog('ℹ️', 'diag-info', `Testing <code>${escapeHtml(url)}</code>`);
+
+      // ---- 1. URL sanity ----
+      if (!/^wss?:\/\//i.test(url)) {
+        diagLog('❌', 'diag-fail', 'URL must start with <code>ws://</code> or <code>wss://</code>');
+        return;
+      }
+
+      // ---- 2. Mixed content check ----
+      if (location.protocol === 'https:' && url.startsWith('ws://')) {
+        diagLog('❌', 'diag-fail',
+          'Mixed content blocked',
+          'Your page is served over HTTPS but you are connecting to ws:// (insecure). ' +
+          'Browsers block this. Open the HTML file directly (file://) or serve it over http://.');
+        return;
+      }
+
+      // ---- 3. Raw WebSocket handshake ----
+      diagLog('⏳', 'diag-warn', 'Attempting raw WebSocket handshake…');
+      const result = await rawWebSocketTest(url, 4000);
+
+      // Remove the "⏳" line we just added
+      diagnosticsEl.removeChild(diagnosticsEl.lastElementChild);
+
+      if (!result.ok) {
+        if (result.code === 'timeout') {
+          diagLog('❌', 'diag-fail',
+            `No response after ${result.elapsed}ms (timeout)`,
+            'The TCP connection was accepted but OBS never completed the WebSocket handshake. ' +
+            'This usually means OBS is not running, the WebSocket server is disabled, or ' +
+            'something is silently dropping the connection.');
+        } else if (result.code === 1006) {
+          diagLog('❌', 'diag-fail',
+            `Connection failed (code 1006 — abnormal closure) after ${result.elapsed}ms`,
+            'The browser could not establish a TCP connection at all. Most likely causes: ' +
+            '(1) OBS WebSocket server is disabled in OBS → Tools → WebSocket Server Settings; ' +
+            '(2) Windows Firewall is blocking port 4455; ' +
+            '(3) OBS is bound to 127.0.0.1 only, not 0.0.0.0; ' +
+            '(4) the IP address is wrong (check with ipconfig on the OBS machine).');
+        } else {
+          diagLog('❌', 'diag-fail',
+            `Connection closed (code ${result.code})`,
+            result.reason);
+        }
+        diagLog('ℹ️', 'diag-info', 'Next steps', 'See the checklist below the app.');
+        return;
+      }
+
+      diagLog('✅', 'diag-ok', `TCP + WebSocket handshake succeeded in ${result.elapsed}ms`);
+
+      // ---- 4. Full obs-websocket-js connect ----
+      diagLog('⏳', 'diag-warn', 'Attempting full OBS protocol connect…');
+
+      // Use a temporary client so we don't disturb the main one
+      const testClient = new OBSWebSocket();
+      try {
+        const info = await Promise.race([
+          testClient.connect(url, password, { rpcVersion: 1 }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000)),
+        ]);
+        diagnosticsEl.removeChild(diagnosticsEl.lastElementChild);
+        diagLog('✅', 'diag-ok',
+          `Connected. OBS WebSocket v${info.obsWebSocketVersion}, RPC v${info.negotiatedRpcVersion}`);
+        try { testClient.disconnect(); } catch (_) { }
+      } catch (err) {
+        diagnosticsEl.removeChild(diagnosticsEl.lastElementChild);
+        const code = err && err.code;
+        const msg = err && err.message ? err.message : String(err);
+
+        if (code === 4009) {
+          diagLog('❌', 'diag-fail',
+            'Authentication failed (code 4009)',
+            'The connection reached OBS but the password was rejected. ' +
+            'Copy the password again from OBS → Tools → WebSocket Server Settings → Show Connect Info.');
+        } else if (code === 4010) {
+          diagLog('❌', 'diag-fail',
+            'Protocol version mismatch (code 4010)',
+            'You are connecting with an old (pre-5.0) protocol. Make sure OBS is v28+ and ' +
+            'you are loading obs-websocket-js v5 from the CDN.');
+        } else {
+          diagLog('❌', 'diag-fail',
+            `OBS protocol connect failed${code ? ' (code ' + code + ')' : ''}`,
+            msg);
+        }
+      } finally {
+        try { testClient.disconnect(); } catch (_) { }
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      ));
+    }
 
     // ============================================================
     //  VU METER
@@ -512,7 +738,6 @@
       const H = vuCanvas.height;
 
       vuCtx.clearRect(0, 0, W, H);
-
       vuCtx.fillStyle = '#0a0a0a';
       vuCtx.fillRect(0, 0, W, H);
 
@@ -584,7 +809,6 @@
         try {
           data = await grab(sourceName);
         } catch (err) {
-          // Fallback: try current scene name if "Program" isn't accepted
           if (sourceName === 'Program' && currentScene) {
             data = await grab(currentScene);
           } else {
@@ -608,7 +832,7 @@
     }
 
     function getPreviewIntervalMs() {
-      return Number(previewIntervalSel.value); // 0 = manual only
+      return Number(previewIntervalSel.value);
     }
 
     function startPreviewLoop() {
@@ -755,7 +979,20 @@
 
       } catch (err) {
         console.error('Connection failed:', err);
-        statusSpan.textContent = 'Error: ' + (err.message || err);
+        const code = err && err.code;
+        const msg = err && err.message ? err.message : String(err);
+
+        let friendly = msg;
+        if (code === 1006 || /failed/i.test(msg)) {
+          friendly = 'Cannot reach OBS (code 1006). Check that the WebSocket server is enabled ' +
+            'and that the firewall allows port 4455. Click 🔍 Diagnose for details.';
+        } else if (code === 4009) {
+          friendly = 'Wrong password (code 4009). Copy it again from OBS → Tools → WebSocket Server Settings.';
+        } else if (code === 4010) {
+          friendly = 'Protocol version mismatch (code 4010). OBS must be v28+ and the client v5.';
+        }
+
+        statusSpan.textContent = 'Error: ' + friendly;
         statusSpan.className = 'status';
       }
     }
@@ -919,6 +1156,7 @@
     //  EVENT LISTENERS
     // ============================================================
     connectBtn.addEventListener('click', connectToOBS);
+    diagnoseBtn.addEventListener('click', runDiagnostics);
 
     refreshBtn.addEventListener('click', async () => {
       if (obs.identified) {
@@ -927,36 +1165,35 @@
       }
     });
 
-    // addSceneBtn.addEventListener('click', () => {
-    // if (!obs.identified) return;
-    // const name = prompt('Enter scene name to add as button:');
-    // if (!name) return;
-    // if (!scenes.some(s => s.sceneName === name)) {
-    //   alert('Scene not found. Use "Refresh Scenes" to load current scenes.');
-    //   return;
-    // }
-    // if (deckEl.querySelector(`.deck-button[data-scene-name="${CSS.escape(name)}"]`)) {
-    //   alert('Button already exists.');
-    //   return;
-    // }
-    // const btn = createDeckButton({
-    //   label: name, icon: '🎬', type: 'scene',
-    //   onClick: async () => {
-    //     await obs.call('SetCurrentProgramScene', { sceneName: name });
-    //     setActiveScene(name);
-    //   },
-    // });
-    // btn.dataset.sceneName = name;
-    // deckEl.appendChild(btn);
-    // });
+    addSceneBtn.addEventListener('click', () => {
+      if (!obs.identified) return;
+      const name = prompt('Enter scene name to add as button:');
+      if (!name) return;
+      if (!scenes.some(s => s.sceneName === name)) {
+        alert('Scene not found. Use "Refresh Scenes" to load current scenes.');
+        return;
+      }
+      if (deckEl.querySelector(`.deck-button[data-scene-name="${CSS.escape(name)}"]`)) {
+        alert('Button already exists.');
+        return;
+      }
+      const btn = createDeckButton({
+        label: name, icon: '🎬', type: 'scene',
+        onClick: async () => {
+          await obs.call('SetCurrentProgramScene', { sceneName: name });
+          setActiveScene(name);
+        },
+      });
+      btn.dataset.sceneName = name;
+      deckEl.appendChild(btn);
+    });
 
-    // addActionBtn.addEventListener('click', () => {
-    //   addActionButton('Custom Action', '⚡', async () => {
-    //     alert('Configure your custom OBS action here!');
-    //   });
-    // });
+    addActionBtn.addEventListener('click', () => {
+      addActionButton('Custom Action', '⚡', async () => {
+        alert('Configure your custom OBS action here!');
+      });
+    });
 
-    // Preview controls
     previewSourceSel.addEventListener('change', () => {
       previewSource = previewSourceSel.value;
       capturePreviewFrame();
@@ -982,12 +1219,10 @@
       }
     });
 
-    // VU input selector
     vuInputSel.addEventListener('change', () => {
       selectedVuInput = vuInputSel.value;
     });
 
-    // Cleanup on unload
     window.addEventListener('beforeunload', () => {
       stopPreviewLoop();
       try { obs.disconnect(); } catch (_) { }

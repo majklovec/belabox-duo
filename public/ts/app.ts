@@ -5,10 +5,14 @@ import { badge, Page } from "./components/ui";
 import { interfacesCard } from "./device/interfaces";
 import { LogCard } from "./device/log";
 import { moduleCard } from "../../modules/registry.frontend";
-import { act, st } from "./device/store";
+import { act, connectDevice, st } from "./device/store";
 import { t } from "./i18n";
 import { gearIcon, roleTag } from "./icons";
 import { mountPage } from "./util";
+
+// The store's websocket is lazy (surfaces like the dashboard import the store
+// without a device to talk to): open it on the device page.
+connectDevice();
 
 function connBadge(): m.Vnode {
 	if (!st.socketOpen) return badge(t("dev.disconnected"), "off");
@@ -54,9 +58,14 @@ const App: m.Component = {
 		const role = status?.role;
 		const hasEncoder = !!status && role !== "relay";
 		const hasRelay = !!status && role !== "encoder";
+		// A dedicated OBS box (role "obs") is a preview/scene deck only — the
+		// SRT/streaming cards would be inactive there.
+		const obsOnly = !!status && role === "obs";
+		const obsOn = status?.modules["obs-controller"]?.enabled === true;
 		const children = [
-			hasEncoder && moduleCard("encoder", status),
-			hasRelay && [moduleCard("srtla", status), interfacesCard(status), moduleCard("modems", status)],
+			!obsOnly && hasEncoder && moduleCard("encoder", status),
+			!obsOnly && hasRelay && [moduleCard("srtla", status), interfacesCard(status), moduleCard("modems", status)],
+			obsOn && moduleCard("obs-controller", status),
 		];
 		return m(
 			Page,

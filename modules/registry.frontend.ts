@@ -9,6 +9,7 @@
 import m from "mithril";
 import type { BrowserModule } from "./types";
 import type { Status } from "../public/types";
+import { setFrontendEventSink } from "../public/ts/device/store";
 
 import { encoderModule } from "./encoder/frontend";
 import { srtlaModule } from "./srtla/frontend";
@@ -38,9 +39,13 @@ export const moduleCard = (id: string, status: Status): m.Vnode | null => {
 };
 
 /**
- * Dispatch a pushed event to every frontend module that handles it. Called by
- * the device store in place of its previous direct handlers.
+ * Dispatch a pushed event to every frontend module that handles it.
  */
 export function dispatchFrontendEvent(event: string, data: unknown): void {
 	for (const mod of FRONTEND_MODULES) mod.handleEvent?.(event, data);
 }
+
+// Register this dispatcher with the device store. The store is imported from
+// module frontends, so it cannot import this registry back (cycle); this is
+// the one direction allowed.
+setFrontendEventSink(dispatchFrontendEvent);

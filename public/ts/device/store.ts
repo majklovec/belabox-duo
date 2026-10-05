@@ -21,7 +21,6 @@ import { optionalNumber, setHeaderColor } from "../util";
 import { t } from "../i18n";
 import { type Params, RpcClient, RpcError, socketUrl } from "../services/rpc";
 import { applyLog, log } from "./log";
-import { dispatchFrontendEvent } from "../../../modules/registry.frontend";
 
 export const st = {
 	socketOpen: false,
@@ -84,7 +83,28 @@ let pipelinesLoaded = false;
 // RPC
 // ----------------------------------------------------------------------
 // relative to the page, works at / and /d/<id>/
-const rpc = new RpcClient(() => socketUrl("ws"));
+// Built without auto-connect: other surfaces (dashboard) import this module
+// for obsRequest/st only and must not open a socket to this device; the page
+// entry (app.ts) calls connectDevice().
+const rpc = new RpcClient(() => socketUrl("ws"), false);
+
+/** Open the device websocket (idempotent). */
+export const connectDevice = (): void => rpc.ensureConnected();
+
+// Frontend event dispatch is injected by the module registry instead of
+// imported from it: store.ts is reached by every module frontend (store →
+// registry → frontend → store), so a direct import creates a cycle that the
+// bundler can resolve with a null module namespace. Setting the sink is the
+// registry's first act; events arriving before it are dropped.
+let frontendEventSink: ((event: string, data: unknown) => void) | null = null;
+
+/** Injected by the module registry at module-evaluation time. */
+export const setFrontendEventSink = (sink: (event: string, data: unknown) => void): void => {
+	frontendEventSink = sink;
+};
+
+/** Route one push to the dispatcher the registry registered. */
+const dispatchFrontendEvent = (event: string, data: unknown): void => frontendEventSink?.(event, data);
 
 /** Start / Stop style buttons, enabled only when the streaming state allows their action. */
 const STATE_BUTTONS = {

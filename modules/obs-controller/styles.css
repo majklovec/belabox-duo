@@ -1,5 +1,114 @@
-/* obs-controller module — no module-specific styles.
- * The card composes the shared core components (Card, badge, definitionList)
- * so its look comes from public/css/style.css; the .mod-obs-controller class
- * on the card root exists for future scoping.
- */
+/* OBS Studio card (modules/obs-controller) — everything scoped under the card's class. */
+.mod-obs-controller .obs-preview-stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.mod-obs-controller .obs-preview-stage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mod-obs-controller .obs-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: .8rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.mod-obs-controller .obs-preview-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: center;
+  margin-top: .6rem;
+}
+.mod-obs-controller .obs-meta {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: .78rem;
+  white-space: nowrap;
+}
+.mod-obs-controller .obs-meta .stale {
+  color: var(--warn);
+  margin-left: .4rem;
+}
+
+/* Action row */
+.mod-obs-controller .obs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: .75rem;
+}
+/* Toggled-on actions (inactive ones are plain .secondary) */
+.mod-obs-controller button.accent.active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mod-obs-controller button.warn.active {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+/* Stream/record stay .danger in both states; the lit one just glows a bit harder */
+.mod-obs-controller button.danger.active {
+  box-shadow:
+    0 6px 16px color-mix(in srgb, var(--bad) 30%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, white 40%, transparent);
+}
+
+/* Section headings */
+.mod-obs-controller .obs-section {
+  margin: 1rem 0 .4rem;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Scene deck */
+.mod-obs-controller .obs-deck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: .5rem;
+}
+.mod-obs-controller .obs-deck-grid .scene {
+  font-size: .85rem;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mod-obs-controller .obs-deck-grid .scene.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Audio / VU meter */
+.mod-obs-controller .obs-audio {
+  display: grid;
+  gap: .4rem;
+}
+.mod-obs-controller .obs-audio select {
+  max-width: 22rem;
+}
+.mod-obs-controller .obs-vu {
+  display: block;
+  width: 100%;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: #0a0a0a;
+}

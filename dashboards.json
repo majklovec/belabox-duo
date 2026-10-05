@@ -5,10 +5,17 @@
       "name": "test",
       "widgets": [
         {
-          "id": "5cf83e2a-ecfb-44f7-8ada-2043bf209204",
-          "deviceId": "5acf7e34-02b3-4454-80d1-8c93ede3b2c1",
+          "id": "866b2855-3a05-47b4-8831-17e4ac783bdb",
+          "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
           "type": "obs",
-          "name": "aaa",
+          "name": "obs",
+          "width": 6
+        },
+        {
+          "id": "0625c325-82e0-48b4-beeb-a94d4a506fa4",
+          "deviceId": "c3241ebe-4188-44bd-87a8-17e3aced3091",
+          "type": "status",
+          "name": "both",
           "width": 6
         }
       ]

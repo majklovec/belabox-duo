@@ -20,7 +20,8 @@ import type { DeviceModule, ModuleContext } from "../types";
 // op5 events forwarded to the UI; the ones an operator dashboard reacts to.
 // OBS v5 output events carry no "Current" prefix — they are StreamStateChanged /
 // RecordStateChanged (the names the dashboards already listen for), unlike the
-// scene/input events above.
+// scene/input events above. InputVolumeMeters feeds the card's VU meter,
+// InputMute keeps its mute button honest.
 const FORWARDED_EVENTS = [
 	"CurrentProgramSceneChanged",
 	"CurrentPreviewSceneChanged",
@@ -34,6 +35,8 @@ const FORWARDED_EVENTS = [
 	"MediaInputStateChanged",
 	"StreamStateChanged",
 	"RecordStateChanged",
+	"InputVolumeMeters",
+	"InputMute",
 ] as const;
 
 const EVENT_SUBSCRIPTION_NAMES: Record<string, number> = {
@@ -110,7 +113,12 @@ export const obsControllerModule: DeviceModule = {
 		obsClient = new ObsClient({
 			url: cfg["obsUrl"],
 			...(obsPassword ? { password: obsPassword as string } : {}),
-			eventSubscriptions: cfg["sceneEvents"] === true ? DEFAULT_EVENT_SUBSCRIPTIONS : EventSubscription.None,
+			// The VU meter needs the InputVolumeMeters bit (absent from the defaults);
+			// InputMute rides in on the Inputs bit below.
+			eventSubscriptions:
+				cfg["sceneEvents"] === true
+					? DEFAULT_EVENT_SUBSCRIPTIONS | EventSubscription.InputVolumeMeters
+					: EventSubscription.None,
 			log: (msg, ...rest) => ctx.log("obs-controller", [msg, ...rest].map(String).join(" ")),
 		});
 		for (const name of FORWARDED_EVENTS) obsClient.on(name, forward(name, ctx.emit));
