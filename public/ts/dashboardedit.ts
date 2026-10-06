@@ -16,6 +16,7 @@ import {
 	independentTypes,
 	setWidgetConfigSaver,
 } from "./dashboard";
+import { widgetModule } from "../../modules/registry.frontend";
 import { t } from "./i18n";
 import { mountPage } from "./util";
 
@@ -99,7 +100,10 @@ function addWidget(): void {
 		width: WIDTHS.includes(width as 4 | 6 | 12) ? (width as 4 | 6 | 12) : 6,
 	};
 	if (isIndependent(type)) {
-		w.config = { channel: state.addChannel.trim(), token: state.addToken.trim() };
+		w.config = {
+			channel: state.addChannel.trim(),
+			token: widgetModule(type)?.configFields.includes("token") ? state.addToken.trim() : "",
+		};
 	}
 	dash.widgets.push(w);
 	state.addName = "";
@@ -186,7 +190,7 @@ function widgetsTable(dash: ServerDashboard): m.Vnode {
 										if (e.key === "Enter") (e.target as HTMLInputElement).blur();
 									},
 								}),
-								w.type === "kick-chat"
+								(widgetModule(w.type)?.configFields.includes("token") ?? false)
 									? m("input.dash-config-input", {
 											value: w.config?.token ?? "",
 											placeholder: t("dash.widget_token"),
@@ -226,7 +230,7 @@ function addToolbar(dash: ServerDashboard): m.Vnode {
 						placeholder: t("dash.widget_channel"),
 						oninput: (e: InputEvent) => (state.addChannel = (e.target as HTMLInputElement).value),
 					}),
-					type === "kick-chat"
+					(widgetModule(type ?? "")?.configFields.includes("token") ?? false)
 						? m("input", {
 								value: state.addToken,
 								placeholder: t("dash.widget_token"),

@@ -1,0 +1,30 @@
+/* kick-stats widget body — scoped to the dashboard card (.dashboard-card) */
+
+/* Kick stats card */
+.dash-card .kick-stats-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dash-card .kick-stats-top .big {
+  font-size: 2rem;
+  font-weight: 700;
+}
+.dash-card .kick-stats-top .kick-viewers {
+  color: var(--accent-hover);
+}
+.dash-card .kick-title {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 4px 0;
+}
+.dash-card .kick-spark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dash-card svg.spark polyline {
+  stroke: var(--accent);
+  fill: none;
+}

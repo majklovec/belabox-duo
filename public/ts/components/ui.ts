@@ -74,6 +74,14 @@ export function definitionList(rows: [string, Child][]): m.Vnode {
 	return m("dl", rows.flatMap(([k, v]) => [m("dt", k), m("dd", v ?? "—")]));
 }
 
+/** A <table> of th/td rows (dashboard widget bodies share this shape). */
+export function widgetTable(rows: [string, Child][]): m.Vnode {
+	return m(
+		"table.dash-table",
+		m("tbody", rows.map(([label, value], i) => m("tr", { key: i }, m("th", label), m("td", value)))),
+	);
+}
+
 /** A <label> with a caption above its control; extra attrs (`class`, `hidden`, …) pass through. */
 export function field(label: Child, control: m.Children, extra: m.Attributes = {}): m.Vnode {
 	return m("label", extra, label, control);

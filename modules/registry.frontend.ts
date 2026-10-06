@@ -8,9 +8,12 @@
  */
 import m from "mithril";
 import type { BrowserModule } from "./types";
-import type { Status } from "../public/types";
+import type { ServerDashboardWidget, Status } from "../public/types";
 import { setFrontendEventSink } from "../public/ts/device/store";
 
+import type { ChannelWidgetModule } from "./widgets";
+import { kickChatModule } from "./kick-chat/frontend";
+import { kickStatsModule } from "./kick-stats/frontend";
 import { encoderModule } from "./encoder/frontend";
 import { srtlaModule } from "./srtla/frontend";
 import { modemsModule } from "./modems/frontend";
@@ -21,6 +24,13 @@ export const FRONTEND_MODULES: BrowserModule[] = [encoderModule, srtlaModule, mo
 export const getFrontendModule = (id: string) => FRONTEND_MODULES.find((mod) => mod.id === id);
 
 export const frontendModuleIds = (): string[] => FRONTEND_MODULES.map((mod) => mod.id);
+
+/** Dashboard widget modules (device-independent kick widgets), in registry order. */
+export const WIDGET_MODULES = [kickStatsModule, kickChatModule] as const;
+
+/** Descriptor of a widget module by widget type (undefined for device-bound types). */
+export const widgetModule = (id: string): ChannelWidgetModule<ServerDashboardWidget> | undefined =>
+	WIDGET_MODULES.find((m) => m.id === id);
 
 /** Render one module's card for the device page. */
 export const moduleCard = (id: string, status: Status): m.Vnode | null => {

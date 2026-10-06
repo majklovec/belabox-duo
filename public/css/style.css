@@ -903,63 +903,6 @@ td.num {
   }
 }
 
-/* Kick chat feed */
-.kick-chat-feed {
-  max-height: 320px;
-  overflow-y: auto;
-  font-family: ui-monospace, "SF Mono", monospace;
-  font-size: 0.85rem;
-  line-height: 1.5;
-  background: var(--card-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-}
-.kick-chat-line .chat-badge {
-  display: inline-block;
-  margin-right: 6px;
-  padding: 0 5px;
-  border-radius: 4px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  background: var(--ring);
-  color: var(--accent-hover);
-  vertical-align: middle;
-}
-.kick-chat-line .chat-user {
-  font-weight: 600;
-  margin-right: 6px;
-}
-
-/* Kick stats card */
-.kick-stats-top {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.kick-stats-top .big {
-  font-size: 2rem;
-  font-weight: 700;
-}
-.kick-stats-top .kick-viewers {
-  color: var(--accent-hover);
-}
-.kick-title {
-  font-size: 0.9rem;
-  color: var(--muted);
-  margin: 4px 0;
-}
-.kick-spark {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-svg.spark polyline {
-  stroke: var(--accent);
-  fill: none;
-}
-
 /* Editor tabs */
 .tabs {
   display: flex;

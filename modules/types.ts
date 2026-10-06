@@ -162,3 +162,49 @@ export interface BrowserModule {
 	/** React to a pushed event (e.g. "kick.stats"). */
 	handleEvent?(event: string, data: unknown): void;
 }
+
+// ----------------------------------------------------------------------
+// Channel widget modules (kick-stats, kick-chat) — wire shapes.
+//
+// Device-independent dashboard widgets: state lives in the dashboards API,
+// one backend instance per module serves all widgets of that type, and the
+// browser renders from the dashboard websocket push. The shapes below are
+// what the hub delivers over the websocket (RemoteDeviceState.kick); they
+// are intentionally structural copies of the browser-side KickStats /
+// KickChatMessage in public/types.ts so this file stays dependency-free.
+// ----------------------------------------------------------------------
+
+/** Latest kick.stats sample (the server's Kick channel stats poll). */
+export interface StatsLive {
+	viewers?: number;
+	followers?: number;
+	isLive: boolean;
+	title?: string;
+	/** Server-side timestamp of the poll */
+	at: number;
+}
+
+/** One Kick chat message (Kick message id used for deduplication). */
+export interface ChatLive {
+	id: string | number;
+	username?: string;
+	text?: string;
+	type?: string;
+	ts?: number;
+}
+
+/** One channel's live state on the wire (RemoteDeviceState.kick). */
+export interface ChannelLive {
+	stats?: StatsLive | null;
+	chat?: ChatLive[];
+	/** kick-chat: the hub's websocket for this channel was open. */
+	connected?: boolean;
+}
+
+/**
+ * Serialize an event frame for the module websockets ({event, data} inside
+ * the device protocol's envelope). Shared by the widget module backends.
+ */
+export const eventFrame = (event: string, data: unknown): string => JSON.stringify({ type: "event", event, data });
+
+

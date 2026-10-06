@@ -14,8 +14,10 @@ import type {
 	SrtlaStats,
 	WidgetType,
 } from "../types";
-import { badge, button, type Child } from "./components/ui";
+import { badge, button, widgetTable, type Child } from "./components/ui";
 import { createObsPanel, type ObsEvent, type ObsPanel, type ObsRequestResult } from "../../modules/obs-controller/frontend";
+import { widgetModule } from "../../modules/registry.frontend";
+import { WIDGET_MODULE_IDS } from "../../modules/widgets";
 import { t } from "./i18n";
 import { roleTag } from "./icons";
 import { RpcClient, socketUrl } from "./services/rpc";
@@ -25,7 +27,7 @@ export const KICK_CHAT_CAP = 20;
 
 /** Device-independent widget types: their data (the widget's channel, fetched
  * by the control server) is not tied to any device connection. */
-const INDEPENDENT: ReadonlySet<WidgetType> = new Set<WidgetType>(["kick-stats", "kick-chat"]);
+const INDEPENDENT: ReadonlySet<WidgetType> = new Set<WidgetType>(WIDGET_MODULE_IDS);
 export const isIndependent = (type: WidgetType): boolean => INDEPENDENT.has(type);
 
 /** Live data for one device, accumulated from its viewer websocket (or a 409). */
@@ -132,7 +134,7 @@ export function widgetTypesFor(d: DeviceSummary): WidgetType[] {
 /** Widget types that are not tied to a device: always offered; their data
  * (the channel name in the widget config) is fetched by the server. */
 export function independentTypes(): WidgetType[] {
-	return ["kick-stats", "kick-chat"];
+	return [...WIDGET_MODULE_IDS];
 }
 
 /** The device a widget's data comes from — its own for device-bound widgets;
@@ -208,13 +210,6 @@ export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
 const connectionFor = (deviceId: string): Connection | undefined => connections.get(deviceId);
 
 // ---------------------------------------------------------------------- widgets
-
-function widgetTable(rows: [string, Child][]): m.Vnode {
-	return m(
-		"table.dash-table",
-		m("tbody", rows.map(([label, value], i) => m("tr", { key: i }, m("th", label), m("td", value)))),
-	);
-}
 
 function srtlaTable(s: SrtlaStats): m.Vnode {
 	return srtlaLinksRows(s).length
@@ -368,7 +363,7 @@ function configEditorForm(w: ServerDashboardWidget): m.Vnode {
 				},
 			}),
 		]),
-		w.type === "kick-chat"
+		(widgetModule(w.type)?.configFields.includes("token") ?? false)
 			? m("label", [
 					m("span", t("dash.widget_token")),
 					m("input.dash-config-input", {
@@ -384,7 +379,7 @@ function configEditorForm(w: ServerDashboardWidget): m.Vnode {
 			button(t("ui.save"), {
 				onclick: (e: Event) => {
 					e.preventDefault();
-					w.config = { channel: s.channel.trim(), token: w.type === "kick-chat" ? s.token.trim() : "" };
+					w.config = { channel: s.channel.trim(), token: widgetModule(w.type)?.configFields.includes("token") ? s.token.trim() : "" };
 					widgetConfigState.delete(widgetKey(w));
 					widgetConfigSaver?.(w);
 					m.redraw();
@@ -404,37 +399,6 @@ const widgetKey = (w: ServerDashboardWidget): string => w.id || `${w.type}:${w.n
 
 /** Kick widgets are device-independent: the server polls kick.com for the
  * widget's channel and pushes the data over the dashboard websocket. */
-function kickStatsWidget(w: ServerDashboardWidget): m.Children {
-	const channel = w.config?.channel?.trim();
-	if (!channel) return [badge(t("dash.widget_not_configured"), "warn")];
-	const s = kickLive.get(channel.toLowerCase())?.stats;
-	if (!s) return [badge(t("dash.widget_waiting"), "warn")];
-	const rows: [string, Child][] = [
-		[t("kickstats.viewers"), String(s.viewers ?? "—")],
-		[t("kickstats.followers"), String(s.followers ?? "—")],
-		[t("kickstats.live"), s.isLive ? badge(t("dev.badge.streaming"), "on") : badge(t("dev.badge.stopped"), "off")],
-	];
-	if (s.title) rows.push([t("kickstats.title"), s.title]);
-	return [badge(s.isLive ? t("dev.badge.streaming") : t("dev.badge.offline"), s.isLive ? "on" : "off"), widgetTable(rows)];
-}
-
-function kickChatWidget(w: ServerDashboardWidget): m.Children {
-	const channel = w.config?.channel?.trim();
-	if (!channel) return [badge(t("dash.widget_not_configured"), "warn")];
-	const msgs = (kickLive.get(channel.toLowerCase())?.chat ?? []).map((c) =>
-		m(
-			"div.kick-chat-line",
-			{ key: String(c.id) },
-			c.username ? m("span.chat-user", c.username) : null,
-			m("span.chat-text", c.text ?? ""),
-		),
-	);
-	return [
-		badge(t("dev.badge.online"), "on"),
-		msgs.length ? m("div.kick-chat-feed", msgs) : m("p.muted", t("kickchat.empty")),
-	];
-}
-
 /** Card title: "device · type" for device widgets, just "type" for the channel ones. */
 export function widgetTitle(w: ServerDashboardWidget): string {
 	const d = deviceById(w.deviceId);
@@ -451,8 +415,12 @@ export function widgetView(w: ServerDashboardWidget): m.Vnode {
 		case "relay": body = relayWidget(deviceId, conn); break;
 		case "encoder": body = encoderWidget(deviceId, conn); break;
 		case "obs": body = obsWidget(w, conn); break;
-		case "kick-stats": body = kickStatsWidget(w); break;
-		case "kick-chat": body = kickChatWidget(w); break;
+		case "kick-stats":
+		case "kick-chat": {
+			const channel = w.config?.channel?.trim().toLowerCase();
+			body = widgetModule(w.type)?.body(w, channel ? kickLive.get(channel) ?? { chat: [] } : {}) as m.Children;
+			break;
+		}
 		default: body = statusWidget(deviceId, conn);
 	}
 	// Configurable widgets (kick-stats / kick-chat) get a pencil icon in the

@@ -1,5 +1,5 @@
 /* Wire types shared by the device UI, the device list and the control server. */
-import type { AudioSource, CeraConfig, EncoderState, ModemInfo, SrtlaState } from "../modules/types";
+import type { AudioSource, CeraConfig, EncoderState, ModemInfo, StatsLive, ChatLive, SrtlaState } from "../modules/types";
 import type { Language } from "../src/i18n";
 import type { Iface, ModemConfig } from "../src/routing";
 import type { SrtlaControlState } from "../src/srtlaControl";
@@ -72,23 +72,11 @@ export interface ServerDashboard {
 	name: string;
 	widgets: ServerDashboardWidget[];
 }
-/** Latest kick.stats event (the server's Kick channel stats poll). */
-export interface KickStats {
-	viewers?: number;
-	followers?: number;
-	isLive?: boolean;
-	title?: string;
-	/** Server-side timestamp of the poll */
-	at: number;
-}
-/** One Kick chat message (Kick `id` used for deduplication). */
-export interface KickChatMessage {
-	id: string | number;
-	username?: string;
-	badge?: { id?: string };
-	text?: string;
-	ts?: number;
-}
+/** Latest kick.stats event / one Kick chat message — wire shapes owned by the
+ * widget module contract (the hub delivers them over the dashboard websocket). */
+export type KickStats = StatsLive;
+export type KickChatMessage = ChatLive;
+export type { ChannelLive, ChatLive, StatsLive } from "../modules/types";
 
 /** Sent only when the UI is served by the control server (server.ts) for a remote device. */
 export interface DeviceInfo {

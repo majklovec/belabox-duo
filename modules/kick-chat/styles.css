@@ -1,0 +1,29 @@
+/* kick-chat widget body — scoped to the dashboard card (.dashboard-card) */
+
+/* Kick chat feed */
+.dash-card .kick-chat-feed {
+  max-height: 320px;
+  overflow-y: auto;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  background: var(--card-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+.dash-card .kick-chat-line .chat-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--ring);
+  color: var(--accent-hover);
+  vertical-align: middle;
+}
+.dash-card .kick-chat-line .chat-user {
+  font-weight: 600;
+  margin-right: 6px;
+}

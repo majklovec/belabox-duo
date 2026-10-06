@@ -120,3 +120,70 @@ function moduleSettingsEnabled(id: string): boolean {
 	const m = state.settings.modules as Record<string, { enabled?: boolean }> | undefined;
 	return m?.[id]?.enabled ?? false;
 }
+// ---------------------------------------------------------------------------
+// Dashboard widget hub (kick channel widgets — device-independent).
+//
+// Not a device module: one hub instance per widget type serves every widget
+// of that type across all dashboards, and its events publish straight to the
+// dashboard websocket topic. Exposed via the registry so the core never
+// imports module internals (core-imports-registered-modules-only rule).
+// ---------------------------------------------------------------------------
+
+import { ChatChannelManager, type ChatSnapshot } from "./kick-chat/backend";
+import { StatsChannelManager, type StatsSnapshot } from "./kick-stats/backend";
+import { WIDGET_MODULE_IDS, type ChannelSpecs } from "./widgets";
+import type { ServerDashboard } from "../public/types";
+
+/** Per-channel stats + chat fragments merged for `kick.snapshot`. */
+export interface WidgetHubSnapshot {
+	stats: StatsSnapshot;
+	chat: ChatSnapshot;
+}
+
+/** The widget manager pair — wired once by initWidgetHub(); no-ops before. */
+let widgetStats: StatsChannelManager | null = null;
+let widgetChat: ChatChannelManager | null = null;
+
+/** Wire the kick channel widget backends to the dashboard websocket topic. */
+export function initWidgetHub(publish: (msg: string) => void): void {
+	widgetStats = new StatsChannelManager(publish);
+	widgetChat = new ChatChannelManager(publish);
+}
+
+/** Sync the widget backends with the dashboard configs (dashboards write path). */
+export function syncWidgetHub(dashboards: ServerDashboard[]): void {
+	if (!widgetStats || !widgetChat) return;
+	const specs = widgetChannelSpecs(dashboards);
+	widgetStats.sync(specs);
+	widgetChat.sync(specs);
+}
+
+/** Latest stats samples + chat history for warm-starting a dashboard viewer. */
+export function widgetHubSnapshot(): WidgetHubSnapshot {
+	return {
+		stats: widgetStats?.snapshot() ?? {},
+		chat: widgetChat?.snapshot() ?? {},
+	};
+}
+
+/** Stop the widget hub (server shutdown). */
+export function destroyWidgetHub(): void {
+	widgetStats?.destroy();
+	widgetChat?.destroy();
+	widgetStats = null;
+	widgetChat = null;
+}
+
+/** Channel specs from dashboard widget configs: channel -> chat token. */
+export function widgetChannelSpecs(dashboards: ServerDashboard[]): ChannelSpecs {
+	const channels = new Map<string, string>();
+	for (const dash of dashboards) {
+		for (const w of dash.widgets) {
+			if (!WIDGET_MODULE_IDS.includes(w.type as (typeof WIDGET_MODULE_IDS)[number]) || !w.config?.channel) continue;
+			const key = w.config.channel.trim().toLowerCase();
+			if (!key) continue;
+			channels.set(key, w.config.token ?? "");
+		}
+	}
+	return channels;
+}

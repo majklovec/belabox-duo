@@ -51,6 +51,15 @@ component and event handlers live in `frontend.ts`; module CSS lives in
 - The registries also host the module runtime helpers the core needs
   (`startModules`, `stopModules`, `configureModule`, …) — the old
   `src/modules/index.ts` moved here.
+- `kick-stats` and `kick-chat` are device-independent dashboard widget
+  modules, not device modules: they are **not** in `ALL_MODULES` or
+  `FRONTEND_MODULES`. `registry.backend.ts` owns their shared widget hub
+  (`initWidgetHub` / `syncWidgetHub` / `widgetHubSnapshot` /
+  `destroyWidgetHub`) and their `ChannelHub` contracts in `widgets.ts`;
+  `registry.frontend.ts` exposes `WIDGET_MODULES` (the widget bodies,
+  `configFields`, …) which the dashboard page renders. Each module keeps the
+  three-file layout; its CSS is scoped under `.dash-card` (dashboard card),
+  not a device-page `.mod-<id>` wrapper.
 
 ## Adding a module
 

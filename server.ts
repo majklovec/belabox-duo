@@ -64,7 +64,7 @@ import type { DeviceInfo, DeviceSummary, ServerDashboard, ServerDashboardWidget,
 import { arg, argFail, flag, intArg } from "./src/args";
 import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
 import { isLanguage, type Language, translate } from "./src/i18n";
-import { channelSpecsFromDashboards, createKickHub } from "./src/kick";
+import { initWidgetHub, syncWidgetHub, widgetHubSnapshot } from "./modules/registry.backend";
 import { LOG_MAX, type LogEntry, type LogEvent, type LogLevel } from "./src/logMessages";
 import { parseJsonObject, textOf } from "./src/util";
 import { COLOR_RE, isRole, type Role } from "./src/validate";
@@ -428,9 +428,9 @@ function saveDashboards(): void {
 	);
 }
 
-/** Kick channels needed by the persisted widgets; fans out to dashboard viewers. */
-const kickHub = createKickHub((msg) => server.publish(dashboardsTopic, msg));
-const syncKick = (): void => kickHub.sync(channelSpecsFromDashboards(dashboards));
+/** Kick channel widgets needed by the persisted dashboards; fans out to dashboard viewers. */
+initWidgetHub((msg) => server.publish(dashboardsTopic, msg));
+const syncKick = (): void => syncWidgetHub(dashboards);
 syncKick();
 
 class ApiError extends Error {
@@ -593,7 +593,7 @@ const server = Bun.serve({
             const { data } = ws;
             if (data.kind === "dashboards") {
                 ws.subscribe(dashboardsTopic);
-                ws.send(event("kick.snapshot", kickHub.snapshot()));
+                ws.send(event("kick.snapshot", widgetHubSnapshot()));
                 return;
             }
             if (data.kind === "device") {
