@@ -1,11 +1,27 @@
 {
   "dashboards": [
     {
-      "id": "af937faf-9c1b-44f9-9c4f-a0fe54a2a45c",
+      "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 1,
+      "version": 2,
       "columns": 12,
-      "widgets": []
+      "widgets": [
+        {
+          "id": "f8ec8b66-6e91-4611-b08c-5aec616c0773",
+          "deviceId": "",
+          "type": "kick-chat",
+          "name": "chat",
+          "x": 0,
+          "y": 0,
+          "w": 3,
+          "h": 8,
+          "visible": true,
+          "config": {
+            "channel": "czechcloud",
+            "token": ""
+          }
+        }
+      ]
     }
   ]
 }

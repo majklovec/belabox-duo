@@ -418,8 +418,8 @@ function parseWidgets(raw: unknown): ServerDashboardWidget[] {
 		}
 		const independent = INDEPENDENT_WIDGETS.has(type as WidgetType);
 		const deviceId = item.deviceId;
-		if (deviceId !== undefined && (typeof deviceId !== "string" || deviceId === "")) {
-			throw new ApiError("Widget deviceId must be a non-empty string");
+		if (deviceId !== undefined && typeof deviceId !== "string") {
+			throw new ApiError("Widget deviceId must be a string");
 		}
 		const grid = parseGrid(item, type as WidgetType);
 		const visible = item.visible === true;
