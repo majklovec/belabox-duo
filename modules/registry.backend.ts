@@ -131,7 +131,7 @@ function moduleSettingsEnabled(id: string): boolean {
 
 import { ChatChannelManager, type ChatSnapshot } from "./kick-chat/backend";
 import { StatsChannelManager, type StatsSnapshot } from "./kick-stats/backend";
-import { WIDGET_MODULE_IDS, type ChannelSpecs } from "./widgets";
+import type { ChannelSpecs } from "./widgets";
 import type { ServerDashboard } from "../public/types";
 
 /** Per-channel stats + chat fragments merged for `kick.snapshot`. */
@@ -150,12 +150,14 @@ export function initWidgetHub(publish: (msg: string) => void): void {
 	widgetChat = new ChatChannelManager(publish);
 }
 
-/** Sync the widget backends with the dashboard configs (dashboards write path). */
+/** Sync the widget backends with the dashboard configs (dashboards write path).
+ * Each backend follows only the widgets of its own type: a kick-stats poller
+ * (or kick-chat connection) is not started for a channel that only the other
+ * widget type uses. */
 export function syncWidgetHub(dashboards: ServerDashboard[]): void {
 	if (!widgetStats || !widgetChat) return;
-	const specs = widgetChannelSpecs(dashboards);
-	widgetStats.sync(specs);
-	widgetChat.sync(specs);
+	widgetStats.sync(widgetChannelSpecs(dashboards, "kick-stats"));
+	widgetChat.sync(widgetChannelSpecs(dashboards, "kick-chat"));
 }
 
 /** Latest stats samples + chat history for warm-starting a dashboard viewer. */
@@ -174,12 +176,13 @@ export function destroyWidgetHub(): void {
 	widgetChat = null;
 }
 
-/** Channel specs from dashboard widget configs: channel -> chat token. */
-export function widgetChannelSpecs(dashboards: ServerDashboard[]): ChannelSpecs {
+/** Channel specs from one type's dashboard widgets: channel -> chat token.
+ * The token is meaningful for kick-chat only; kick-stats ignores it. */
+export function widgetChannelSpecs(dashboards: ServerDashboard[], type: "kick-stats" | "kick-chat"): ChannelSpecs {
 	const channels = new Map<string, string>();
 	for (const dash of dashboards) {
 		for (const w of dash.widgets) {
-			if (!WIDGET_MODULE_IDS.includes(w.type as (typeof WIDGET_MODULE_IDS)[number]) || !w.config?.channel) continue;
+			if (w.type !== type || !w.config?.channel) continue;
 			const key = w.config.channel.trim().toLowerCase();
 			if (!key) continue;
 			channels.set(key, w.config.token ?? "");
