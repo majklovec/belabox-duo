@@ -383,5 +383,10 @@
   "wtype.obs": "OBS Studio",
   "wtype.relay": "Relay",
   "wtype.stats": "Statystyki relaya",
-  "wtype.status": "Status"
+  "wtype.status": "Status",
+  "dash.widget_channel": "Kanał",
+  "dash.widget_token": "Token czatu",
+  "dash.widget_not_configured": "Niez skonfigurowano – podaj nazwę kanału",
+  "ui.cancel": "Anuluj",
+  "dash.widget_settings": "Ustawienia kanału"
 }

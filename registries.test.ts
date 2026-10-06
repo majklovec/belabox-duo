@@ -8,8 +8,6 @@ const EXPECTED_ORDER = [
     "srtla",
     "modems",
     "obs-controller",
-    "kick-stats",
-    "kick-chat",
 ];
 
 /**
@@ -22,8 +20,6 @@ const FRONTEND_EXPORT_TO_ID: Record<string, string> = {
     srtlaModule: "srtla",
     modemsModule: "modems",
     obsControllerModule: "obs-controller",
-    kickStatsModule: "kick-stats",
-    kickChatModule: "kick-chat",
 };
 
 const frontendIds = (): string[] => {
@@ -39,8 +35,8 @@ const frontendIds = (): string[] => {
 };
 
 describe("module registries", () => {
-    test("backend registry enumerates all six modules in order", () => {
-        expect(ALL_MODULES.length).toBe(6);
+    test("backend registry enumerates all four modules in order", () => {
+        expect(ALL_MODULES.length).toBe(4);
         expect(ALL_MODULES.map((mod) => mod.id)).toEqual(EXPECTED_ORDER);
     });
 

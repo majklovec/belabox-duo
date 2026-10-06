@@ -383,5 +383,10 @@
   "wtype.obs": "OBS Studio",
   "wtype.relay": "Relay",
   "wtype.stats": "Stav relaye",
-  "wtype.status": "Stav"
+  "wtype.status": "Stav",
+  "dash.widget_channel": "Kanál",
+  "dash.widget_token": "Chat token",
+  "dash.widget_not_configured": "Není nastaveno – zadejte název kanálu",
+  "ui.cancel": "Zrušit",
+  "dash.widget_settings": "Nastavení kanálu"
 }

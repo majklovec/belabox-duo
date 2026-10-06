@@ -42,21 +42,10 @@ export interface ObsModuleView {
 	obsPassword: string | { configured: boolean };
 	sceneEvents: boolean;
 }
-export interface KickStatsModuleView {
-	enabled: boolean;
-	channel: string;
-}
-export interface KickChatModuleView {
-	enabled: boolean;
-	channel: string;
-	token: string | { configured: boolean };
-}
 export interface ModulesView {
 	relay: { enabled: boolean };
 	encoder: { enabled: boolean };
 	"obs-controller": ObsModuleView;
-	"kick-stats": KickStatsModuleView;
-	"kick-chat": KickChatModuleView;
 }
 /** A dashboard widget type, backed by (or showing) one of a device's modules. */
 export type WidgetType = "obs" | "stats" | "status" | "relay" | "encoder" | "kick-stats" | "kick-chat";
@@ -68,25 +57,28 @@ export type WidgetType = "obs" | "stats" | "status" | "relay" | "encoder" | "kic
 export interface ServerDashboardWidget {
 	/** Stable widget id, assigned by the server */
 	id: string;
-	/** The device this widget's module data comes from */
+	/** The device this widget's module data comes from ("" for kick widgets) */
 	deviceId: string;
 	type: WidgetType;
 	name: string;
 	/** 12-column grid span: 4, 6 or 12 */
 	width: 4 | 6 | 12;
+	/** Kick widgets only: their own data source — the channel name polled/chat
+	 * on the control server (token for kick-chat, "" when none). */
+	config?: { channel: string; token: string };
 }
 export interface ServerDashboard {
 	id: string;
 	name: string;
 	widgets: ServerDashboardWidget[];
 }
-/** Latest kick.stats event (Kick channel stats poll). */
+/** Latest kick.stats event (the server's Kick channel stats poll). */
 export interface KickStats {
 	viewers?: number;
 	followers?: number;
 	isLive?: boolean;
 	title?: string;
-	/** Device-side timestamp of the poll */
+	/** Server-side timestamp of the poll */
 	at: number;
 }
 /** One Kick chat message (Kick `id` used for deduplication). */

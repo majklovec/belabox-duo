@@ -32,7 +32,7 @@ export interface DeviceSettings {
     pipelineRepositories?: string[];
     /** UI language (see LANGUAGE_INFO in i18n.ts); defaults to "en". */
     language?: Language;
-    /** Per-module settings (relay/encoder/obs-controller/kick-stats/kick-chat). */
+    /** Per-module settings (relay/encoder/obs-controller). */
     modules?: ModulesState;
 }
 
@@ -64,30 +64,15 @@ export interface ObsModuleConfig {
     obsPassword: string;
     sceneEvents: boolean;
 }
-export interface KickChatConfig {
-    enabled: boolean;
-    channel: string;
-    token: string;
-}
 /** All module keys the registry knows, and their on-disk shape. */
-export const ALL_MODULES = [
-    "relay",
-    "encoder",
-    "obs-controller",
-    "kick-stats",
-    "kick-chat",
-] as const;
+export const ALL_MODULES = ["relay", "encoder", "obs-controller"] as const;
 export type ModuleId = (typeof ALL_MODULES)[number];
 
 export const OBS_MODULE = "obs-controller" as const;
-export const KICK_STATS_MODULE = "kick-stats" as const;
-export const KICK_CHAT_MODULE = "kick-chat" as const;
 export interface ModulesState {
     relay: { enabled: boolean };
     encoder: { enabled: boolean };
     "obs-controller": ObsModuleConfig;
-    "kick-stats": { enabled: boolean; channel: string };
-    "kick-chat": KickChatConfig;
 }
 
 /** Permanent device parameters persisted to the config file (no process state). */
@@ -204,8 +189,6 @@ export function defaultModules(role?: Role): ModulesState {
         relay: { enabled: on.has("relay") },
         encoder: { enabled: on.has("encoder") },
         "obs-controller": { enabled: false, obsUrl: "", obsPassword: "", sceneEvents: true },
-        "kick-stats": { enabled: false, channel: "" },
-        "kick-chat": { enabled: false, channel: "", token: "" },
     };
 }
 

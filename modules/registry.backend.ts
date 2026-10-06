@@ -21,10 +21,8 @@ import { encoderModule, encoderServices } from "./encoder/backend";
 import { srtlaModule, srtlaServices } from "./srtla/backend";
 import { detectModems, modemNetworkIface, modemsModule } from "./modems/backend";
 import { obsControllerModule, obsServices } from "./obs-controller/backend";
-import { kickStatsModule, kickStatsServices } from "./kick-stats/backend";
-import { kickChatModule, kickChatServices } from "./kick-chat/backend";
 
-export const ALL_MODULES: DeviceModule[] = [encoderModule, srtlaModule, modemsModule, obsControllerModule, kickStatsModule, kickChatModule];
+export const ALL_MODULES: DeviceModule[] = [encoderModule, srtlaModule, modemsModule, obsControllerModule];
 
 /**
  * Encoder services consumed by the core (stream orchestration in stream.ts,
@@ -45,20 +43,6 @@ export { srtlaServices };
  * of a modules.configure call.
  */
 export { obsServices };
-
-/**
- * Kick-stats services consumed by the core — `latest` serves the most recent
- * polled sample to kick.stats.get / kick.chat.get; `configure` applies the
- * kick-stats fields of a modules.configure call.
- */
-export { kickStatsServices };
-
-/**
- * Kick-chat services consumed by the core — `history` serves the rolling
- * message buffer to `kick.chat.get`; `configure` applies the kick-chat fields
- * of a modules.configure call.
- */
-export { kickChatServices };
 
 /** Module by id, or undefined. */
 export const getModule = (id: string) => ALL_MODULES.find((m) => m.id === id);

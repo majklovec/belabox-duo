@@ -383,5 +383,10 @@
   "wtype.obs": "OBS Studio",
   "wtype.relay": "Relay",
   "wtype.stats": "Relay 统计",
-  "wtype.status": "状态"
+  "wtype.status": "状态",
+  "dash.widget_channel": "频道",
+  "dash.widget_token": "聊天令牌",
+  "dash.widget_not_configured": "未配置 – 请填写频道名",
+  "ui.cancel": "取消",
+  "dash.widget_settings": "频道设置"
 }

@@ -853,8 +853,48 @@ td.num {
 .dashboard-grid > .dash-w-12 {
   grid-column: span 12;
 }
+/* position: relative anchors the pencil config icon inside the card */
 .dashboard-grid > .dashboard-item > .card {
   height: 100%;
+  position: relative;
+}
+.dash-card-pencil {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 1;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.9rem;
+  background: var(--border);
+  border-color: transparent;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+.dash-card-pencil:hover {
+  color: #fff;
+  transform: none;
+}
+.dash-config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+.dash-config-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.dash-config-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.dash-config-actions button {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.75rem;
 }
 @media (max-width: 900px) {
   .dashboard-grid > .dash-w-4,

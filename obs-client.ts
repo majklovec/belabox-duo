@@ -707,8 +707,6 @@ async function main(): Promise<void> {
         obsPassword: obsPassword ? { configured: true } : "",
         sceneEvents: true,
       },
-      "kick-stats": { enabled: false, channel: "" },
-      "kick-chat": { enabled: false, channel: "", token: "" },
     },
   });
 

@@ -23,6 +23,9 @@
  *   DEL  /api/dashboards/<id>   remove a dashboard
  *   WS   /device           device connections (Authorization: Bearer <token>, x-device-id: <id>,
  *                          x-device-role: relay|encoder|combined)
+ *   WS   /dashboards/ws    live kick data (kick.stats / kick.chat events,
+ *                          kick.snapshot on connect) for the kick widgets; the
+ *                          server polls kick.com per widget channel
  *   GET  /healthz          liveness (no auth)
  *
  * Devices are keyed by a stable UUID (hostnames change); the per-device
@@ -61,6 +64,7 @@ import type { DeviceInfo, DeviceSummary, ServerDashboard, ServerDashboardWidget,
 import { arg, argFail, flag, intArg } from "./src/args";
 import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
 import { isLanguage, type Language, translate } from "./src/i18n";
+import { channelSpecsFromDashboards, createKickHub } from "./src/kick";
 import { LOG_MAX, type LogEntry, type LogEvent, type LogLevel } from "./src/logMessages";
 import { parseJsonObject, textOf } from "./src/util";
 import { COLOR_RE, isRole, type Role } from "./src/validate";
@@ -86,6 +90,8 @@ const DEVICE_PATH_RE = /^\/d\/([^/]+)(?:(\/)(?:(ws)|(settings|setup)(\/)?)?)?$/;
 const WIDGET_TYPES: WidgetType[] = ["obs", "stats", "status", "relay", "encoder", "kick-stats", "kick-chat"];
 const DASH_PATH_RE = /^\/api\/dashboards(?:\/([\w.-]{1,64}))?$/;
 const viewersTopic = (id: string) => `viewers:${id}`;
+const dashboardsTopic = "dashboards:kick";
+const INDEPENDENT_WIDGETS: ReadonlySet<WidgetType> = new Set(["kick-stats", "kick-chat"]);
 
 // ----------------------------------------------------------------------
 // Auth
@@ -169,7 +175,8 @@ const htmlResponse = (page: PageName) =>
 // ----------------------------------------------------------------------
 type WsData =
     | { kind: "device"; id: string; address: string; role?: Role }
-    | { kind: "viewer"; id: string };
+    | { kind: "viewer"; id: string }
+    | { kind: "dashboards" };
 type Socket = ServerWebSocket<WsData>;
 
 interface Device {
@@ -376,8 +383,27 @@ function parseWidgets(raw: unknown): ServerDashboardWidget[] {
 		if (typeof type !== "string" || !WIDGET_TYPES.includes(type as WidgetType)) {
 			throw new ApiError(`Unknown widget type: ${String(type)}`);
 		}
+		const independent = INDEPENDENT_WIDGETS.has(type as WidgetType);
 		const deviceId = item.deviceId;
+		if (deviceId !== undefined && (typeof deviceId !== "string" || deviceId === "")) {
+			throw new ApiError("Widget deviceId must be a non-empty string");
+		}
+		if (independent) {
+			// Kick widgets are device-independent: they carry their own data
+			// source (channel name, and a chat token for kick-chat).
+			const cfg = (item.config && typeof item.config === "object" ? item.config : {}) as Record<string, unknown>;
+			const channel = cfg.channel;
+			if (typeof channel !== "string" || channel.trim() === "") throw new ApiError("Kick widget needs a config.channel");
+			const token = cfg.token;
+			if (token !== undefined && typeof token !== "string") throw new ApiError("config.token must be a string");
+			const config = { channel: channel.trim(), token: typeof token === "string" ? token : "" };
+			const width = Number(item.width);
+			if (![4, 6, 12].includes(width)) throw new ApiError("Widget width must be 4, 6 or 12");
+			const name = typeof item.name === "string" && item.name ? item.name : type;
+			return { id: randomUUID(), deviceId: typeof deviceId === "string" ? deviceId : "", type: type as WidgetType, name, width: width as 4 | 6 | 12, config };
+		}
 		if (typeof deviceId !== "string" || deviceId === "") throw new ApiError("Widget needs a deviceId");
+		if (item.config !== undefined) throw new ApiError("Only kick widgets accept a config");
 		const width = Number(item.width);
 		if (![4, 6, 12].includes(width)) throw new ApiError("Widget width must be 4, 6 or 12");
 		const name = typeof item.name === "string" && item.name ? item.name : type;
@@ -401,6 +427,11 @@ function saveDashboards(): void {
 		console.error(`[dashboards] persist ${DASHBOARDS_FILE}:`, err),
 	);
 }
+
+/** Kick channels needed by the persisted widgets; fans out to dashboard viewers. */
+const kickHub = createKickHub((msg) => server.publish(dashboardsTopic, msg));
+const syncKick = (): void => kickHub.sync(channelSpecsFromDashboards(dashboards));
+syncKick();
 
 class ApiError extends Error {
 	constructor(message: string, readonly code = 400) {
@@ -426,6 +457,7 @@ async function dashApi(req: Request, url: URL): Promise<Response> {
 				const dashboard: ServerDashboard = { id: randomUUID(), name, widgets: parseWidgets(body.widgets) };
 				dashboards.push(dashboard);
 				saveDashboards();
+				syncKick();
 				return Response.json({ ok: true, dashboard, dashboards }, { status: 201 });
 			}
 			return Response.json({ ok: false, error: "Method not allowed", code: 405 });
@@ -436,6 +468,7 @@ async function dashApi(req: Request, url: URL): Promise<Response> {
 			if (!dashboardsById) return dashError(404, "Unknown dashboard");
 			dashboards = dashboards.filter((d) => d.id !== id);
 			saveDashboards();
+			syncKick();
 			return Response.json({ ok: true, dashboards });
 		}
 		if (req.method === "PUT") {
@@ -446,6 +479,7 @@ async function dashApi(req: Request, url: URL): Promise<Response> {
 			dashboardsById.name = name;
 			dashboardsById.widgets = parseWidgets(body.widgets);
 			saveDashboards();
+			syncKick();
 			return Response.json({ ok: true, dashboard: dashboardsById, dashboards });
 		}
 		if (req.method === "GET") {
@@ -531,6 +565,12 @@ const server = Bun.serve({
         if (path === "/api/devices") return Response.json(summaries());
         if (path === "/dashboards/") return htmlResponse("dashboards");
         if (path.startsWith("/api/dashboards")) return dashApi(req, url);
+        if (path === "/dashboards/ws") {
+            // The dashboard pages' live kick data channel (stats + chat)
+            if (!originAllowed(req)) return text("Origin not allowed", 403);
+            if (srv.upgrade(req, { data: { kind: "dashboards" } })) return undefined;
+            return upgradeRequired();
+        }
         if (path.startsWith("/dashboards/view/") || path.startsWith("/dashboards/edit/")) {
             const page: PageName = path.startsWith("/dashboards/view/") ? "dashboardview" : "dashboardedit";
             return htmlResponse(page);
@@ -551,6 +591,11 @@ const server = Bun.serve({
 
         open(ws) {
             const { data } = ws;
+            if (data.kind === "dashboards") {
+                ws.subscribe(dashboardsTopic);
+                ws.send(event("kick.snapshot", kickHub.snapshot()));
+                return;
+            }
             if (data.kind === "device") {
                 const d = deviceFor(data.id);
                 if (d.ws) d.ws.close(4001, "replaced by a new connection");
@@ -574,6 +619,7 @@ const server = Bun.serve({
 
         message(ws, raw) {
             const { data } = ws;
+            if (data.kind === "dashboards") return;   // the hub pushes only
             if (data.kind === "viewer") return onViewerMessage(ws, data.id, raw);
             const d = devices.get(data.id);
             if (d && d.ws === ws) onDeviceMessage(d, raw);
@@ -581,6 +627,7 @@ const server = Bun.serve({
 
         close(ws, code, reason) {
             const { data } = ws;
+            if (data.kind === "dashboards") return;
             if (data.kind === "viewer") {
                 failPending((p) => p.viewer === ws, "", 0, false);
                 return;

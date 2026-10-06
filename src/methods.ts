@@ -48,7 +48,7 @@ import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
-import { callModule, encoderServices, getModule, kickChatServices, kickStatsServices, moduleStatuses, modemServices, obsServices, restartRegisteredModule, srtlaServices } from "../modules/registry.backend";
+import { callModule, encoderServices, getModule, moduleStatuses, modemServices, obsServices, restartRegisteredModule, srtlaServices } from "../modules/registry.backend";
 import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo, SrtlaState } from "../modules/types";
 import {
 	ApiError,
@@ -73,7 +73,7 @@ import { detectInterfaces, isMonitorRunning, type ModemConfig, reconfigure, reso
 import {
 	ALL_MODULES, completeSetup, defaultModules, type SrtlaOptions, type SrtlaOptionsResult,
 	saveState, setupRequired, type SrtlaTarget, state, uiLanguage,
-	OBS_MODULE, KICK_STATS_MODULE, KICK_CHAT_MODULE,
+	OBS_MODULE,
 } from "./state";
 import { cancelAutostart, setAutostart, startCombined, stopCombined } from "./stream";
 import { errorMessage, scrubUrl, textOf } from "./util";
@@ -342,8 +342,6 @@ const METHOD_OWNER: Record<string, string> = {
 	"obs.request": "obs-controller",
 	"obs.requestBatch": "obs-controller",
 	"obs.setEventSubscriptions": "obs-controller",
-	"kick.chat.get": "kick-chat",
-	"kick.stats.get": "kick-stats",
 };
 
 const moduleDispatch = (method: string, params: Record<string, unknown>): Promise<unknown> =>
@@ -559,18 +557,6 @@ const methods: Record<string, Method> = {
 			obsServices.configure(config);
 			saveState();
 			void restartRegisteredModule(id);
-		} else if (id === KICK_STATS_MODULE) {
-			// Registered module: the kick-stats slice is applied by the module
-			// itself, then re-applied through the registry
-			kickStatsServices.configure(config);
-			saveState();
-			void restartRegisteredModule(id);
-		} else if (id === KICK_CHAT_MODULE) {
-			// Registered module: the kick-chat slice is applied by the module
-			// itself, then re-applied through the registry
-			kickChatServices.configure(config);
-			saveState();
-			void restartRegisteredModule(id);
 		} else {
 			configureModule(id, config);
 			saveState();
@@ -619,14 +605,6 @@ const methods: Record<string, Method> = {
 		return moduleDispatch("obs.setEventSubscriptions", { eventSubscriptions: intents });
 	},
 
-	// -------------------------------------------------------------------- kick
-	"kick.stats.get": () => moduleDispatch("kick.stats.get", {}),
-	"kick.chat.get": async (p) => {
-		const limit = optionalInt(p, "limit", 500, 1, 1000);
-		const r = (await moduleDispatch("kick.chat.get", { limit })) as { messages: Array<Record<string, unknown>> };
-		// kick.chat.get also surfaces the latest kick.stats sample (cross-module)
-		return { messages: r.messages, stats: kickStatsServices.latest() };
-	},
 };
 
 function methodAllowed(name: string): boolean {
@@ -634,8 +612,6 @@ function methodAllowed(name: string): boolean {
 	if (name.startsWith("stream.")) return role === "combined";
 	// Module-owned API surface: 409 when the owning module is disabled
 	if (name.startsWith("obs.") && !moduleEnabled(OBS_MODULE)) return false;
-	if (name.startsWith("kick.stats") && !moduleEnabled(KICK_STATS_MODULE)) return false;
-	if (name.startsWith("kick.chat") && !moduleEnabled(KICK_CHAT_MODULE)) return false;
 	if (name.startsWith("encoder.") || name.startsWith("ceracoder.") || name === "pipelines.list") return role !== "relay";
 	if (name.startsWith("modems.") || name.startsWith("srtla.") || name === "reconfigure") return role !== "encoder";
 	return true;

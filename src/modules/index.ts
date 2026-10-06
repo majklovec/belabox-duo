@@ -35,7 +35,6 @@ export function modulesView(): object {
     const m = mods();
     if (!m) return {};
     const obs = m["obs-controller"];
-    const chat = m["kick-chat"];
     return {
         relay: m.relay,
         encoder: m.encoder,
@@ -44,12 +43,6 @@ export function modulesView(): object {
             obsUrl: obs.obsUrl,
             obsPassword: obs.obsPassword ? { configured: true } : { configured: false },
             sceneEvents: obs.sceneEvents,
-        },
-        "kick-stats": { enabled: m["kick-stats"].enabled, channel: m["kick-stats"].channel },
-        "kick-chat": {
-            enabled: chat.enabled,
-            channel: chat.channel,
-            token: chat.token ? { configured: true } : { configured: false },
         },
     };
 }

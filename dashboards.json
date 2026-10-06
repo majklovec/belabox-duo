@@ -5,18 +5,29 @@
       "name": "test",
       "widgets": [
         {
-          "id": "866b2855-3a05-47b4-8831-17e4ac783bdb",
+          "id": "ba7c4adb-7807-4d3f-9cec-4438cab8f3ab",
           "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
           "type": "obs",
           "name": "obs",
           "width": 6
         },
         {
-          "id": "0625c325-82e0-48b4-beeb-a94d4a506fa4",
+          "id": "0cd8f7af-7c30-4030-b793-adfd7a7e79e6",
           "deviceId": "c3241ebe-4188-44bd-87a8-17e3aced3091",
           "type": "status",
           "name": "both",
           "width": 6
+        },
+        {
+          "id": "9c8d4871-3939-4ba3-bfda-9f602de79620",
+          "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
+          "type": "kick-stats",
+          "name": "asf",
+          "width": 6,
+          "config": {
+            "channel": "xqc",
+            "token": ""
+          }
         }
       ]
     }

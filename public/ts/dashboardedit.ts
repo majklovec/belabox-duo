@@ -8,14 +8,13 @@ import {
 	deviceLabel,
 	devices,
 	refreshDevices,
-	moduleKeyFor,
-	sourceDeviceFor,
 	syncConnectionsFor,
 	typeLabel,
 	widgetTypesFor,
 	widgetView,
 	isIndependent,
 	independentTypes,
+	setWidgetConfigSaver,
 } from "./dashboard";
 import { t } from "./i18n";
 import { mountPage } from "./util";
@@ -34,6 +33,8 @@ const state = {
 	addDeviceId: "",
 	addType: "" as WidgetType | "",
 	addName: "",
+	addChannel: "",
+	addToken: "",
 	addWidth: "6",
 	saving: false,
 };
@@ -88,23 +89,31 @@ function addWidget(): void {
 	const dash = state.dash;
 	if (!dash || !state.addType) return;
 	const type = state.addType;
-	let deviceId = state.addDeviceId;
-	if (isIndependent(type)) {
-		// explicit choice wins, else first online device with the module enabled
-		const explicit = devices.list?.find((d) => d.id === deviceId && d.online && d.modules?.[moduleKeyFor(type)]?.enabled);
-		deviceId = explicit?.id ?? sourceDeviceFor(type)?.id ?? "";
-	} else if (!deviceId) return;
-	if (!deviceId) return;
 	const width = Number(state.addWidth);
-	dash.widgets.push({
+	const w: ServerDashboard["widgets"][number] = {
 		// id is assigned by the server on save
 		id: "",
-		deviceId,
+		deviceId: isIndependent(type) ? "" : state.addDeviceId,
 		type,
 		name: state.addName.trim() || typeLabel(type),
 		width: WIDTHS.includes(width as 4 | 6 | 12) ? (width as 4 | 6 | 12) : 6,
-	});
+	};
+	if (isIndependent(type)) {
+		w.config = { channel: state.addChannel.trim(), token: state.addToken.trim() };
+	}
+	dash.widgets.push(w);
 	state.addName = "";
+	state.addChannel = "";
+	state.addToken = "";
+	void save(dash);
+}
+
+/** Persist one kick widget's channel/token after an inline edit. */
+function saveWidgetConfig(dash: ServerDashboard, w: ServerDashboard["widgets"][number]): void {
+	// Older dashboards saved before the widget carried a config
+	if (!w.config) w.config = { channel: "", token: "" };
+	w.config.channel = w.config.channel.trim();
+	w.config.token = w.config.token.trim();
 	void save(dash);
 }
 
@@ -124,8 +133,9 @@ function removeWidget(dash: ServerDashboard, index: number): void {
 // ---------------------------------------------------------------------- widgets
 
 /**
- * Add-widget type options: the selected device's modules plus the standalone
- * channel widgets (available if any online device has the module enabled).
+ * Add-widget type options: the selected device's modules plus the device-
+ * independent kick widgets (always offered; their data source is the channel
+ * configured on the widget itself, fetched by the server).
  */
 function typeOptions(): m.Vnode[] {
 	const device = devices.list?.find((d) => d.id === state.addDeviceId);
@@ -166,7 +176,28 @@ function widgetsTable(dash: ServerDashboard): m.Vnode {
 					"tr",
 					{ key: w.id || `${w.deviceId}:${w.type}:${w.name}` },
 					m("td", w.name),
-					m("td", isIndependent(w.type) || !deviceById(w.deviceId) ? "—" : deviceLabel(deviceById(w.deviceId)!)),
+					isIndependent(w.type)
+						? m("td", [
+								m("input.dash-config-input", {
+									value: w.config?.channel ?? "",
+									placeholder: t("dash.widget_channel"),
+									onblur: () => saveWidgetConfig(dash, w),
+									onkeydown: (e: KeyboardEvent) => {
+										if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+									},
+								}),
+								w.type === "kick-chat"
+									? m("input.dash-config-input", {
+											value: w.config?.token ?? "",
+											placeholder: t("dash.widget_token"),
+											onblur: () => saveWidgetConfig(dash, w),
+											onkeydown: (e: KeyboardEvent) => {
+												if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+											},
+										})
+									: null,
+							])
+						: m("td", !deviceById(w.deviceId) ? "—" : deviceLabel(deviceById(w.deviceId)!)),
 					m("td.muted", typeLabel(w.type)),
 					m("td.muted", t(`dash.width_${w.width}`)),
 					m(
@@ -183,18 +214,30 @@ function widgetsTable(dash: ServerDashboard): m.Vnode {
 
 function addToolbar(dash: ServerDashboard): m.Vnode {
 	const type = state.addType;
-	const canAdd =
-		type !== "" &&
-		(isIndependent(type)
-			? devices.list?.some((d) => d.online && d.modules?.[moduleKeyFor(type)]?.enabled) ?? false
-			: Boolean(state.addDeviceId));
+	const indep = type !== "" && isIndependent(type);
+	const canAdd = type !== "" && (indep ? state.addChannel.trim() !== "" : Boolean(state.addDeviceId));
 	return m(
 		"div.dash-toolbar",
 		input(state, "addName", { placeholder: t("dash.name") }) as m.Vnode,
-		select(state, "addDeviceId", options([
-			["", t("dash.widget_device")],
-			...(devices.list ?? []).map((d) => [d.id, deviceLabel(d)] as [string, string]),
-		])) as m.Vnode,
+		indep
+			? m("div", { class: "dash-add-channel" }, [
+					m("input", {
+						value: state.addChannel,
+						placeholder: t("dash.widget_channel"),
+						oninput: (e: InputEvent) => (state.addChannel = (e.target as HTMLInputElement).value),
+					}),
+					type === "kick-chat"
+						? m("input", {
+								value: state.addToken,
+								placeholder: t("dash.widget_token"),
+								oninput: (e: InputEvent) => (state.addToken = (e.target as HTMLInputElement).value),
+							})
+						: null,
+				])
+			: select(state, "addDeviceId", options([
+					["", t("dash.widget_device")],
+					...(devices.list ?? []).map((d) => [d.id, deviceLabel(d)] as [string, string]),
+				])) as m.Vnode,
 		select(state, "addType", typeOptions()) as m.Vnode,
 		select(state, "addWidth", options(WIDTHS.map((w) => [String(w), t(`dash.width_${w}`)] as [string, string]))) as m.Vnode,
 		button(t("dash.add_widget"), { onclick: () => addWidget(), disabled: state.saving || !canAdd }),
@@ -244,6 +287,10 @@ const App: m.Component = {
 
 void (async () => {
 	await load();
+	// Pencil "settings" on a kick widget shares the inline table save path.
+	setWidgetConfigSaver((w) => {
+		if (state.dash) saveWidgetConfig(state.dash, w);
+	});
 	await refresh();
 	syncConnectionsFor(state.dash);
 	m.redraw();

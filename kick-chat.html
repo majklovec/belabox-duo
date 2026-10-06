@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Kick Chat</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+        }
+
+        #chat {
+            position: fixed;
+            inset: 0;
+            padding: 10px 14px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            gap: 4px;
+            overflow: hidden;
+
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            font-size: 15px;
+            line-height: 1.45;
+            color: #ffffff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, .9), 0 0 4px rgba(0, 0, 0, .7);
+        }
+
+        .m {
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            animation: fade .2s ease;
+        }
+
+        @keyframes fade {
+            from {
+                opacity: 0;
+                transform: translateY(4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .b {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 15px;
+            padding: 0 4px;
+            border-radius: 3px;
+            margin-right: 3px;
+            color: #fff;
+            text-transform: uppercase;
+            vertical-align: middle;
+            text-shadow: none;
+        }
+
+        .u {
+            font-weight: 700;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="chat"></div>
+
+    <script>
+        (function () {
+            var params = new URLSearchParams(window.location.search);
+            var CHANNEL = params.get('channel').trim().toLowerCase();
+
+            var PUSHER = 'wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0-rc2&flash=false';
+            var MAX = 100;
+
+            var box = document.getElementById('chat');
+
+            function addLine(text, color) {
+                var d = document.createElement('div');
+                d.className = 'm';
+                d.style.color = color || '#fff';
+                d.textContent = text;
+                box.appendChild(d);
+                while (box.children.length > MAX) box.removeChild(box.firstChild);
+            }
+
+            function render(payload) {
+                var sender = payload.sender || {};
+                var identity = sender.identity || {};
+
+                var row = document.createElement('div');
+                row.className = 'm';
+
+                var user = document.createElement('span');
+                user.className = 'u';
+                user.textContent = (sender.username || 'unknown') + ':';
+                if (identity.color) user.style.color = identity.color;
+                row.appendChild(user);
+
+                var text = document.createElement('span');
+                text.textContent = payload.content || '';
+                row.appendChild(text);
+
+                box.appendChild(row);
+
+                while (box.children.length > MAX) box.removeChild(box.firstChild);
+            }
+
+            function fetchChannel(slug) {
+                var direct = 'https://kick.com/api/v2/channels/' + encodeURIComponent(slug);
+
+                var attempts = [
+                    'https://api.allorigins.win/raw?url=' + encodeURIComponent(direct),
+                    'https://corsproxy.io/?url=' + encodeURIComponent(direct),
+                    'https://thingproxy.freeboard.io/fetch/' + direct,
+                    direct
+                ];
+
+                var lastErr;
+                return attempts.reduce(function (chain, url) {
+                    return chain.catch(function (err) {
+                        lastErr = err;
+                        console.log('[KickChat] Trying:', url, 'after', err && err.message);
+                        return fetch(url, { headers: { 'Accept': 'application/json' } })
+                            .then(function (r) {
+                                if (!r.ok) throw new Error('HTTP ' + r.status);
+                                return r.json();
+                            });
+                    });
+                }, Promise.reject(new Error('start')))
+                    .catch(function (err) {
+                        throw lastErr || err;
+                    });
+            }
+
+            console.log('[KickChat] Starting for channel:', CHANNEL);
+
+            fetchChannel(CHANNEL)
+                .then(function (data) {
+                    var id = data && data.chatroom && data.chatroom.id;
+                    if (!id) throw new Error('No chatroom id in response');
+
+                    console.log('[KickChat] Chatroom ID:', id);
+
+                    var ws = new WebSocket(PUSHER);
+
+                    ws.onopen = function () {
+                        console.log('[KickChat] WebSocket connected');
+                    };
+
+                    ws.onerror = function () {
+                        addLine('WebSocket error', '#ff5252');
+                    };
+
+                    ws.onclose = function (ev) {
+                        console.log('[KickChat] WebSocket closed', ev.code);
+                        addLine('Connection closed (' + ev.code + ')', '#ff5252');
+                    };
+
+                    ws.onmessage = function (ev) {
+                        var msg;
+                        try { msg = JSON.parse(ev.data); } catch (e) { return; }
+                        var event = msg.event || '';
+
+                        if (event === 'pusher:connection_established') {
+                            console.log('[KickChat] Pusher ready, subscribing…');
+                            ws.send(JSON.stringify({
+                                event: 'pusher:subscribe',
+                                data: { auth: '', channel: 'chatrooms.' + id + '.v2' }
+                            }));
+                        } else if (event === 'pusher:ping') {
+                            ws.send(JSON.stringify({ event: 'pusher:pong', data: {} }));
+                        } else if (event === 'pusher_internal:subscription_succeeded') {
+                            console.log('[KickChat] Subscribed — chat is live');
+                        } else if (event === 'App\\Events\\ChatMessageEvent') {
+                            var payload;
+                            try {
+                                payload = typeof msg.data === 'string'
+                                    ? JSON.parse(msg.data)
+                                    : msg.data;
+                            } catch (e) { return; }
+                            if (payload) render(payload);
+                        }
+                    };
+                })
+                .catch(function (err) {
+                    console.error('[KickChat] Failed:', err);
+                    addLine('Error: ' + err.message, '#ff5252');
+                    addLine('Open DevTools console for details.', '#ff5252');
+                });
+        })();
+    </script>
+
+</body>
+
+</html>

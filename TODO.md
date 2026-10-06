@@ -1,504 +1,301 @@
-# Handoff: Module Directory Refactor
+# Handoff Update: Inline Widget Editor with Drag & Resize
 
-**Target repo:** `majklovec/belabox-duo`
-**Scope:** Purely structural. Move all six existing modules — `encoder`, `srtla`, `modems`, `obs-controller`, `kick-stats`, `kick-chat` — into a new `modules/<name>/` layout with `backend.ts`, `frontend.ts`, `styles.css`. Introduce a two-registry system. **No new features, no behavior changes.**
-**Success criterion:** UI and API responses are byte-for-byte identical to pre-refactor. Only the file tree and import graph change.
+**Supersedes the "v1 ordered list, no drag-and-drop" decision** from the previous handoff. Everything else stands.
 
-This is a mechanical refactor of code that already exists. All six modules are present in the codebase today, scattered across `src/` and `public/ts/device/`. The goal is to consolidate them.
+The dashboard is no longer a read-only ordered list configured from a separate settings panel. It becomes a **2D grid with inline editing** — users drag widgets to reposition, drag handles to resize, and add/remove widgets directly on the dashboard surface.
 
 ---
 
-## 1. Why This Refactor
+## 1. What Changes
 
-Today, module code is scattered:
+| Aspect             | Before                               | After                                                         |
+| ------------------ | ------------------------------------ | ------------------------------------------------------------- |
+| Layout model       | Ordered list + width class           | 2D grid: `{x, y, w, h}` per item                              |
+| Editor location    | Separate `dashboard-editor.ts` panel | Inline, on the dashboard surface, toggled by an "Edit" button |
+| Interaction        | Up/down reorder, width dropdown      | Drag to move, drag corner/edge to resize                      |
+| Persistence timing | On form submit                       | Debounced auto-save on drag/resize stop                       |
+| Module contract    | `defaultWidth` only                  | `defaultSize`, `minSize`, `maxSize`                           |
 
-- Backend logic lives in `src/` (e.g., `src/encoder.ts`, `src/srtla.ts`, `src/obs.ts`, `src/kick-stats.ts`, `src/kick-chat.ts`).
-- Frontend cards live in `public/ts/device/` (e.g., `encoder.ts`, `srtla.ts`, `obs.ts`, `kick-stats.ts`, `kick-chat.ts`).
-- Styles live in `public/css/` or are inline.
-
-Six modules × three locations = eighteen files to touch whenever the module system evolves. After this refactor, each module is self-contained, and adding or removing one is a two-line registry change.
-
----
-
-## 2. Target Layout
-
-```
-modules/                              # NEW: repo root, single tree
-  types.ts                            # shared interfaces
-  registry.backend.ts                 # backend module list
-  registry.frontend.ts                # frontend module list
-  README.md                           # contract + how to add a module
-  encoder/
-    backend.ts
-    frontend.ts
-    styles.css
-  srtla/
-    backend.ts
-    frontend.ts
-    styles.css
-  modems/
-    backend.ts
-    frontend.ts
-    styles.css
-  obs-controller/
-    backend.ts
-    frontend.ts
-    styles.css
-  kick-stats/
-    backend.ts
-    frontend.ts
-    styles.css
-  kick-chat/
-    backend.ts
-    frontend.ts
-    styles.css
-```
-
-**Three files per module, always. No exceptions.**
-
-| File          | Runtime | Exports                     | Imports                             |
-| ------------- | ------- | --------------------------- | ----------------------------------- |
-| `backend.ts`  | Bun     | exactly one `DeviceModule`  | Bun APIs, `../types`, protocol libs |
-| `frontend.ts` | Browser | exactly one `BrowserModule` | Mithril, `../types`, `device/store` |
-| `styles.css`  | Browser | (side-effect only)          | nothing                             |
-
-**Two registries, not one.** `registry.backend.ts` is imported by `src/methods.ts` and `src/client.ts`. `registry.frontend.ts` is imported by `public/ts/app.ts`. A single registry would drag Mithril into the Bun process or Bun into the browser bundle. Keep them separate.
-
-**`obs-client.ts` sits at the app root, next to `client.ts` and `server.ts`.** It's a low-level obs-websocket protocol library / standalone device proxy (run with `bun obs-client.ts`), not a module. Only `modules/obs-controller/backend.ts` imports it. Moving it into `modules/obs-controller/` would violate the "three files per module" rule; keeping it at the root preserves the boundary.
+Everything else — per-device scope, multiple dashboards, enabled-modules filter, module directory layout — is unchanged.
 
 ---
 
-## 3. Shared Types (`modules/types.ts`)
-
-Create this file verbatim. It uses `unknown` for schema and component types on purpose — shared types must not couple to Zod or Mithril, or the wrong runtime ends up importing the wrong library.
+## 2. Data Model
 
 ```ts
-/**
- * modules/types.ts
- *
- * Shared module interfaces. Imported by both backend.ts (Bun) and
- * frontend.ts (browser). MUST NOT import zod, mithril, or any runtime-specific
- * library — that would leak one runtime's deps into the other.
- */
-
-// ---------------------------------------------------------------------------
-// Backend
-// ---------------------------------------------------------------------------
-
-export interface DeviceModule {
-  /** Stable id. Same string as the frontend module. Convention: kebab-case. */
+interface Dashboard {
   id: string;
-  /** Human-readable title shown in the dashboard editor. */
-  title: string;
-  /**
-   * Zod schema validating the `config` object passed to modules.configure.
-   * Typed as `unknown` here so this file does not import zod.
-   * The module's own backend.ts casts it to ZodSchema.
-   */
-  configSchema: unknown;
-  /** Field names in configSchema that must be redacted from every outbound payload. */
-  secretFields: string[];
-  /** Called when the module is enabled or the device boots. Must be idempotent. */
-  start(ctx: ModuleContext): Promise<void>;
-  /** Called on disable, config change, or shutdown. Must be idempotent. */
-  stop(): Promise<void>;
-  /** Method names this module owns. Used for gating and dispatch. */
-  methods: string[];
-  /** Event names this module emits. Used by push.ts for validation. */
-  events: string[];
-  /** Route a request method to the module. Called only if enabled. */
-  dispatch(method: string, params: unknown): Promise<unknown>;
+  name: string;
+  /** Monotonic; bumped on every update. Used for optimistic concurrency. */
+  version: number;
+  items: DashboardItem[];
+  /** Columns in the grid. Fixed at 12 for now; stored for forward-compat. */
+  columns: number;
 }
 
-export interface ModuleContext {
-  /** Current config slice for this module (validated). */
-  config: Record<string, unknown>;
-  /** Emit a belabox-duo event, tagged with this module's id. */
-  emit(event: string, data: unknown): void;
-  /** Scoped logger. Never pass secrets to it. */
-  log(msg: string, ...rest: unknown[]): void;
+interface DashboardItem {
+  moduleId: string;
+  /** Grid units, 0-indexed. */
+  x: number;
+  y: number;
+  /** Extent in grid units. */
+  w: number;
+  h: number;
+  visible: boolean;
 }
+```
 
-// ---------------------------------------------------------------------------
-// Frontend
-// ---------------------------------------------------------------------------
+**Grid unit:** 12 columns wide. Row height is a fixed pixel value (recommend **60px**, expose as a CSS variable `--dash-row-h`). Widget positions and sizes are always integers in grid units — never pixels. This is what makes resize predictable and saveable.
 
+**Migration from v1:** on first load of a v1 dashboard, assign `x = 0, y = runningRow, w = widthToColumns(width), h = defaultHeight(moduleId)` per item in order, then bump `version` to 2. One-time conversion, stored back on save. v1 dashboards never coexist with v2 in memory.
+
+---
+
+## 3. Module Contract Changes
+
+`modules/types.ts` — extend `BrowserModule`:
+
+```ts
 export interface BrowserModule {
-  /** Must equal the backend DeviceModule.id. */
   id: string;
   title: string;
   icon?: string;
-  /**
-   * Mithril Component. Typed as `unknown` here so this file does not import
-   * mithril. The module's own frontend.ts casts it to m.Component.
-   */
   component: unknown;
-  /** Default width when added to a dashboard. */
-  defaultWidth: "full" | "half" | "third";
-  /** Route a pushed event into st.*. Called for every event whose `module` matches. */
+  /** Default grid size when added to a dashboard. */
+  defaultSize: { w: number; h: number }; // replaces defaultWidth
+  /** Minimum size the user can resize down to. */
+  minSize: { w: number; h: number };
+  /** Optional cap. Omit for unbounded. */
+  maxSize?: { w: number; h: number };
   handleEvent?(event: string, data: unknown): void;
 }
 ```
 
----
+Suggested defaults per module:
 
-## 4. Registries
+| Module           | defaultSize  | minSize      |
+| ---------------- | ------------ | ------------ |
+| `encoder`        | `{w:6, h:5}` | `{w:4, h:4}` |
+| `srtla`          | `{w:4, h:4}` | `{w:3, h:3}` |
+| `modems`         | `{w:4, h:4}` | `{w:3, h:3}` |
+| `obs-controller` | `{w:6, h:6}` | `{w:4, h:4}` |
+| `kick-stats`     | `{w:3, h:3}` | `{w:3, h:3}` |
+| `kick-chat`      | `{w:3, h:8}` | `{w:3, h:4}` |
 
-### `modules/registry.backend.ts`
-
-```ts
-import type { DeviceModule } from "./types";
-import { encoderModule } from "./encoder/backend";
-import { srtlaModule } from "./srtla/backend";
-import { modemsModule } from "./modems/backend";
-import { obsControllerModule } from "./obs-controller/backend";
-import { kickStatsModule } from "./kick-stats/backend";
-import { kickChatModule } from "./kick-chat/backend";
-
-export const ALL_MODULES: DeviceModule[] = [
-  encoderModule,
-  srtlaModule,
-  modemsModule,
-  obsControllerModule,
-  kickStatsModule,
-  kickChatModule,
-];
-
-const BY_ID = new Map(ALL_MODULES.map((m) => [m.id, m]));
-
-export function getModule(id: string): DeviceModule | undefined {
-  return BY_ID.get(id);
-}
-
-export function moduleIds(): string[] {
-  return ALL_MODULES.map((m) => m.id);
-}
-```
-
-### `modules/registry.frontend.ts`
-
-```ts
-import type { BrowserModule } from "./types";
-import { encoderModule } from "./encoder/frontend";
-import { srtlaModule } from "./srtla/frontend";
-import { modemsModule } from "./modems/frontend";
-import { obsControllerModule } from "./obs-controller/frontend";
-import { kickStatsModule } from "./kick-stats/frontend";
-import { kickChatModule } from "./kick-chat/frontend";
-
-export const ALL_MODULES: BrowserModule[] = [
-  encoderModule,
-  srtlaModule,
-  modemsModule,
-  obsControllerModule,
-  kickStatsModule,
-  kickChatModule,
-];
-
-const BY_ID = new Map(ALL_MODULES.map((m) => [m.id, m]));
-
-export function getModule(id: string): BrowserModule | undefined {
-  return BY_ID.get(id);
-}
-```
-
-**Explicit imports, no auto-discovery.** No glob, no `import.meta.glob`, no filesystem scan. Six modules is trivial to maintain manually, and explicit imports give IDEs working "find references" and fail loudly at compile time when a module is missing.
+**Module authors must design cards to be responsive within `[minSize, maxSize]`.** The card's `view()` receives no size props — it must query its own container if it needs to adapt. Add a `ResizeObserver` example to `modules/README.md`.
 
 ---
 
-## 5. Module File Contracts
+## 4. Library Choice
 
-### `modules/<id>/backend.ts`
+**Use `gridstack.js`.** It is the only mature, framework-agnostic grid library that handles drag, resize, collision, and serialization together. Mithril integration is done via lifecycle hooks (§5). Version: pin `^11` or later.
 
-```ts
-import { z } from "zod";
-import type { DeviceModule, ModuleContext } from "../types";
+Alternatives considered and rejected:
 
-const schema = z.object({
-  // module-specific config fields
-});
+- `muuri` — excellent drag/drop but no grid resize/serialization.
+- `react-grid-layout` / `dashcraft-core` — React-only, or headless in ways that require re-implementing collision.
+- **Custom implementation** — viable, but ~600 lines to do collision, snap, resize handles, touch support, and persistence correctly. Only justified if gridstack's bundle size (≈ 60 KB gzip) is unacceptable. Do not go custom on v1.
 
-let state: SomeRuntimeState | null = null;
+---
 
-export const <id>Module: DeviceModule = {
-  id: "<id>",
-  title: "<Title>",
-  configSchema: schema,
-  secretFields: [],
-  methods: ["<method.namespace>"],  // may be empty if no RPC methods
-  events: ["<event.name>"],         // may be empty if no push events
+## 5. Mithril + Gridstack Integration
 
-  async start(ctx: ModuleContext) {
-    const cfg = schema.parse(ctx.config);
-    // initialize state, subscribe to underlying service, emit via ctx.emit
-  },
-
-  async stop() {
-    // tear down state, must be safe to call twice
-    state = null;
-  },
-
-  async dispatch(method, params) {
-    switch (method) {
-      // case "<method.namespace>": return doThing(params);
-      default:
-        throw new Error(`unknown method: ${method}`);
-    }
-  },
-};
-```
-
-**Rules:**
-
-- Exactly one export. The `DeviceModule` object. No helper exports.
-- `start` / `stop` must be idempotent. Calling `start` twice is a no-op the second time; calling `stop` on a stopped module is a no-op.
-- All events go through `ctx.emit`, never through a direct import of `src/push.ts`. This keeps the module decoupled from the transport.
-- All logging goes through `ctx.log`, never `console.log`. Secrets must never be passed to it.
-- `configSchema.parse()` is called once at `start`; the module trusts the shape afterwards.
-
-**Migration note for `obs-controller`:** the module wraps the existing `ObsClient` from `obs-client.ts` (app root). The client instance is created in `start`, disconnected in `stop`, and forwarded in `dispatch`. No changes to `obs-client.ts` itself.
-
-### `modules/<id>/frontend.ts`
+Wrap gridstack in a Mithril component. The card components themselves are unaware of gridstack — the wrapper owns all layout interaction.
 
 ```ts
+// public/ts/device/dashboard.ts
 import m from "mithril";
-import { st } from "../../public/ts/device/store";
-import type { BrowserModule } from "../types";
-import "./styles.css";
+import { GridStack } from "gridstack";
+import "gridstack/dist/gridstack.min.css";
+import { getModule } from "../../../modules/registry.frontend";
+import { st } from "./store";
+import { saveDashboardDebounced } from "./persistence";
 
-export const <id>Module: BrowserModule = {
-  id: "<id>",
-  title: "<Title>",
-  icon: "...",
-  defaultWidth: "third",
+export const Dashboard: m.Component<{ dashboard: Dashboard }> = {
+  oncreate({ dom, attrs }) {
+    const grid = GridStack.init(
+      {
+        column: attrs.dashboard.columns ?? 12,
+        cellHeight: 60,
+        margin: 8,
+        float: false,
+        disableDrag: true,
+        disableResize: true,
+        draggable: { handle: ".dash-widget-handle" },
+      },
+      dom as HTMLElement,
+    );
 
-  component: {
-    view() {
-      // read from st, return vnodes
-      return m("div.mod-<id>", /* ... */);
-    },
+    grid.load(
+      attrs.dashboard.items.map(toGridstackNode),
+      /* addAndRemove */ false,
+    );
+    grid.on("change", (_event, items) => {
+      saveDashboardDebounced(attrs.dashboard.id, fromGridstackNodes(items));
+    });
+
+    (dom as any)._grid = grid;
+    (dom as any)._gridSub = st.editMode.subscribe((mode) => {
+      grid.enableMove(mode);
+      grid.enableResize(mode);
+    });
   },
 
-  handleEvent(event, data) {
-    // route into st.<module> slice
+  onupdate({ dom, attrs }) {
+    const grid = (dom as any)._grid as GridStack;
+    const incoming = attrs.dashboard.items.map(toGridstackNode);
+    if (!grid.isAreaEmpty && sameLayout(grid.save(false), incoming)) return;
+    grid.load(incoming, false);
+  },
+
+  onremove({ dom }) {
+    (dom as any)._gridSub?.();
+    (dom as any)._grid?.destroy(false);
+  },
+
+  view({ attrs }) {
+    return m(
+      "div.dashboard-grid.grid-stack",
+      attrs.dashboard.items
+        .filter((i) => i.visible && st.modules[i.moduleId]?.enabled)
+        .map((item) => {
+          const mod = getModule(item.moduleId);
+          return m(
+            "div.grid-stack-item",
+            {
+              "gs-id": item.moduleId,
+              "gs-x": item.x,
+              "gs-y": item.y,
+              "gs-w": item.w,
+              "gs-h": item.h,
+              "gs-min-w": mod.minSize.w,
+              "gs-min-h": mod.minSize.h,
+              "gs-max-w": mod.maxSize?.w,
+              "gs-max-h": mod.maxSize?.h,
+            },
+            [
+              m("div.grid-stack-item-content.dash-widget", [
+                m("header.dash-widget-handle", [
+                  m("span.dash-widget-title", mod.title),
+                  st.editMode() &&
+                    m(
+                      "button.dash-widget-remove",
+                      {
+                        onclick: () =>
+                          removeWidget(attrs.dashboard, item.moduleId),
+                      },
+                      "×",
+                    ),
+                ]),
+                m("div.dash-widget-body", m(mod.component)),
+              ]),
+            ],
+          );
+        }),
+    );
   },
 };
 ```
 
-**Rules:**
+Key points:
 
-- Exactly one export. The `BrowserModule` object.
-- `view()` reads from `st` and is pure. No fetches, no side-effects, no `await`.
-- `handleEvent` writes into the module's own slice of `st` (`st.obs`, `st.kick.stats`, `st.kick.chat`, etc.). Cross-module reads happen at render time from `st`, never via direct imports between module files.
-- The outer wrapper element always carries `class="mod-<id>"` so styles can be scoped.
+- **`disableDrag` / `disableResize` start as `true`.** Edit mode toggles them. Read-only viewers get zero interaction.
+- **`gs-id` is the module ID** — gridstack keys on it, so re-renders map cleanly to the same widget.
+- **Only the header is the drag handle** (`.dash-widget-handle`), so the widget body stays interactive (buttons, chat scroll, etc.).
+- **`onupdate` is defensive.** It only reloads if the incoming layout differs from the current one, otherwise Mithril's re-render would fight gridstack's drag state.
 
-### `modules/<id>/styles.css`
+---
+
+## 6. Inline Editor UX
+
+The editor lives on the dashboard itself. No separate settings panel for layout.
+
+**Header bar (above the grid):**
+
+```
+[ Dashboard name ▾ ]  [ + Add widget ]  [ Edit / Done ]
+```
+
+- **Dashboard name** — dropdown listing all dashboards + "New…" + "Rename…" + "Delete". This replaces the old "Dashboards" tab.
+- **+ Add widget** — opens a small popover listing modules not yet on this dashboard. Clicking one appends it at the first free position with `defaultSize`.
+- **Edit / Done** — toggles `st.editMode`. In edit mode, drag and resize are enabled and the header shows a "Saving…" / "Saved" indicator.
+
+**Per-widget chrome (only in edit mode):**
+
+- Drag handle is the whole header bar.
+- Resize handle is gridstack's default bottom-right corner (`.ui-resizable-handle`), styled to match the theme.
+- A `×` in the header removes the widget from the dashboard (does not disable the module).
+- A small eye icon toggles `visible: false` — keeps position and size when re-shown.
+
+**Exit edit mode** does not need a save button. Persistence happens continuously (debounced).
+
+**Module configuration** (OBS URL, Kick channel, etc.) moves to a separate "Modules" settings panel — the one part of the old `dashboard-editor.ts` that survives. It is not part of the inline editor.
+
+---
+
+## 7. Persistence and Sync
+
+**Save timing.** Debounce on gridstack's `change` event: 500 ms after the last drag/resize.
+
+**Save payload.** `dashboards.update` sends the full item array with the current `version`.
+
+**Server-side version check:**
+
+```ts
+if (incoming.version !== stored.version) {
+  return reject(409, { current: stored });
+}
+stored.items = incoming.items;
+stored.version += 1;
+broadcast("dashboards.changed", stored);
+```
+
+**Conflict handling on the client:** on `409`, show a toast — _"Dashboard was edited by someone else. Reload?"_ — and stop auto-saving until the user reloads. Do not attempt merge. Dashboards are per-device and rarely edited concurrently; last-write-wins with a version guard is the right complexity level.
+
+**Broadcast.** When any viewer saves, the device emits `dashboards.changed` with the new object. Every other browser replaces `st.dashboards[id]` and Mithril re-renders. Because `onupdate` diffs the layout, no flicker for unchanged widgets.
+
+**Edit-mode indicator.** Emit an ephemeral `dashboards.editing` presence event (`{id, viewerCount}`) so a viewer sees "2 people editing" and can decide to back off. Do not block editing — presence is informational only.
+
+---
+
+## 8. CSS
+
+`public/ts/device/dashboard.css` — global, not module-scoped (it's the shell, not a module).
 
 ```css
-/* modules/<id>/styles.css */
-.mod-<id > {
-  /* ... */
+.dashboard-grid {
+  --dash-row-h: 60px;
 }
-.mod-<id > .child-selector {
-  /* ... */
+.dash-widget {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
 }
-```
-
-**Rules:**
-
-- Every selector must be prefixed with `.mod-<id>`. Enforceable with a grep in CI (see §9).
-- No `:root`, no global element selectors (`div { ... }`), no `@import`.
-- Reference theme variables (`var(--color-fg)`) if the repo has them, but do not define them here.
-
-### `modules/README.md`
-
-Document the contract in plain language, plus "how to add a module in 5 steps":
-
-```md
-# Modules
-
-Each module lives in `modules/<id>/` and consists of exactly three files:
-
-- `backend.ts` — exports a `DeviceModule` (runs under Bun)
-- `frontend.ts` — exports a `BrowserModule` (runs in the browser)
-- `styles.css` — scoped under `.mod-<id>`
-
-## Existing modules
-
-| id               | Title      | Backend service     | Frontend card           |
-| ---------------- | ---------- | ------------------- | ----------------------- |
-| `encoder`        | Encoder    | belacoder control   | Encoder status card     |
-| `srtla`          | SRTLA      | srtla_send control  | SRTLA status card       |
-| `modems`         | Modems     | modem status poller | Modem status card       |
-| `obs-controller` | OBS        | `ObsClient` bridge  | Scene / stream controls |
-| `kick-stats`     | Kick Stats | 30 s poller         | Viewers / followers     |
-| `kick-chat`      | Kick Chat  | Kick chat WS        | Chat message list       |
-
-## Adding a module
-
-1. `mkdir modules/<id>/`
-2. Write `backend.ts` exporting `<id>Module: DeviceModule`.
-3. Write `frontend.ts` exporting `<id>Module: BrowserModule`.
-4. Write `styles.css` scoped under `.mod-<id>`.
-5. Add one import + one array entry in `registry.backend.ts` and one in `registry.frontend.ts`.
-
-Two registry edits, three files, done.
-
-## Rules
-
-- No file inside a module other than the three above.
-- No cross-module imports (except through `types.ts` and `device/store`).
-- `backend.ts` must not import Mithril. `frontend.ts` must not import Bun APIs.
-- Every CSS selector must start with `.mod-<id>`.
-```
-
----
-
-## 6. Migration Steps (do in this exact order)
-
-### Step 1 — Skeleton
-
-Create at repo root:
-
-- `modules/types.ts` (copy §3 verbatim)
-- `modules/registry.backend.ts` (copy §4, but with all six imports commented out)
-- `modules/registry.frontend.ts` (same)
-- `modules/README.md`
-
-Commit. Nothing else changes; the codebase still builds.
-
-### Step 2 — Migrate the three simple modules (`encoder`, `srtla`, `modems`)
-
-Do these first because they have no external protocol dependencies. For each:
-
-1. Create `modules/<id>/backend.ts`. Move logic from the current backend file. Wrap in the `DeviceModule` shape. Export `<id>Module`.
-2. Create `modules/<id>/frontend.ts`. Move the card component and its event handlers. Wrap in the `BrowserModule` shape. Export `<id>Module`.
-3. Create `modules/<id>/styles.css`. Move styles. Prefix every selector with `.mod-<id>`.
-4. Uncomment the corresponding imports and array entries in both registries.
-5. Update `src/methods.ts` and `src/client.ts` to import from the registry instead of the old path.
-6. Update `public/ts/app.ts` to import from `registry.frontend`.
-7. Delete the old files.
-8. **Build. Render. Confirm identical.**
-
-Commit per module (three commits).
-
-### Step 3 — Migrate `obs-controller`
-
-Same eight sub-steps, with one difference: `modules/obs-controller/backend.ts` imports `ObsClient` from `obs-client.ts` (app root). Do **not** move or modify `obs-client.ts`. The module wraps it.
-
-Commit.
-
-### Step 4 — Migrate `kick-stats`
-
-Same eight sub-steps. The 30 s polling interval and any Kick API libraries stay as-is. This is a mechanical move, not a rewrite.
-
-Commit.
-
-### Step 5 — Migrate `kick-chat`
-
-Same eight sub-steps. The chat WebSocket listener stays as-is.
-
-Commit.
-
-### Step 6 — Regression gate
-
-- Boot the device with each role that exercises a subset of modules (`encoder`, `relay`, `obs`).
-- Open the UI. Every card renders as before.
-- Trigger one action per module: start a stream, toggle SRTLA, switch an OBS scene, view Kick stats, see a chat message arrive.
-- Check the browser console: zero errors.
-- Check the device log: no "unknown module" or "unregistered method" warnings.
-- Screenshot-diff or manual side-by-side against a pre-refactor build.
-
-**Do not proceed past this step until the regression gate passes.** If it doesn't, revert and diagnose — do not fix forward.
-
-### Step 7 — Cleanup
-
-- `grep -rn` for old import paths. Remove dead files.
-- Update `tsconfig.json` / bundler config with path alias `@modules/*` → `./modules/*` if the repo already uses aliases. Skip if not.
-- Commit.
-
----
-
-## 7. Wiring Changes
-
-Only three files outside `modules/` should change:
-
-### `src/methods.ts`
-
-Replace per-module imports with a single registry import and an owner map:
-
-```ts
-import { ALL_MODULES, getModule } from "../modules/registry.backend";
-
-const METHOD_OWNER = new Map<string, DeviceModule>();
-for (const mod of ALL_MODULES) {
-  for (const m of mod.methods) METHOD_OWNER.set(m, mod);
+.dash-widget-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  cursor: default;
+  user-select: none;
 }
-
-// In handleRequest(method, params):
-const owner = METHOD_OWNER.get(method);
-if (owner) {
-  if (!state.modules[owner.id]?.enabled) return reject(409);
-  return owner.dispatch(method, params);
+body.dash-edit .dash-widget-handle {
+  cursor: grab;
 }
-// else: existing unknown-method path
-```
-
-The exact integration depends on how the current dispatcher is structured. The **contract** is: `methods.ts` never imports a specific module, only the registry.
-
-### `src/client.ts`
-
-```ts
-import { ALL_MODULES, getModule } from "../modules/registry.backend";
-
-// During boot:
-for (const mod of ALL_MODULES) {
-  if (state.modules[mod.id]?.enabled) {
-    await mod.start({
-      config: state.modules[mod.id],
-      emit: (event, data) => pushEvent(event, { module: mod.id, data }),
-      log: (msg, ...rest) => logger.info(`[${mod.id}] ${msg}`, ...rest),
-    });
-  }
+body.dash-edit .dash-widget {
+  outline: 1px dashed var(--color-accent);
 }
-
-// During shutdown:
-for (const mod of ALL_MODULES) {
-  if (state.modules[mod.id]?.enabled) await mod.stop();
+.dash-widget-body {
+  flex: 1;
+  overflow: auto;
 }
 ```
 
-If the current config doesn't have a `state.modules` shape yet, use the existing role-based config as a shim: `enabled = rolePresetIncludes(mod.id, ROLE)`. The full `state.modules` shape is out of scope for this refactor.
-
-### `public/ts/app.ts`
-
-```ts
-import { ALL_MODULES, getModule } from "../../modules/registry.frontend";
-
-// Once at boot:
-for (const mod of ALL_MODULES) {
-  if (mod.handleEvent) registerEventHandler(mod.id, mod.handleEvent);
-}
-
-// Render: unchanged for now. The role tree still exists, but each leaf
-// renders `getModule("<id>").component` instead of a directly imported card.
-```
-
-The `renderRoleFallback` tree stays intact. Whatever the current role-based dispatch looks like, keep it — just swap the leaf components to come from the registry.
-
----
-
-## 8. What NOT to Change
-
-- **No behavior changes.** Same events, same methods, same shapes, same UI.
-- **No new module IDs.** Only `encoder`, `srtla`, `modems`, `obs-controller`, `kick-stats`, `kick-chat`.
-- **No config schema changes.** No `state.modules` shape introduced. Use the role-preset shim if needed.
-- **No new dependencies.** If a module currently uses a library, keep it.
-- **No changes to `obs-client.ts`.** Move nothing; edit nothing.
-- **No `server.ts` changes.** Protocol is untouched.
-- **No dashboard work.** That comes later.
-
-The refactor is **purely mechanical**. Anything that feels like a design decision belongs in a follow-up handoff.
+Gridstack's own CSS (`gridstack.min.css`) is imported once from `dashboard.ts`. Override its `.ui-resizable-handle` styles to match the theme.
 
 ---
 
@@ -506,70 +303,65 @@ The refactor is **purely mechanical**. Anything that feels like a design decisio
 
 **Structural**
 
-- [ ] `find modules -maxdepth 2 -type f` shows only `backend.ts`, `frontend.ts`, `styles.css` per module, plus the four root files.
-- [ ] All six module directories exist and each contains exactly three files.
-- [ ] No file named `card.ts`, `handlers.ts`, `config.ts`, `index.ts` inside any module.
-- [ ] `grep -rn "mithril" modules/*/backend.ts` returns nothing.
-- [ ] `grep -rn "from \"../../src" modules/*/frontend.ts` returns nothing.
-- [ ] `grep -rn "obs-client" modules/ src/` shows exactly one import site: `modules/obs-controller/backend.ts` (plus the protocol imports in `src/methods.ts`).
+- [ ] `DashboardItem` uses `{x, y, w, h}`; no `order` or `width` field remains.
+- [ ] `BrowserModule` uses `defaultSize` / `minSize` / `maxSize`; no `defaultWidth`.
+- [ ] `dashboard-editor.ts` is deleted; its "Modules" role moves to a `modules-settings.ts` panel.
+- [ ] `gridstack` is a dependency; version pinned.
 
-**CSS**
+**Grid behavior**
 
-- [ ] `grep -E "^\s*\.[a-z]" modules/*/styles.css` returns only selectors starting with `.mod-<id>`.
-- [ ] No `:root` in any module stylesheet.
-- [ ] No element-only selectors (`div`, `span`) at the top level of any module stylesheet.
+- [ ] Drag a widget; it snaps to the grid and other widgets reflow.
+- [ ] Resize a widget; it respects `minSize` and `maxSize`.
+- [ ] Removing a widget leaves its module enabled; re-adding restores it at a fresh position.
+- [ ] A widget with `visible: false` is hidden but keeps its `{x, y, w, h}`.
+- [ ] A module disabled at the device level does not render, even if present in `items`.
 
-**Build & runtime**
+**Edit mode**
 
-- [ ] `bun run build` (or the repo's build command) succeeds.
-- [ ] Bun does not report a Mithril import in the backend bundle.
-- [ ] Browser bundle does not include Bun APIs.
+- [ ] Edit toggle enables drag/resize; Done disables them.
+- [ ] In read-only mode, widgets cannot be dragged or resized.
+- [ ] The widget body is fully interactive in both modes (buttons click, chat scrolls).
+- [ ] Only the header bar initiates drag.
 
-**Regression**
+**Persistence & sync**
 
-- [ ] `ROLE=encoder` device boots; UI renders identically; stream controls work.
-- [ ] `ROLE=relay` device boots; UI renders identically; SRTLA/modem controls work.
-- [ ] `ROLE=obs` device boots; UI renders identically; OBS scene switch works.
-- [ ] `kick-stats` card updates at its existing interval.
-- [ ] `kick-chat` card receives messages.
-- [ ] No new console errors in the browser.
-- [ ] No new warnings in the device log.
-- [ ] Existing RPC methods (`status`, `settings.*`, `srtla.*`, `encoder.*`, `obs.*`) behave identically.
-- [ ] Existing events (`status`, `srtla.*`, `obs.event`, `kick.stats`, `kick.chat`) reach the browser identically.
-- [ ] Screenshot diff (or manual comparison) against a pre-refactor build is clean.
+- [ ] Drag → wait 500 ms → `dashboards.update` fires once.
+- [ ] Reload the page; layout is identical.
+- [ ] Open two browsers; move a widget in one; the other updates within ~1 s.
+- [ ] Simultaneous edit in two browsers triggers `409` on the second; a reload toast appears; no data corruption.
+- [ ] `dashboards.changed` does not cause a full re-mount of unchanged widgets.
 
-**Extensibility**
+**Migration**
 
-- [ ] Adding a stub module touches exactly two registry files and compiles. Test this manually with a throwaway module before declaring done.
-- [ ] `ALL_MODULES.length === 6` in both registries.
-- [ ] IDs match element-wise between the two registries. Add a test asserting this.
+- [ ] A v1 dashboard (ordered list) loads cleanly, converts to v2, and saves back.
+- [ ] A v2 dashboard is never misinterpreted as v1.
+
+**Runtime**
+
+- [ ] Gridstack's bundle adds ≤ 70 KB gzip to the frontend.
+- [ ] No Mithril-side memory leak on repeated edit-mode toggles (`onremove` cleans listeners).
 
 ---
 
-## 10. Anti-Patterns (merge blockers)
+## 10. Anti-Patterns
 
-- **Do not** split a module across `src/` and `public/ts/`. Everything for one module lives in `modules/<id>/`.
-- **Do not** add any file inside a module beyond `backend.ts`, `frontend.ts`, `styles.css`. If a module grows past three files, split it into two modules.
-- **Do not** move `obs-client.ts` into `modules/obs-controller/`. It's a protocol library / standalone device proxy; it stays at the app root, next to `client.ts` and `server.ts`.
-- **Do not** import `frontend.ts` from backend code or vice versa.
-- **Do not** auto-discover modules via glob, `import.meta.glob`, or filesystem scan.
-- **Do not** import `types.ts` in a way that pulls Mithril or Zod into the wrong runtime. Keep it dependency-free.
-- **Do not** write CSS without the `.mod-<id>` prefix.
-- **Do not** share mutable state between modules. Each module owns its slice of `st`.
-- **Do not** rewrite module logic while moving it. Move first, then refactor in a separate commit if needed.
-- **Do not** change any method or event name. Behavior is frozen during the refactor.
-- **Do not** skip the Step 6 regression gate. If the UI differs at all, stop and diagnose.
-- **Do not** bundle dashboard work into this refactor. It's a separate handoff.
+- **Do not** put layout logic in module `frontend.ts` files. Modules render content; the dashboard shell owns positioning.
+- **Do not** save on every `change` event — debounce. A drag emits dozens of `change` events per second.
+- **Do not** auto-merge conflicting dashboard edits. Reject and reload.
+- **Do not** hardcode pixel positions. Everything is grid units; the shell converts.
+- **Do not** make the entire widget draggable. The header is the handle; the body is interactive.
+- **Do not** render a module that is not enabled at the device level, even if listed in `items`. Filter at render time (see `view()` in §5).
+- **Do not** attempt to make gridstack a Mithril component library. It is imperative DOM; wrap it, do not virtualize it.
+- **Do not** ship a custom drag implementation on v1. Revisit only if gridstack's weight is a proven problem.
 
 ---
 
 ## 11. Definition of Done
 
-1. All six modules (`encoder`, `srtla`, `modems`, `obs-controller`, `kick-stats`, `kick-chat`) live in `modules/<id>/` with exactly three files each.
-2. `registry.backend.ts` and `registry.frontend.ts` are the only places modules are enumerated.
-3. `src/methods.ts`, `src/client.ts`, and `public/ts/app.ts` import from the registries, not from individual module paths.
-4. `obs-client.ts` is unchanged and imported only by `modules/obs-controller/backend.ts`.
-5. Build succeeds.
-6. Regression gate passes: `encoder`, `relay`, and `obs` roles render and behave identically; Kick cards function as before.
+1. Dashboards render on a 12-column grid with `{x, y, w, h}` positioning.
+2. Inline edit mode toggles drag and resize without a page reload.
+3. Layout auto-saves on drag/resize stop, with a version guard.
+4. Multiple viewers stay in sync via `dashboards.changed`.
+5. `dashboard-editor.ts` is gone; only the Modules settings panel remains.
+6. Every existing module's card renders correctly at its `minSize`.
 7. Verification checklist (§9) fully checked.
-8. Commit message names the refactor explicitly, e.g. `refactor: consolidate modules into modules/<id>/{backend,frontend,styles}`.

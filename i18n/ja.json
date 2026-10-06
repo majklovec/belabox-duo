@@ -383,5 +383,10 @@
   "wtype.obs": "OBS Studio",
   "wtype.relay": "Relay",
   "wtype.stats": "Relay 統計",
-  "wtype.status": "ステータス"
+  "wtype.status": "ステータス",
+  "dash.widget_channel": "チャンネル",
+  "dash.widget_token": "チャットトークン",
+  "dash.widget_not_configured": "未設定 – チャンネル名を入力してください",
+  "ui.cancel": "キャンセル",
+  "dash.widget_settings": "チャンネル設定"
 }

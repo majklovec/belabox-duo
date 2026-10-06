@@ -14,7 +14,7 @@ import type {
 	SrtlaStats,
 	WidgetType,
 } from "../types";
-import { badge, type Child } from "./components/ui";
+import { badge, button, type Child } from "./components/ui";
 import { createObsPanel, type ObsEvent, type ObsPanel, type ObsRequestResult } from "../../modules/obs-controller/frontend";
 import { t } from "./i18n";
 import { roleTag } from "./icons";
@@ -23,8 +23,8 @@ import { formatBitrate } from "./util";
 
 export const KICK_CHAT_CAP = 20;
 
-/** Widget types shown without a device label; their data comes from the first
- * device that has the module enabled (the widget's stored device id). */
+/** Device-independent widget types: their data (the widget's channel, fetched
+ * by the control server) is not tied to any device connection. */
 const INDEPENDENT: ReadonlySet<WidgetType> = new Set<WidgetType>(["kick-stats", "kick-chat"]);
 export const isIndependent = (type: WidgetType): boolean => INDEPENDENT.has(type);
 
@@ -37,13 +37,66 @@ interface DeviceLive {
 	obsScene?: string;
 	obsStreaming: boolean;
 	obsRecording: boolean;
-	kickStats?: KickStats;
-	kickChat: KickChatMessage[];
 }
 interface Connection {
 	rpc: RpcClient;
 	live: DeviceLive;
 }
+
+// ------------------------------------------------------------------------ kick
+
+/** Live kick data per channel, accumulated from the dashboard websocket. */
+export interface KickChannelLive {
+	stats?: KickStats;
+	chat: KickChatMessage[];
+}
+export const kickLive = new Map<string, KickChannelLive>();
+let kickConn: RpcClient | null = null;
+
+/** One server websocket for the kick widgets; it feeds every channel at once. */
+function ensureKickConn(): void {
+	if (kickConn) return;
+	const live = (channel: string): KickChannelLive => {
+		let l = kickLive.get(channel);
+		if (!l) {
+			l = { chat: [] };
+			kickLive.set(channel, l);
+		}
+		return l;
+	};
+	kickConn = new RpcClient(() => socketUrl("/dashboards/ws"));
+	kickConn.on("kick.snapshot", (data) => {
+		const snap = data as {
+			stats?: Record<string, KickStats | null>;
+			chat?: Record<string, { messages?: KickChatMessage[] }>;
+		};
+		for (const [channel, stats] of Object.entries(snap.stats ?? {})) if (stats) live(channel).stats = stats;
+		for (const [channel, c] of Object.entries(snap.chat ?? {})) live(channel).chat = (c.messages ?? []).slice(0, KICK_CHAT_CAP);
+		m.redraw();
+	});
+	kickConn.on("kick.stats", (data) => {
+		const e = data as { channel?: string; stats?: KickStats };
+		if (e.channel && e.stats) live(e.channel).stats = e.stats;
+		m.redraw();
+	});
+	kickConn.on("kick.chat", (data) => {
+		const e = data as
+			| { channel?: string; message: KickChatMessage }
+			| { channel?: string; reconnect: boolean; messages: KickChatMessage[] }
+			| { channel?: string; disconnected: boolean };
+		if (!e.channel) return;
+		if ("message" in e) {
+			const l = live(e.channel);
+			l.chat = [e.message, ...l.chat].slice(0, KICK_CHAT_CAP);
+		} else if ("messages" in e) {
+			live(e.channel).chat = e.messages.slice(0, KICK_CHAT_CAP);
+		}
+		m.redraw();
+	});
+}
+
+/** A widget's normalized channel key ("" when not configured). */
+export const widgetChannel = (w: ServerDashboardWidget): string => (w.config?.channel ?? "").trim().toLowerCase();
 
 // ---------------------------------------------------------------------- devices
 
@@ -65,15 +118,6 @@ export const deviceById = (deviceId: string): DeviceSummary | undefined =>
 
 export const deviceLabel = (d: DeviceSummary): string => d.hostname || d.id;
 
-/** The module key a widget type reads from. */
-export const moduleKeyFor = (type: WidgetType): "kick-stats" | "kick-chat" => (type === "kick-chat" ? "kick-chat" : "kick-stats");
-
-/** First online device with the module a widget type needs (data source for
- * the channel widgets). */
-export function sourceDeviceFor(type: WidgetType): DeviceSummary | undefined {
-	return devices.list?.find((d) => d.online && d.modules?.[moduleKeyFor(type)]?.enabled);
-}
-
 export const typeLabel = (type: WidgetType): string => t(`wtype.${type.replace("-", "_")}`);
 
 /** Widget types a specific device offers, from its role + enabled modules. */
@@ -85,11 +129,16 @@ export function widgetTypesFor(d: DeviceSummary): WidgetType[] {
 	return types;
 }
 
-/** Widget types that are not tied to one specific device: addable without a
- * device selection, fed by the first device that has the module enabled. */
+/** Widget types that are not tied to a device: always offered; their data
+ * (the channel name in the widget config) is fetched by the server. */
 export function independentTypes(): WidgetType[] {
-	const all: WidgetType[] = ["kick-stats", "kick-chat"];
-	return all.filter((tp) => sourceDeviceFor(tp) !== undefined);
+	return ["kick-stats", "kick-chat"];
+}
+
+/** The device a widget's data comes from — its own for device-bound widgets;
+ * kick widgets are device-independent and don't open a device connection. */
+export function effectiveDeviceId(w: ServerDashboardWidget): string {
+	return isIndependent(w.type) ? "" : w.deviceId;
 }
 
 // ------------------------------------------------------------------- connections
@@ -98,7 +147,7 @@ const connections = new Map<string, Connection>();
 
 /** One viewer websocket per device referenced by the dashboard's widgets. */
 export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
-	const wanted = new Set((dash?.widgets ?? []).map((w) => w.deviceId));
+	const wanted = new Set((dash?.widgets ?? []).map((w) => effectiveDeviceId(w)));
 	for (const [id, conn] of connections) {
 		if (!wanted.has(id) || !id) {
 			conn.rpc.destroy();
@@ -111,7 +160,6 @@ export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
 			obsConnected: false,
 			obsStreaming: false,
 			obsRecording: false,
-			kickChat: [],
 		};
 		const rpc = new RpcClient(() => socketUrl(`/d/${encodeURIComponent(id)}/ws`));
 		const conn: Connection = { rpc, live };
@@ -137,22 +185,6 @@ export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
 			}
 			m.redraw();
 		});
-		rpc.on("kick.stats", (data) => {
-			live.kickStats = data as KickStats;
-			m.redraw();
-		});
-		rpc.on("kick.chat", (data) => {
-			const e = data as
-				| { message: KickChatMessage }
-				| { reconnect: boolean; messages: KickChatMessage[] }
-				| { disconnected: boolean };
-			if ("message" in e) {
-				live.kickChat = [e.message, ...live.kickChat].slice(0, KICK_CHAT_CAP);
-			} else if ("messages" in e) {
-				live.kickChat = e.messages.slice(0, KICK_CHAT_CAP);
-			}
-			m.redraw();
-		});
 		// Warm start: pull last snapshots once the socket is open (a 409 means the
 		// module is not enabled there). `call` rejects before the socket is OPEN, so
 		// this must run from the "open" event — initial connect and every reconnect.
@@ -167,21 +199,10 @@ export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
 					})
 					.catch(() => undefined);
 			}
-			if (kinds.includes("kick-stats")) {
-				rpc
-					.call<{ stats?: KickStats }>("kick.stats.get")
-					.then((r) => (live.kickStats = r.stats))
-					.catch(() => undefined);
-			}
-			if (kinds.includes("kick-chat")) {
-				rpc
-					.call<{ messages?: KickChatMessage[]; stats?: KickStats }>("kick.chat.get", { limit: KICK_CHAT_CAP })
-					.then((r) => (live.kickChat = (r.messages ?? []).slice(0, KICK_CHAT_CAP)))
-					.catch(() => undefined);
-			}
 			void rpc.call("status").catch(() => undefined);
 		});
 	}
+	if ((dash?.widgets ?? []).some((w) => isIndependent(w.type))) ensureKickConn();
 }
 
 const connectionFor = (deviceId: string): Connection | undefined => connections.get(deviceId);
@@ -275,17 +296,13 @@ function encoderWidget(deviceId: string, conn: Connection | undefined): m.Childr
 	];
 }
 
-/** Whether the device (if known) does not have the module a widget's type needs. */
-const moduleEnabledOn = (d: DeviceSummary | undefined, key: string): boolean =>
-	!(d?.modules && (d.modules as unknown as Record<string, { enabled?: boolean } | undefined>)[key]?.enabled);
-
 /** One panel instance per obs widget (its own timers, VU canvas, pending guards). */
 const obsPanels = new Map<string, { panel: ObsPanel; conn: Connection }>();
 
 /** The full control panel (preview, scenes, output actions, VU meter), not just the status rows. */
 function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Children {
 	const d = deviceById(w.deviceId);
-	if (moduleEnabledOn(d, "obs-controller")) return [badge(t("dash.widget_module_off"), "warn")];
+
 	if (!conn || !d?.online) return [badge(t("dev.badge.offline"), "off")];
 	// The panel caches `conn.rpc`; if syncConnectionsFor replaced the device's
 	// connection (dashboard edited, device swapped), rebind to the live one.
@@ -321,12 +338,77 @@ function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Ch
 	return m("div.mod-obs-controller", [...p.head(), p.component()]);
 }
 
-function kickStatsWidget(deviceId: string, conn: Connection | undefined): m.Children {
-	const d = deviceById(deviceId);
-	if (moduleEnabledOn(d, "kick-stats")) return [badge(t("dash.widget_module_off"), "warn")];
-	const s = conn?.live.kickStats;
-	if (!conn || !d?.online || !s)
-		return [badge(!conn ? t("dev.badge.offline") : t("dash.widget_waiting"), conn && d?.online ? "" : "off")];
+/** Per-widget state of the inline config editor (pencil icon). */
+interface WidgetConfigState {
+	editing: boolean;
+	channel: string;
+	token: string;
+}
+const widgetConfigState = new Map<string, WidgetConfigState>();
+
+/** Registered by the page rendering the dashboard; persists the in-place
+ * widget mutation (PUT the dashboard) when the inline editor saves. */
+let widgetConfigSaver: ((w: ServerDashboardWidget) => void) | null = null;
+export function setWidgetConfigSaver(fn: ((w: ServerDashboardWidget) => void) | null): void {
+	widgetConfigSaver = fn;
+}
+
+/** The inline editor that opens from the pencil icon on a configurable widget. */
+function configEditorForm(w: ServerDashboardWidget): m.Vnode {
+	const s =
+		widgetConfigState.get(widgetKey(w)) ?? { editing: true, channel: w.config?.channel ?? "", token: w.config?.token ?? "" };
+	return m("div.dash-config-form", [
+		m("label", [
+			m("span", t("dash.widget_channel")),
+			m("input.dash-config-input", {
+				value: s.channel,
+				placeholder: t("dash.widget_channel"),
+				oninput: (e: Event) => {
+					s.channel = (e.target as HTMLInputElement).value;
+				},
+			}),
+		]),
+		w.type === "kick-chat"
+			? m("label", [
+					m("span", t("dash.widget_token")),
+					m("input.dash-config-input", {
+						value: s.token,
+						placeholder: t("dash.widget_token"),
+						oninput: (e: Event) => {
+							s.token = (e.target as HTMLInputElement).value;
+						},
+					}),
+				])
+			: null,
+		m("div.dash-config-actions", [
+			button(t("ui.save"), {
+				onclick: (e: Event) => {
+					e.preventDefault();
+					w.config = { channel: s.channel.trim(), token: w.type === "kick-chat" ? s.token.trim() : "" };
+					widgetConfigState.delete(widgetKey(w));
+					widgetConfigSaver?.(w);
+					m.redraw();
+				},
+			}),
+			button(t("ui.cancel"), {
+				onclick: () => {
+					widgetConfigState.delete(widgetKey(w));
+					m.redraw();
+				},
+			}),
+		]),
+	]);
+}
+
+const widgetKey = (w: ServerDashboardWidget): string => w.id || `${w.type}:${w.name}`;
+
+/** Kick widgets are device-independent: the server polls kick.com for the
+ * widget's channel and pushes the data over the dashboard websocket. */
+function kickStatsWidget(w: ServerDashboardWidget): m.Children {
+	const channel = w.config?.channel?.trim();
+	if (!channel) return [badge(t("dash.widget_not_configured"), "warn")];
+	const s = kickLive.get(channel.toLowerCase())?.stats;
+	if (!s) return [badge(t("dash.widget_waiting"), "warn")];
 	const rows: [string, Child][] = [
 		[t("kickstats.viewers"), String(s.viewers ?? "—")],
 		[t("kickstats.followers"), String(s.followers ?? "—")],
@@ -336,11 +418,10 @@ function kickStatsWidget(deviceId: string, conn: Connection | undefined): m.Chil
 	return [badge(s.isLive ? t("dev.badge.streaming") : t("dev.badge.offline"), s.isLive ? "on" : "off"), widgetTable(rows)];
 }
 
-function kickChatWidget(deviceId: string, conn: Connection | undefined): m.Children {
-	const d = deviceById(deviceId);
-	if (moduleEnabledOn(d, "kick-chat")) return [badge(t("dash.widget_module_off"), "warn")];
-	if (!conn || !d?.online) return [badge(t("dev.badge.offline"), "off")];
-	const msgs = (conn.live.kickChat ?? []).map((c) =>
+function kickChatWidget(w: ServerDashboardWidget): m.Children {
+	const channel = w.config?.channel?.trim();
+	if (!channel) return [badge(t("dash.widget_not_configured"), "warn")];
+	const msgs = (kickLive.get(channel.toLowerCase())?.chat ?? []).map((c) =>
 		m(
 			"div.kick-chat-line",
 			{ key: String(c.id) },
@@ -362,16 +443,41 @@ export function widgetTitle(w: ServerDashboardWidget): string {
 }
 
 export function widgetView(w: ServerDashboardWidget): m.Vnode {
-	const conn = connectionFor(w.deviceId);
+	const deviceId = effectiveDeviceId(w);
+	const conn = connectionFor(deviceId);
 	let body: m.Children;
 	switch (w.type) {
-		case "stats": body = statsWidget(w.deviceId, conn); break;
-		case "relay": body = relayWidget(w.deviceId, conn); break;
-		case "encoder": body = encoderWidget(w.deviceId, conn); break;
+		case "stats": body = statsWidget(deviceId, conn); break;
+		case "relay": body = relayWidget(deviceId, conn); break;
+		case "encoder": body = encoderWidget(deviceId, conn); break;
 		case "obs": body = obsWidget(w, conn); break;
-		case "kick-stats": body = kickStatsWidget(w.deviceId, conn); break;
-		case "kick-chat": body = kickChatWidget(w.deviceId, conn); break;
-		default: body = statusWidget(w.deviceId, conn);
+		case "kick-stats": body = kickStatsWidget(w); break;
+		case "kick-chat": body = kickChatWidget(w); break;
+		default: body = statusWidget(deviceId, conn);
 	}
-	return m("div.dashboard-item", { key: w.id || `${w.deviceId}:${w.type}:${w.name}`, class: `dash-w-${w.width}` }, m("article.card.dashboard-card", m("h2", widgetTitle(w)), body));
+	// Configurable widgets (kick-stats / kick-chat) get a pencil icon in the
+	// top-right card corner; it opens an inline editor for channel/token.
+	const key = widgetKey(w);
+	const editing = isIndependent(w.type) && (widgetConfigState.get(key)?.editing ?? false);
+	if (editing) body = configEditorForm(w);
+	const cardChildren: m.Children = [m("h2", widgetTitle(w))];
+	if (isIndependent(w.type))
+		cardChildren.push(
+			m(
+				"button.dash-card-pencil",
+				{
+					title: t("dash.widget_settings"),
+					"aria-label": t("dash.widget_settings"),
+					onclick: () => {
+						const s = widgetConfigState.get(key) ?? { editing: false, channel: w.config?.channel ?? "", token: w.config?.token ?? "" };
+						s.editing = !s.editing;
+						widgetConfigState.set(key, s);
+						m.redraw();
+					},
+				},
+				editing ? "✓" : "✎",
+			),
+		);
+	cardChildren.push(body);
+	return m("div.dashboard-item", { key: key || `${w.deviceId}:${w.type}:${w.name}`, class: `dash-w-${w.width}` }, m("article.card.dashboard-card", cardChildren));
 }
