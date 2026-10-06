@@ -68,3 +68,108 @@ export function translate(lang: unknown, key: string, ...args: unknown[]): strin
 export function t(key: string, ...args: unknown[]): string {
   return translate(current, key, ...args);
 }
+
+
+/**
+ * Parses a PO file content string into a record of msgid → msgstr.
+ * Skips the header entry (empty msgid) and ignores comments.
+ */
+export function parsePO(poContent: string): Record<string, string> {
+  const lines = poContent.split(/\r?\n/);
+  const result: Record<string, string> = {};
+
+  let currentMsgid: string | null = null;
+  let currentMsgstr: string | null = null;
+  let currentField: 'msgid' | 'msgstr' | null = null;
+  let buffer = '';
+
+  // Store the accumulated buffer into the current field and reset it.
+  const finishField = () => {
+    if (currentField === 'msgid') {
+      currentMsgid = buffer;
+    } else if (currentField === 'msgstr') {
+      currentMsgstr = buffer;
+    }
+    currentField = null;
+    buffer = '';
+  };
+
+  // Commit the current msgid/msgstr pair if valid, then reset state.
+  const commit = () => {
+    finishField();
+    if (currentMsgid !== null && currentMsgstr !== null && currentMsgid !== '') {
+      result[currentMsgid] = currentMsgstr;
+    }
+    currentMsgid = null;
+    currentMsgstr = null;
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    // Empty line: end of an entry
+    if (line === '') {
+      commit();
+      continue;
+    }
+
+    // Comments are ignored
+    if (line.startsWith('#')) {
+      continue;
+    }
+
+    // New msgid
+    if (line.startsWith('msgid ')) {
+      finishField();
+      const rest = line.substring(6).trim();
+      if (rest) {
+        try {
+          buffer = JSON.parse(rest);
+        } catch {
+          // Fallback: strip surrounding quotes
+          buffer = rest.replace(/^"|"$/g, '');
+        }
+      } else {
+        buffer = '';
+      }
+      currentField = 'msgid';
+      continue;
+    }
+
+    // New msgstr
+    if (line.startsWith('msgstr ')) {
+      finishField();
+      const rest = line.substring(7).trim();
+      if (rest) {
+        try {
+          buffer = JSON.parse(rest);
+        } catch {
+          buffer = rest.replace(/^"|"$/g, '');
+        }
+      } else {
+        buffer = '';
+      }
+      currentField = 'msgstr';
+      continue;
+    }
+
+    // Continuation line (starts with a double quote)
+    if (line.startsWith('"')) {
+      try {
+        const part = JSON.parse(line);
+        buffer += part;
+      } catch {
+        const part = line.replace(/^"|"$/g, '');
+        buffer += part;
+      }
+      continue;
+    }
+
+    // Any other line is ignored
+  }
+
+  // Commit the last entry (if any)
+  commit();
+
+  return result;
+}
