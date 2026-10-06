@@ -24,7 +24,9 @@ function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 		m(
 			"div.kick-chat-line",
 			{ key: String(c.id) },
-			c.username ? m("span.chat-user", c.username) : null,
+			c.username
+				? m("span.chat-user", { style: c.color ? `color:${c.color}` : undefined }, c.username)
+				: null,
 			m("span.chat-text", c.text ?? ""),
 		),
 	);

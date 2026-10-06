@@ -68,6 +68,10 @@ function asChatMessage(raw: unknown): ChatLive | null {
 	if (msg.id === undefined || msg.id === null) return null;
 	const sender = (msg.sender as Record<string, unknown> | undefined) ?? {};
 	const username = typeof sender.username === "string" ? sender.username : undefined;
+	const identity = (sender.identity as Record<string, unknown> | undefined) ?? {};
+	const color = typeof identity.color === "string" && /^#[0-9a-fA-F]{3,8}$/.test(identity.color)
+		? identity.color
+		: undefined;
 	const text =
 		typeof msg.content === "string" && msg.content !== ""
 			? msg.content
@@ -77,6 +81,7 @@ function asChatMessage(raw: unknown): ChatLive | null {
 	if (username === undefined && text === undefined) return null;
 	const out: ChatLive = { id: typeof msg.id === "number" ? msg.id : String(msg.id) };
 	if (username) out.username = username;
+	if (color) out.color = color;
 	if (text) out.text = text;
 	if (typeof msg.created_at === "string") {
 		const ts = Date.parse(msg.created_at);

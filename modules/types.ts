@@ -193,6 +193,8 @@ export interface StatsLive {
 export interface ChatLive {
 	id: string | number;
 	username?: string;
+	/** The sender's Kick identity color (hex), for username display. */
+	color?: string;
 	text?: string;
 	type?: string;
 	ts?: number;
