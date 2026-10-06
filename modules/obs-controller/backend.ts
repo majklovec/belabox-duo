@@ -37,6 +37,7 @@ const FORWARDED_EVENTS = [
 	"RecordStateChanged",
 	"InputVolumeMeters",
 	"InputMute",
+	"InputMuteStateChanged",
 ] as const;
 
 const EVENT_SUBSCRIPTION_NAMES: Record<string, number> = {

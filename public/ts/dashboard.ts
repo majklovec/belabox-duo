@@ -280,14 +280,21 @@ const moduleEnabledOn = (d: DeviceSummary | undefined, key: string): boolean =>
 	!(d?.modules && (d.modules as unknown as Record<string, { enabled?: boolean } | undefined>)[key]?.enabled);
 
 /** One panel instance per obs widget (its own timers, VU canvas, pending guards). */
-const obsPanels = new Map<string, ObsPanel>();
+const obsPanels = new Map<string, { panel: ObsPanel; conn: Connection }>();
 
 /** The full control panel (preview, scenes, output actions, VU meter), not just the status rows. */
 function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Children {
 	const d = deviceById(w.deviceId);
 	if (moduleEnabledOn(d, "obs-controller")) return [badge(t("dash.widget_module_off"), "warn")];
 	if (!conn || !d?.online) return [badge(t("dev.badge.offline"), "off")];
-	let panel = obsPanels.get(w.id);
+	// The panel caches `conn.rpc`; if syncConnectionsFor replaced the device's
+	// connection (dashboard edited, device swapped), rebind to the live one.
+	const entry = obsPanels.get(w.id);
+	if (entry && entry.conn !== conn) {
+		entry.panel.destroy();
+		obsPanels.delete(w.id);
+	}
+	let panel = obsPanels.get(w.id)?.panel;
 	if (!panel) {
 		panel = createObsPanel({
 			send: <T = Record<string, unknown>>(type: string, data?: Record<string, unknown>) =>
@@ -306,7 +313,7 @@ function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Ch
 			startConnected: () => conn.live.obsConnected,
 			onDestroy: () => obsPanels.delete(w.id),
 		});
-		obsPanels.set(w.id, panel);
+		obsPanels.set(w.id, { panel, conn });
 	}
 	const p: ObsPanel = panel; // const binding — panel may be narrowed away by the closures above
 	// The dashboard widget card is shared by all widget types, so scope the module CSS

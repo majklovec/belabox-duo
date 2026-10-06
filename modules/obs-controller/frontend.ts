@@ -56,6 +56,8 @@ export interface ObsPanel {
 	head(): m.Vnode[];
 	handleEvent(event: string, data: unknown): void;
 	state: ObsPanelState;
+	/** Stop timers and unsubscribe; safe to call more than once. */
+	destroy(): void;
 }
 
 /**
@@ -113,7 +115,12 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 	};
 
 	const obsCall = async <T>(type: string, data: Record<string, unknown> = {}): Promise<T | undefined> => {
-		const res = await send<T>(type, data);
+		let res: ObsRequestResult<T> | undefined;
+		try {
+			res = await send<T>(type, data);
+		} catch {
+			return undefined; // the socket is down — the next tick will re-probe
+		}
 		return res?.requestStatus?.result ? res.responseData : undefined;
 	};
 
@@ -126,6 +133,17 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		if (res !== undefined && !ui.connected) {
 			ui.connected = true;
 			pushState();
+			m.redraw();
+		}
+	}
+
+	/** Re-read the selected VU input's mute state so the badge/button follow selector changes. */
+	async function syncMicMute(): Promise<void> {
+		const name = ui.vuInput;
+		if (!name) return;
+		const mute = await obsCall<{ inputMuted: boolean }>("GetInputMute", { inputName: name });
+		if (mute && ui.vuInput === name) {
+			ui.micMuted = mute.inputMuted === true;
 			m.redraw();
 		}
 	}
@@ -150,10 +168,7 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 			ui.vuInput = ui.vuInputs.includes(ui.vuInput ?? "") ? ui.vuInput : ui.vuInputs[0] ?? null;
 		}
 		if (studio?.studioModeEnabled !== undefined) ui.studio = studio.studioModeEnabled;
-		if (ui.vuInput) {
-			const mute = await obsCall<{ inputMuted: boolean }>("GetInputMute", { inputName: ui.vuInput });
-			if (mute) ui.micMuted = mute.inputMuted === true;
-		}
+		await syncMicMute();
 		ui.loading = false;
 		ui.loaded = true;
 		m.redraw();
@@ -357,7 +372,9 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 				ui.recording = d.outputActive === true;
 				dirty = true;
 				break;
+			// OBS 31+ renamed InputMute to InputMuteStateChanged — handle both.
 			case "InputMute":
+			case "InputMuteStateChanged":
 				if (d.inputName === ui.vuInput && (d.inputMuted === true) !== ui.micMuted) {
 					ui.micMuted = d.inputMuted === true;
 					dirty = true;
@@ -432,10 +449,7 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 					vuCanvasEl = null;
 					if (mounts <= 0) {
 						mounts = 0;
-						window.clearInterval(tickTimer);
-						cancelAnimationFrame(rafId);
-						unsubscribe();
-						onDestroy?.();
+						destroy();
 					}
 				},
 			},
@@ -558,16 +572,29 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 									{
 										disabled: !ui.connected,
 										value: ui.vuInput ?? "",
-										onchange: (e: Event) => (ui.vuInput = (e.target as HTMLSelectElement).value || null),
+										onchange: (e: Event) => {
+											ui.vuInput = (e.target as HTMLSelectElement).value || null;
+											void syncMicMute();
+										},
 									},
 									ui.vuInputs.length
 										? ui.vuInputs.map((name) => m("option", { key: name, value: name }, name))
 										: m("option", { value: "" }, t("obs.no_inputs")),
 								),
-								m("canvas.obs-vu", {
-									oncreate: (v) => (vuCanvasEl = v.dom as HTMLCanvasElement),
-									onremove: () => (vuCanvasEl = null),
-								}),
+								/* Meter + live mic state — the badge makes muted/unmuted visible at a glance. */
+								m(
+									"div.obs-audio-meters",
+									[
+										m("canvas.obs-vu", {
+											oncreate: (v) => (vuCanvasEl = v.dom as HTMLCanvasElement),
+											onremove: () => (vuCanvasEl = null),
+										}),
+										badge(
+											t(ui.micMuted ? "obs.mic_muted" : "obs.mic_live"),
+											ui.micMuted ? "warn" : "on",
+										),
+									],
+								),
 								actionBtn(
 									"obs.mute",
 									ui.micMuted ? t("obs.unmute") : t("obs.mute"),
@@ -594,7 +621,18 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 
 	unsubscribe = onEvent((ev) => handleEvent("obs.event", ev));
 
-	return { component, head, handleEvent, state };
+	/** Tear down timers/subscriptions without waiting for the last onremove. */
+	let destroyed = false;
+	function destroy(): void {
+		if (destroyed) return;
+		destroyed = true;
+		window.clearInterval(tickTimer);
+		cancelAnimationFrame(rafId);
+		unsubscribe();
+		onDestroy?.();
+	}
+
+	return { component, head, handleEvent, state, destroy };
 }
 
 

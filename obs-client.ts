@@ -625,6 +625,7 @@ const FORWARDED_EVENTS = [
   // The VU meter needs the per-input level events (absent from the defaults above).
   "InputVolumeMeters",
   "InputMute",
+  "InputMuteStateChanged",
 ] as const;
 
 // Case-insensitive event-name -> subscription bit (same names methods.ts accepts)

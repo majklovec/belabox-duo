@@ -104,6 +104,14 @@
 .mod-obs-controller .obs-audio select {
   max-width: 22rem;
 }
+.mod-obs-controller .obs-audio-meters {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+}
+.mod-obs-controller .obs-audio-meters .obs-vu {
+  flex: 1;
+}
 .mod-obs-controller .obs-vu {
   display: block;
   width: 100%;

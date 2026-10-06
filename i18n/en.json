@@ -256,6 +256,8 @@
   "obs.connected": "connected",
   "obs.disabled": "Module disabled",
   "obs.manual": "manual",
+  "obs.mic_live": "Mic live",
+  "obs.mic_muted": "Mic muted",
   "obs.mute": "Mute mic",
   "obs.next": "next in {0}s",
   "obs.no_inputs": "No inputs",
