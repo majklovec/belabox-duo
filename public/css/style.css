@@ -843,13 +843,14 @@ td.num {
   --dash-row-h: 60px;
   margin: 16px 0;
 }
-/* NOTE: do NOT set `position` on .grid-stack-item here — GridStack positions
- * each item with `position: absolute` + `left`/`top`. Overriding it (e.g. to
- * `relative`) breaks placement: items render unpositioned in DOM order and
- * snap around when a drag ends. */
+/* NOTE on .grid-stack-item-content: GridStack sizes/insets it with `position:
+ * absolute` + `top/bottom/left/right: margin` and leaves `width/height: auto`
+ * so it shrinks to the inner box on BOTH axes (that is what produces the gap
+ * between widgets). Do NOT set `height: 100%` (it resolves to the full item
+ * height and overflows the 6px bottom margin, killing the vertical gap) or
+ * `.grid-stack-item { position: relative }` (breaks absolute placement). */
 .dash-grid .grid-stack-item-content {
   padding: 0;
-  height: 100%;
 }
 .dash-widget {
   height: 100%;
