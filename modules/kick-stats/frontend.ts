@@ -5,30 +5,37 @@ import m from "mithril";
 import type { ServerDashboardWidget } from "../../public/types";
 import { ChannelWidgetModule } from "../widgets";
 import type { ChannelLive } from "../types";
-import { badge, widgetTable, type Child } from "../../public/ts/components/ui";
+import { badge as badgeEl, widgetTable, type Child } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import "./styles.css";
 
-/** The card body: live badge (streaming/offline) plus the stats table. */
+/** Card head: the stream badge (not configured, waiting, else streaming/offline). */
+function badge(w: ServerDashboardWidget, live: ChannelLive): m.Vnode {
+	const channel = w.config?.channel?.trim();
+	if (!channel) return badgeEl(t("dash.widget_not_configured"), "warn");
+	const s = live.stats;
+	if (!s) return badgeEl(t("dash.widget_waiting"), "warn");
+	return badgeEl(s.isLive ? t("dev.badge.streaming") : t("dev.badge.offline"), s.isLive ? "on" : "off");
+}
+
+/** The card body: the stats table. */
 function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 	const channel = w.config?.channel?.trim();
-	if (!channel) return [badge(t("dash.widget_not_configured"), "warn")];
+	if (!channel) return m("p.muted", t("dash.widget_not_configured"));
 	const s = live.stats;
-	if (!s) return [badge(t("dash.widget_waiting"), "warn")];
+	if (!s) return m("p.muted", t("dash.widget_waiting"));
 	const rows: [string, Child][] = [
 		[t("kickstats.viewers"), String(s.viewers ?? "—")],
 		[t("kickstats.followers"), String(s.followers ?? "—")],
-		[t("kickstats.live"), s.isLive ? badge(t("dev.badge.streaming"), "on") : badge(t("dev.badge.stopped"), "off")],
+		[t("kickstats.live"), s.isLive ? badgeEl(t("dev.badge.streaming"), "on") : badgeEl(t("dev.badge.stopped"), "off")],
 	];
 	if (s.title) rows.push([t("kickstats.title"), s.title]);
-	return [
-		badge(s.isLive ? t("dev.badge.streaming") : t("dev.badge.offline"), s.isLive ? "on" : "off"),
-		widgetTable(rows),
-	];
+	return widgetTable(rows);
 }
 
 export const kickStatsModule: ChannelWidgetModule<ServerDashboardWidget> = {
 	id: "kick-stats",
 	configFields: ["channel"],
 	body,
+	badge,
 };

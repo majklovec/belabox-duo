@@ -17,6 +17,9 @@
  *   GET  /api/devices      JSON list of known devices
  *   GET  /dashboards/      server dashboards: compose dashboards from the modules
  *                          of connected devices (public/dashboards.html)
+ *   GET  /dashboards/view/<id>/  /edit/<id>/  dashboard grid; edit starts in
+ *                          edit mode (public/dashboardview.html)
+ *   GET  /dashboards/add/<id>/   dedicated "add widget" page (public/dashboardadd.html)
  *   GET  /api/dashboards   JSON list of dashboards
  *   POST /api/dashboards   create a dashboard {name, widgets}
  *   PUT  /api/dashboards/<id>   replace a dashboard {name, widgets}
@@ -152,7 +155,7 @@ const unauthorized = () =>
 // ----------------------------------------------------------------------
 // Frontend (bundled once at startup so it can sit behind auth)
 // ----------------------------------------------------------------------
-const PAGES = ["devices", "index", "settings", "setup", "dashboards", "dashboardview"] as const;
+const PAGES = ["devices", "index", "settings", "setup", "dashboards", "dashboardview", "dashboardadd"] as const;
 type PageName = (typeof PAGES)[number];
 const pages = {} as Record<PageName, string>;
 const assets = new Map<string, Blob>();
@@ -674,6 +677,10 @@ const server = Bun.serve({
             // Both routes serve the merged inline grid editor; the page enables
             // editing when the URL is /dashboards/edit/.
             return htmlResponse("dashboardview");
+        }
+        if (path.startsWith("/dashboards/add/")) {
+            // The dedicated "add widget" page for a single dashboard.
+            return htmlResponse("dashboardadd");
         }
         if (path.startsWith("/assets/")) {
             const asset = assets.get(path.slice("/assets/".length));

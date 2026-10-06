@@ -1,25 +1,22 @@
 /* Dashboard page: the merged inline grid editor. Serves both
  * `/dashboards/view/<id>/` (starts read-only) and `/dashboards/edit/<id>/`
  * (starts in edit mode). One GridStack grid renders the live widgets; in edit
- * mode widgets can be dragged/resized and new ones added, hidden, removed,
- * renamed and re-configured. Layout + name changes autosave (debounced) with
- * optimistic concurrency: a 409 reloads the server copy and toasts the conflict.
- * Broadcast `dashboards.changed` events rebase the dashboard from the server. */
+ * mode widgets can be dragged/resized, hidden, removed, renamed and
+ * re-configured; new widgets are added on the dedicated page
+ * `/dashboards/add/<id>/` (public/ts/dashboardadd.ts). Layout + name changes
+ * autosave (debounced) with optimistic concurrency: a 409 reloads the server
+ * copy and toasts the conflict. Broadcast `dashboards.changed` events rebase
+ * the dashboard from the server. */
 import m from "mithril";
-import type { ServerDashboard, ServerDashboardWidget, WidgetType } from "../types";
+import type { ServerDashboard, ServerDashboardWidget } from "../types";
 import { Page, serverNav } from "./components/ui";
 import {
 	devices,
 	ensureDashboardsWs,
-	independentTypes,
-	isIndependent,
-	typeLabel,
 	refreshDevices,
 	setDashboardChangedSink,
 	setWidgetConfigSaver,
 	syncConnectionsFor,
-	widgetSize,
-	widgetTypesFor,
 	type WidgetActions,
 } from "./dashboard";
 import { GridDashboard } from "./dashboardgrid";
@@ -39,8 +36,6 @@ const state = {
 	saveState: "idle" as SaveState,
 	saving: false,
 	dashMenu: false,
-	addMenu: false,
-	addDevice: "",
 	onlineText: t("mgmt.loading"),
 	toast: undefined as string | undefined,
 };
@@ -66,26 +61,6 @@ function onlineText(): string {
 	return `${list.filter((d) => d.online).length}/${list.length}`;
 }
 
-function pickDevice(): string {
-	const list = [...(devices.list ?? [])].sort((a, b) => Number(b.online) - Number(a.online));
-	return list[0]?.id ?? "";
-}
-
-/** Next free (x,y) for a widget of the given size, scanning rows then columns. */
-function firstFreePosition(dash: ServerDashboard, size: { w: number; h: number }): { x: number; y: number } {
-	const cols = colsOf(dash);
-	let maxY = 0;
-	const taken = (x: number, y: number): boolean => dash.widgets.some((w) => w.visible && x >= w.x && x < w.x + w.w && y >= w.y && y < w.y + w.h);
-	for (const w of dash.widgets) maxY = Math.max(maxY, w.y + w.h);
-	for (let y = 0; y <= maxY; y++) {
-		for (let x = 0; x <= cols - size.w; x++) {
-			let free = true;
-			for (let yy = y; yy < y + size.h && free; yy++) for (let xx = x; xx < x + size.w; xx++) if (taken(xx, yy)) { free = false; break; }
-			if (free) return { x, y };
-		}
-	}
-	return { x: 0, y: maxY };
-}
 
 // ---------------------------------------------------------------------- save
 
@@ -165,29 +140,6 @@ function onLayout(widgets: ServerDashboardWidget[]): void {
 	scheduleSave();
 }
 
-function addWidget(type: WidgetType): void {
-	const dash = state.dash;
-if (!dash) return;
-	const size = widgetSize(type);
-	const { x, y } = firstFreePosition(dash, size.default);
-	const widget: ServerDashboardWidget = {
-		id: crypto.randomUUID(),
-		type,
-		deviceId: isIndependent(type) ? "" : state.addDevice || pickDevice(),
-		name: "",
-		x,
-		y,
-		w: size.default.w,
-		h: size.default.h,
-		visible: true,
-	};
-	if (isIndependent(type)) widget.config = { channel: "", token: "" };
-	state.dash = { ...dash, widgets: [...dash.widgets, widget] };
-	state.addMenu = false;
-	syncConnectionsFor(state.dash);
-	scheduleSave();
-}
-
 function removeWidget(widget: ServerDashboardWidget): void {
 	const dash = state.dash;
 if (!dash) return;
@@ -258,7 +210,6 @@ const App: m.Component = {
 			return m(Page, { title: t("dash.title"), nav: serverNav("dashboards") }, m("p.muted", t("dash.not_found")));
 		}
 		const dash = state.dash;
-		const onlineDevices = [...(devices.list ?? [])].sort((a, b) => Number(b.online) - Number(a.online));
 		return m(
 			Page,
 			{
@@ -278,45 +229,6 @@ const App: m.Component = {
 											])
 										: null,
 								]),
-								m("span.dash-add-btn", [
-									m("button.dash-add", {
-										onclick: () => {
-											if (!state.addDevice) state.addDevice = pickDevice();
-											state.addMenu = !state.addMenu;
-										},
-									}, `${t("dash.add_widget")} ▾`),
-									state.addMenu
-										? m("div.dash-popup.dash-add-menu", [
-												onlineDevices.length
-													? m(
-															"div.dash-add-devices",
-															m("select", {
-																value: state.addDevice,
-																onchange: (e: Event) => (state.addDevice = (e.target as HTMLSelectElement).value),
-															}, onlineDevices.map((d) => m("option", { key: d.id, value: d.id }, `${d.hostname || d.id}${d.online ? "" : " · " + t("dev.badge.offline")}`))),
-														)
-													: null,
-												onlineDevices
-													.filter((d) => widgetTypesFor(d).length)
-													.map((d) =>
-														m("div.dash-add-row", { key: d.id }, [
-															m("span.dash-add-device", d.hostname || d.id),
-															m(
-																"span.dash-add-options",
-																widgetTypesFor(d).map((type) => m("button.dash-add-opt", { key: type, onclick: () => addWidget(type) }, typeLabel(type))),
-															),
-														]),
-													),
-												m("div.dash-add-row.dash-add-kick", [
-													m("span.dash-add-device", t("dash.kick")),
-													m(
-														"span.dash-add-options",
-														independentTypes().map((type) => m("button.dash-add-opt", { key: type, onclick: () => addWidget(type) }, typeLabel(type))),
-													),
-												]),
-										])
-										: null,
-								]),
 								m("button.dash-edittoggle", { onclick: () => setEdit(!state.editMode) }, state.editMode ? t("dash.done") : t("dash.edit")),
 								m("span.dash-save.dash-save-" + state.saveState, state.saveState === "idle" ? "" : t(state.saveState === "saving" ? "dash.saving" : state.saveState === "saved" ? "dash.saved" : "dash.save_error")),
 								m("span.dash-online.muted", state.onlineText),
@@ -327,6 +239,12 @@ const App: m.Component = {
 			dash
 				? [
 						state.toast ? m("div.dash-toast", state.toast) : null,
+						state.editMode
+							? m(
+									"div.dash-add-bar",
+									m("a.dash-add", { href: `/dashboards/add/${encodeURIComponent(dash.id)}/` }, `+ ${t("dash.add_widget")}`),
+								)
+							: null,
 						m(GridDashboard, {
 							widgets: dash.widgets,
 							columns: colsOf(dash),

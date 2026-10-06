@@ -1,35 +1,11 @@
 {
   "dashboards": [
     {
-      "id": "2b13aea8-f86e-408d-af3a-9e57f1166d7a",
-      "name": "test",
-      "widgets": [
-        {
-          "id": "0533ea3a-602c-40fe-a967-4f6a8cfb1383",
-          "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
-          "type": "obs",
-          "name": "obs",
-          "width": 6
-        },
-        {
-          "id": "eb4f42f8-c497-427f-ae9c-010ddcc72a47",
-          "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
-          "type": "kick-stats",
-          "name": "asf",
-          "width": 6,
-          "config": {
-            "channel": "seaser",
-            "token": ""
-          }
-        },
-        {
-          "id": "a6760df5-d4a9-471b-9185-e36b2f6cdf98",
-          "deviceId": "c3241ebe-4188-44bd-87a8-17e3aced3091",
-          "type": "status",
-          "name": "both",
-          "width": 6
-        }
-      ]
+      "id": "af937faf-9c1b-44f9-9c4f-a0fe54a2a45c",
+      "name": "Dash",
+      "version": 1,
+      "columns": 12,
+      "widgets": []
     }
   ]
 }

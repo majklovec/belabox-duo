@@ -883,13 +883,25 @@ td.num {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.dash-grip-icon { font-size: 0.9rem; opacity: 0.7; }
-.dash-widget-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-grip-icon {
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
+.dash-widget-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-widget-badge {
+  flex-shrink: 0;
+}
 .is-editing .dash-grip {
   cursor: grab;
   user-select: none;
 }
-.is-editing .dash-grip:active { cursor: grabbing; }
+.is-editing .dash-grip:active {
+  cursor: grab;
+}
 .dash-widget-actions {
   display: flex;
   gap: 0.3rem;
@@ -909,7 +921,9 @@ td.num {
   color: #fff;
   transform: none;
 }
-.dash-widget-actions .dash-widget-remove:hover { color: var(--danger, #ef4444); }
+.dash-widget-actions .dash-widget-remove:hover {
+  color: var(--danger, #ef4444);
+}
 .dash-widget-body {
   flex: 1;
   min-height: 0;
@@ -920,7 +934,9 @@ td.num {
 .dash-grid .grid-stack-item .grid-stack-resize-handle {
   border-color: var(--muted);
 }
-.dash-grid:not(.grid-stack-resizable) .grid-stack-resize-handle { display: none; }
+.dash-grid:not(.grid-stack-resizable) .grid-stack-resize-handle {
+  display: none;
+}
 
 /* Inline editor toolbar (name / add / edit-toggle live in the page header). */
 .dash-back {
@@ -929,9 +945,10 @@ td.num {
   margin-right: 0.5rem;
   white-space: nowrap;
 }
-.dash-back:hover { color: #fff; }
-.dash-name-btn,
-.dash-add-btn {
+.dash-back:hover {
+  color: #fff;
+}
+.dash-name-btn {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -960,36 +977,57 @@ td.num {
 .dash-name-menu button {
   text-align: left;
 }
-.dash-name-menu button.danger { color: var(--danger, #ef4444); }
-.dash-add-devices { margin-bottom: 0.2rem; }
-.dash-add-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+.dash-name-menu button.danger {
+  color: var(--danger, #ef4444);
 }
-.dash-add-device {
+/* "Add widget" bar — above the grid, edit mode only */
+.dash-add-bar {
+  margin: 0;
+}
+/* Dedicated "add widget" page (/dashboards/add/<id>/) */
+.dash-add-page {
+  max-width: 420px;
+  margin: 2.5rem auto;
+  padding: 1rem 1.25rem;
+  background: var(--base-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.dash-add-heading {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+.dash-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.dash-add-form optgroup {
+  color: var(--muted);
+}
+.dash-add-actions {
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+.dash-edittoggle {
+  font-weight: 600;
+}
+.dash-save {
   font-size: 0.8rem;
   color: var(--muted);
+}
+.dash-save-saving {
+  color: var(--accent);
+}
+.dash-save-saved {
+  color: var(--success, #10b981);
+}
+.dash-save-error {
+  color: var(--danger, #ef4444);
+}
+.dash-online {
   white-space: nowrap;
 }
-.dash-add-options {
-  display: flex;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.dash-add-opt {
-  font-size: 0.78rem;
-  padding: 0.2rem 0.5rem;
-  background: var(--card-subtle);
-}
-.dash-edittoggle { font-weight: 600; }
-.dash-save { font-size: 0.8rem; color: var(--muted); }
-.dash-save-saving { color: var(--accent); }
-.dash-save-saved { color: var(--success, #10b981); }
-.dash-save-error { color: var(--danger, #ef4444); }
-.dash-online { white-space: nowrap; }
 .dash-toast {
   position: fixed;
   left: 50%;

@@ -653,7 +653,7 @@ const panel = createObsPanel({
 export const obsControllerModule: BrowserModule = {
 	id: "obs-controller",
 	title: "OBS",
-	defaultSize: { w: 6, h: 6 },
+	defaultSize: { w: 6, h: 13 },
 	minSize: { w: 4, h: 4 },
 	component: (_status?: Status) => m(Card, { title: t("obs.card"), class: "mod-obs-controller", headActions: panel.head() }, panel.component()),
 	handleEvent: (event, data) => panel.handleEvent(event, data),

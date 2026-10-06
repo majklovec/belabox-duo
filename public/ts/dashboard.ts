@@ -244,8 +244,7 @@ function srtlaLinksRows(s: SrtlaStats): [string, Child][] {
 
 function statusWidget(deviceId: string, conn: Connection | undefined): m.Children {
 	const d = deviceById(deviceId);
-	if (!d) return [badge(t("dash.widget_missing"), "warn")];
-	const offline = !conn || !d.online;
+	if (!d) return m("p.muted", t("dash.widget_missing"));
 	const rows: [string, Child][] = [
 		[t("mgmt.th.role"), d.role ? roleTag(d.role) : "—"],
 		[t("mgmt.th.status"), d.online ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off")],
@@ -264,53 +263,43 @@ function statusWidget(deviceId: string, conn: Connection | undefined): m.Childre
 				: badge(t("dev.badge.stopped"), "warn"),
 		]);
 	}
-	return [badge(offline ? t("dev.badge.offline") : t("dev.badge.online"), offline ? "off" : "on"), widgetTable(rows)];
+	return widgetTable(rows);
 }
 
 function statsWidget(_deviceId: string, conn: Connection | undefined): m.Children {
 	const s = conn?.live.srtla;
-	if (!s) return [badge(conn ? t("dash.widget_waiting") : t("dev.badge.offline"), conn ? "" : "off")];
-	return [badge(`${s.active_links ?? 0}/${s.total_links ?? 0}`, "on"), srtlaTable(s)];
+	if (!s) return m("p.muted", conn ? t("dash.widget_waiting") : t("dev.badge.offline"));
+	return srtlaTable(s);
 }
 
 function relayWidget(deviceId: string, conn: Connection | undefined): m.Children {
 	const st = conn?.live.status?.state;
-	const offline = !conn || !st;
 	const rows: [string, Child][] = [
 		[t("dev.card.srtla"), st?.srtla?.running ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.stopped"), "warn")],
 	];
 	if (st?.srtla) rows.push([t("dev.field.remote_host"), `${st.srtla.remoteHost}:${st.srtla.remotePort}`]);
-	return [
-		badge(offline ? t("dev.badge.offline") : t("dev.badge.online"), offline ? "off" : "on"),
-		widgetTable(rows),
-	];
+	return widgetTable(rows);
 }
 
 function encoderWidget(deviceId: string, conn: Connection | undefined): m.Children {
 	const d = deviceById(deviceId);
 	const e = d?.encoder ?? conn?.live.status?.state?.encoder;
-	if (!d || !e) return [badge(!conn ? t("dev.badge.offline") : t("dash.widget_waiting"), conn ? "" : "off")];
+	if (!d || !e) return m("p.muted", !conn ? t("dev.badge.offline") : t("dash.widget_waiting"));
 	const rows: [string, Child][] = [
 		[t("dev.card.encoder"), e.running ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.stopped"), "warn")],
 	];
 	if (e.config?.pipeline) rows.push([t("dash.widget.pipeline"), e.config.pipeline]);
 	if (e.config?.maxBitrate) rows.push([t("dash.widget.max"), formatBitrate(e.config.maxBitrate * 125)]);
-	return [
-		badge(!conn ? t("dev.badge.offline") : e.running ? t("dev.badge.online") : t("dev.badge.stopped"), !conn ? "off" : e.running ? "on" : "warn"),
-		widgetTable(rows),
-	];
+	return widgetTable(rows);
 }
 
 /** One panel instance per obs widget (its own timers, VU canvas, pending guards). */
 const obsPanels = new Map<string, { panel: ObsPanel; conn: Connection }>();
 
-/** The full control panel (preview, scenes, output actions, VU meter), not just the status rows. */
-function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Children {
-	const d = deviceById(w.deviceId);
-
-	if (!conn || !d?.online) return [badge(t("dev.badge.offline"), "off")];
-	// The panel caches `conn.rpc`; if syncConnectionsFor replaced the device's
-	// connection (dashboard edited, device swapped), rebind to the live one.
+/** Get or create the widget's obs panel. The panel caches `conn.rpc`; if
+ * syncConnectionsFor replaced the device's connection (dashboard edited,
+ * device swapped), rebind to the live one. */
+function obsPanelFor(w: ServerDashboardWidget, conn: Connection): ObsPanel {
 	const entry = obsPanels.get(w.id);
 	if (entry && entry.conn !== conn) {
 		entry.panel.destroy();
@@ -337,10 +326,58 @@ function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Ch
 		});
 		obsPanels.set(w.id, { panel, conn });
 	}
-	const p: ObsPanel = panel; // const binding — panel may be narrowed away by the closures above
+	return panel;
+}
+
+/** The full control panel (preview, scenes, output actions, VU meter), not just the status rows. */
+function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Children {
+	const d = deviceById(w.deviceId);
+	if (!conn || !d?.online) return m("p.muted", t("dev.badge.offline"));
 	// The dashboard widget card is shared by all widget types, so scope the module CSS
 	// with the same .mod-obs-controller class the device page's card root gets.
-	return m("div.mod-obs-controller", [...p.head(), p.component()]);
+	return m("div.mod-obs-controller", obsPanelFor(w, conn).component());
+}
+
+/** The status badge shown next to the widget title in the card head. */
+function widgetBadge(w: ServerDashboardWidget): m.Vnode {
+	switch (w.type) {
+		case "stats": {
+			const conn = connectionFor(effectiveDeviceId(w));
+			const s = conn?.live.srtla;
+			if (!s) return badge(conn ? t("dash.widget_waiting") : t("dev.badge.offline"), conn ? "" : "off");
+			return badge(`${s.active_links ?? 0}/${s.total_links ?? 0}`, "on");
+		}
+		case "relay": {
+			const st = connectionFor(effectiveDeviceId(w))?.live.status?.state;
+			const offline = !st;
+			return badge(offline ? t("dev.badge.offline") : t("dev.badge.online"), offline ? "off" : "on");
+		}
+		case "encoder": {
+			const deviceId = effectiveDeviceId(w);
+			const conn = connectionFor(deviceId);
+			const e = deviceById(deviceId)?.encoder ?? conn?.live.status?.state?.encoder;
+			if (!e) return badge(conn ? t("dash.widget_waiting") : t("dev.badge.offline"), conn ? "" : "off");
+			return badge(e.running ? t("dev.badge.online") : t("dev.badge.stopped"), e.running ? "on" : "warn");
+		}
+		case "obs": {
+			const d = deviceById(w.deviceId);
+			const conn = connectionFor(effectiveDeviceId(w));
+			if (!conn || !d?.online) return badge(t("dev.badge.offline"), "off");
+			// p.head() is [connected/offline badge, refresh button]; the refresh stays in the panel.
+			return obsPanelFor(w, conn).head()[0];
+		}
+		case "kick-stats":
+		case "kick-chat": {
+			const channel = widgetChannel(w);
+			const live = channel ? kickLive.get(channel) ?? { chat: [] } : {};
+			return widgetModule(w.type)?.badge(w, live) as m.Vnode;
+		}
+		default: {
+			const d = deviceById(effectiveDeviceId(w));
+			if (!d) return badge(t("dash.widget_missing"), "warn");
+			return badge(d.online ? t("dev.badge.online") : t("dev.badge.offline"), d.online ? "on" : "off");
+		}
+	}
 }
 
 /** Per-widget state of the inline config editor (pencil icon). */
@@ -487,6 +524,8 @@ export function widgetInner(w: ServerDashboardWidget, editMode: boolean, actions
 			m("span.dash-grip", [
 				editMode ? m("span.dash-grip-icon", "⠿") : null,
 				m("span.dash-widget-title", widgetTitle(w)),
+				// The status badge sits right next to the title (hidden while the config form is open).
+				editing ? null : m("span.dash-widget-badge", widgetBadge(w)),
 			]),
 			editMode
 				? m("span.dash-widget-actions", [

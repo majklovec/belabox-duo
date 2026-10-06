@@ -49,4 +49,6 @@ export interface ChannelWidgetModule<TWidget = unknown> {
 	configFields: Array<"channel" | "token">;
 	/** Render the widget body; `live` is the channel's live state fragment. */
 	body(w: TWidget, live: ChannelLive): unknown;
+	/** Status badge shown next to the widget title in the card head. */
+	badge(w: TWidget, live: ChannelLive): unknown;
 }
