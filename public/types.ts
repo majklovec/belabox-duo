@@ -61,8 +61,13 @@ export interface ServerDashboardWidget {
 	deviceId: string;
 	type: WidgetType;
 	name: string;
-	/** 12-column grid span: 4, 6 or 12 */
-	width: 4 | 6 | 12;
+	/** Grid position (0-indexed, 12 columns) and extent, in grid units. */
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	/** Hidden widgets keep their position/size; they are not rendered. */
+	visible: boolean;
 	/** Kick widgets only: their own data source — the channel name polled/chat
 	 * on the control server (token for kick-chat, "" when none). */
 	config?: { channel: string; token: string };
@@ -70,7 +75,17 @@ export interface ServerDashboardWidget {
 export interface ServerDashboard {
 	id: string;
 	name: string;
+	/** Monotonic; bumped on every update. Used for optimistic concurrency. */
+	version: number;
 	widgets: ServerDashboardWidget[];
+	/** Columns in the grid. Fixed at 12 for now; stored for forward-compat. */
+	columns: number;
+}
+
+/** Grid size in units of one widget: `{w, h}`. */
+export interface GridSize {
+	w: number;
+	h: number;
 }
 /** Latest kick.stats event / one Kick chat message — wire shapes owned by the
  * widget module contract (the hub delivers them over the dashboard websocket). */

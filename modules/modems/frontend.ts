@@ -51,7 +51,8 @@ function modemPanel(modem: ModemInfo): m.Vnode {
 export const modemsModule: BrowserModule = {
 	id: "modems",
 	title: "Modems",
-	defaultWidth: "full",
+	defaultSize: { w: 4, h: 4 },
+	minSize: { w: 3, h: 3 },
 	component: (status: Status) =>
 		m(
 			Card,

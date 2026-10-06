@@ -388,5 +388,18 @@
   "dash.widget_token": "聊天令牌",
   "dash.widget_not_configured": "未配置 – 请填写频道名",
   "ui.cancel": "取消",
-  "dash.widget_settings": "频道设置"
+  "dash.widget_settings": "频道设置",
+  "dash.new": "Nová",
+  "dash.rename": "Přejmenovat",
+  "dash.default_name": "Přehled",
+  "dash.delete_confirm": "Smazat přehled „{0}“?",
+  "dash.delete_fail": "Smazení se nezdařilo",
+  "dash.done": "Hotovo",
+  "dash.hide": "Skrýt",
+  "dash.remove": "Odebrat",
+  "dash.kick": "Kick (nezávislý)",
+  "dash.saved": "Uloženo",
+  "dash.save_error": "Uložení se nezdařilo",
+  "dash.conflict": "Změnil jiný uživatel — načteno poslední",
+  "dash.device": "Zařízení"
 }

@@ -158,7 +158,12 @@ export interface BrowserModule {
 	 * stays dependency-free; registry.frontend.ts narrows it.
 	 */
 	component: unknown;
-	defaultWidth: "full" | "half" | "third";
+	/** Default grid size `{w, h}` (12-column grid units) when added to a dashboard. */
+	defaultSize: { w: number; h: number };
+	/** Minimum size the user can resize down to. */
+	minSize: { w: number; h: number };
+	/** Optional cap. Omit for unbounded. */
+	maxSize?: { w: number; h: number };
 	/** React to a pushed event (e.g. "kick.stats"). */
 	handleEvent?(event: string, data: unknown): void;
 }

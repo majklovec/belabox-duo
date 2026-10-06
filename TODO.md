@@ -209,6 +209,7 @@ Key points:
 ## 6. Inline Editor UX
 
 The editor lives on the dashboard itself. No separate settings panel for layout.
+Merge dashboardedit and dashboardview into one. It should show dashboatd and allow editing bz dragging, inline editing of the name, deleting the card by delete icon next to pencil at the top right corner.
 
 **Header bar (above the grid):**
 

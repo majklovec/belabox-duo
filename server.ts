@@ -92,6 +92,17 @@ const DASH_PATH_RE = /^\/api\/dashboards(?:\/([\w.-]{1,64}))?$/;
 const viewersTopic = (id: string) => `viewers:${id}`;
 const dashboardsTopic = "dashboards:kick";
 const INDEPENDENT_WIDGETS: ReadonlySet<WidgetType> = new Set(["kick-stats", "kick-chat"]);
+const DASH_COLUMNS = 12;
+/** Default `{w, h}` per widget type — seeds new widgets and migrates v1 rows. */
+const WIDGET_SIZE: Record<WidgetType, { w: number; h: number }> = {
+	obs: { w: 6, h: 6 },
+	status: { w: 4, h: 4 },
+	stats: { w: 4, h: 4 },
+	relay: { w: 4, h: 4 },
+	encoder: { w: 6, h: 5 },
+	"kick-stats": { w: 3, h: 3 },
+	"kick-chat": { w: 3, h: 8 },
+};
 
 // ----------------------------------------------------------------------
 // Auth
@@ -141,7 +152,7 @@ const unauthorized = () =>
 // ----------------------------------------------------------------------
 // Frontend (bundled once at startup so it can sit behind auth)
 // ----------------------------------------------------------------------
-const PAGES = ["devices", "index", "settings", "setup", "dashboards", "dashboardedit", "dashboardview"] as const;
+const PAGES = ["devices", "index", "settings", "setup", "dashboards", "dashboardview"] as const;
 type PageName = (typeof PAGES)[number];
 const pages = {} as Record<PageName, string>;
 const assets = new Map<string, Blob>();
@@ -375,6 +386,25 @@ interface DashboardsFile {
 	dashboards: ServerDashboard[];
 }
 
+/** Read `{x, y, w, h}` from an inbound widget payload, tolerating a legacy
+ * v1 `width` (4/6/12) where the row position has no meaning. */
+function parseGrid(item: Record<string, unknown>, type: WidgetType): { x: number; y: number; w: number; h: number } {
+	const size = WIDGET_SIZE[type];
+	const toInt = (v: unknown, fallback: number, name: string) => {
+		const n = v === undefined ? fallback : Number(v);
+		if (!Number.isInteger(n)) throw new ApiError(`${name} must be an integer`);
+		return n;
+	};
+	const legacyWidth = Number(item.width);
+	const w = toInt(item.w, [4, 6, 12].includes(legacyWidth) ? legacyWidth : size.w, "w");
+	const x = toInt(item.x, 0, "x");
+	const y = toInt(item.y, 0, "y");
+	const h = toInt(item.h, size.h, "h");
+	if (x < 0 || y < 0 || w < 1 || h < 1) throw new ApiError("Widget position/size must be positive");
+	if (x + w > DASH_COLUMNS) throw new ApiError("Widget extends past the grid");
+	return { x, y, w, h };
+}
+
 function parseWidgets(raw: unknown): ServerDashboardWidget[] {
 	if (!Array.isArray(raw)) throw new ApiError("widgets is required");
 	return raw.map((w) => {
@@ -388,6 +418,12 @@ function parseWidgets(raw: unknown): ServerDashboardWidget[] {
 		if (deviceId !== undefined && (typeof deviceId !== "string" || deviceId === "")) {
 			throw new ApiError("Widget deviceId must be a non-empty string");
 		}
+		const grid = parseGrid(item, type as WidgetType);
+		const visible = item.visible === true;
+		const name = typeof item.name === "string" && item.name ? item.name : type;
+		// Preserve a client-assigned id so new widgets keep stable gridstack
+		// identity; assign one otherwise.
+		const id = typeof item.id === "string" && item.id ? item.id : randomUUID();
 		if (independent) {
 			// Kick widgets are device-independent: they carry their own data
 			// source (channel name, and a chat token for kick-chat).
@@ -397,25 +433,71 @@ function parseWidgets(raw: unknown): ServerDashboardWidget[] {
 			const token = cfg.token;
 			if (token !== undefined && typeof token !== "string") throw new ApiError("config.token must be a string");
 			const config = { channel: channel.trim(), token: typeof token === "string" ? token : "" };
-			const width = Number(item.width);
-			if (![4, 6, 12].includes(width)) throw new ApiError("Widget width must be 4, 6 or 12");
-			const name = typeof item.name === "string" && item.name ? item.name : type;
-			return { id: randomUUID(), deviceId: typeof deviceId === "string" ? deviceId : "", type: type as WidgetType, name, width: width as 4 | 6 | 12, config };
+			return { id, deviceId: typeof deviceId === "string" ? deviceId : "", type: type as WidgetType, name, ...grid, visible, config };
 		}
 		if (typeof deviceId !== "string" || deviceId === "") throw new ApiError("Widget needs a deviceId");
 		if (item.config !== undefined) throw new ApiError("Only kick widgets accept a config");
-		const width = Number(item.width);
-		if (![4, 6, 12].includes(width)) throw new ApiError("Widget width must be 4, 6 or 12");
-		const name = typeof item.name === "string" && item.name ? item.name : type;
-		return { id: randomUUID(), deviceId, type: type as WidgetType, name, width: width as 4 | 6 | 12 };
+		return { id, deviceId, type: type as WidgetType, name, ...grid, visible };
 	});
+}
+
+/** Coerce a raw stored dashboard (v1 `{width}` rows or v2 `{x,y,w,h}`) into the
+ * normalized v2 shape. `row` is the running baseline used to lay out v1 rows. */
+function normalizeDashboard(raw: Record<string, unknown>, index: number): ServerDashboard {
+	const id = typeof raw.id === "string" && raw.id ? raw.id : randomUUID();
+	const name = typeof raw.name === "string" && raw.name ? raw.name : `Dashboard ${index + 1}`;
+	const columns = Number.isFinite(Number(raw.columns)) && Number(raw.columns) > 0 ? Number(raw.columns) : DASH_COLUMNS;
+	const widgetsRaw = Array.isArray(raw.widgets) ? raw.widgets : [];
+	let row = 0;   // running baseline for stacking v1 rows
+	let migrated = false;
+	const widgets: ServerDashboardWidget[] = widgetsRaw.map((rr) => {
+		const item = (rr && typeof rr === "object" ? rr : {}) as Record<string, unknown>;
+		const type = String(item.type);
+		const size = WIDGET_SIZE[(type as WidgetType)] ?? { w: 4, h: 4 };
+		const isV1 = item.x === undefined && item.w === undefined && item.width !== undefined;
+		let x: number, y: number, w: number, h: number;
+		if (isV1) {
+			migrated = true;
+			const width = Number(item.width);
+			w = [4, 6, 12].includes(width) ? width : size.w;
+			h = Number.isFinite(Number(item.h)) ? Number(item.h) : size.h;
+			x = 0;
+			y = row;
+			row += h;
+		} else {
+			x = Number(item.x) || 0;
+			y = Number(item.y) || 0;
+			w = Number(item.w) || size.w;
+			h = Number(item.h) || size.h;
+			row = Math.max(row, y + h);
+		}
+		const independent = INDEPENDENT_WIDGETS.has(type as WidgetType);
+		const cfgRaw = (item.config && typeof item.config === "object" ? item.config : {}) as Record<string, unknown>;
+		const config = independent && typeof cfgRaw.channel === "string"
+			? { channel: cfgRaw.channel, token: typeof cfgRaw.token === "string" ? cfgRaw.token : "" }
+			: undefined;
+		return {
+			id: typeof item.id === "string" && item.id ? item.id : randomUUID(),
+			deviceId: typeof item.deviceId === "string" ? item.deviceId : "",
+			type: type as WidgetType,
+			name: typeof item.name === "string" && item.name ? item.name : type,
+			x, y, w, h,
+			visible: item.visible !== false,
+			...(config ? { config } : {}),
+		};
+	});
+	const storedVersion = Number(raw.version);
+	const version = migrated ? 2 : Number.isInteger(storedVersion) ? storedVersion : 1;
+	return { id, name, version, widgets, columns };
 }
 
 let dashboards: ServerDashboard[] = [];
 {
 	try {
 		const loaded = (await Bun.file(DASHBOARDS_FILE).json()) as DashboardsFile;
-		if (loaded && Array.isArray(loaded.dashboards)) dashboards = loaded.dashboards;
+		if (loaded && Array.isArray(loaded.dashboards)) {
+			dashboards = loaded.dashboards.map((d, i) => normalizeDashboard(d as unknown as Record<string, unknown>, i));
+		}
 	} catch {
 		// No file yet: start empty
 	}
@@ -443,6 +525,12 @@ function dashError(code: number, message: string): Response {
 	return Response.json({ ok: false, error: message, code });
 }
 
+/** Push a dashboard change to every subscriber of the live dashboards topic, so
+ * open dashboards (view/edit pages) re-render without a refresh. */
+function broadcastDashboard(d: ServerDashboard): void {
+	server.publish(dashboardsTopic, event("dashboards.changed", d));
+}
+
 async function dashApi(req: Request, url: URL): Promise<Response> {
 	try {
 		const m = url.pathname.match(DASH_PATH_RE);
@@ -454,10 +542,13 @@ async function dashApi(req: Request, url: URL): Promise<Response> {
 				const body = (await req.json()) as { name?: unknown; widgets?: unknown };
 				const name = typeof body.name === "string" ? body.name.trim() : "";
 				if (!name) return dashError(400, "Dashboard needs a name");
-				const dashboard: ServerDashboard = { id: randomUUID(), name, widgets: parseWidgets(body.widgets) };
+				const dashboard: ServerDashboard = {
+					id: randomUUID(), name, version: 1, columns: DASH_COLUMNS, widgets: parseWidgets(body.widgets),
+				};
 				dashboards.push(dashboard);
 				saveDashboards();
 				syncKick();
+				broadcastDashboard(dashboard);
 				return Response.json({ ok: true, dashboard, dashboards }, { status: 201 });
 			}
 			return Response.json({ ok: false, error: "Method not allowed", code: 405 });
@@ -469,17 +560,25 @@ async function dashApi(req: Request, url: URL): Promise<Response> {
 			dashboards = dashboards.filter((d) => d.id !== id);
 			saveDashboards();
 			syncKick();
+			server.publish(dashboardsTopic, event("dashboards.changed", { id, deleted: true }));
 			return Response.json({ ok: true, dashboards });
 		}
 		if (req.method === "PUT") {
 			if (!dashboardsById) return dashError(404, "Unknown dashboard");
-			const body = (await req.json()) as { name?: unknown; widgets?: unknown };
+			const body = (await req.json()) as { name?: unknown; widgets?: unknown; version?: unknown };
 			const name = typeof body.name === "string" ? body.name.trim() : "";
 			if (!name) return dashError(400, "Dashboard needs a name");
+			// Optimistic concurrency: the client must echo the version it based
+			// the changes on, or we reject and let it rebase against `current`.
+			if (Number(body.version) !== dashboardsById.version) {
+				return Response.json({ ok: false, error: "version conflict", current: dashboardsById }, { status: 409 });
+			}
 			dashboardsById.name = name;
 			dashboardsById.widgets = parseWidgets(body.widgets);
+			dashboardsById.version += 1;
 			saveDashboards();
 			syncKick();
+			broadcastDashboard(dashboardsById);
 			return Response.json({ ok: true, dashboard: dashboardsById, dashboards });
 		}
 		if (req.method === "GET") {
@@ -572,8 +671,9 @@ const server = Bun.serve({
             return upgradeRequired();
         }
         if (path.startsWith("/dashboards/view/") || path.startsWith("/dashboards/edit/")) {
-            const page: PageName = path.startsWith("/dashboards/view/") ? "dashboardview" : "dashboardedit";
-            return htmlResponse(page);
+            // Both routes serve the merged inline grid editor; the page enables
+            // editing when the URL is /dashboards/edit/.
+            return htmlResponse("dashboardview");
         }
         if (path.startsWith("/assets/")) {
             const asset = assets.get(path.slice("/assets/".length));

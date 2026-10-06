@@ -388,5 +388,18 @@
   "dash.widget_token": "Token chat",
   "dash.widget_not_configured": "Non configurato – imposta un canale",
   "ui.cancel": "Annulla",
-  "dash.widget_settings": "Impostazioni canale"
+  "dash.widget_settings": "Impostazioni canale",
+  "dash.new": "Nová",
+  "dash.rename": "Přejmenovat",
+  "dash.default_name": "Přehled",
+  "dash.delete_confirm": "Smazat přehled „{0}“?",
+  "dash.delete_fail": "Smazení se nezdařilo",
+  "dash.done": "Hotovo",
+  "dash.hide": "Skrýt",
+  "dash.remove": "Odebrat",
+  "dash.kick": "Kick (nezávislý)",
+  "dash.saved": "Uloženo",
+  "dash.save_error": "Uložení se nezdařilo",
+  "dash.conflict": "Změnil jiný uživatel — načteno poslední",
+  "dash.device": "Zařízení"
 }

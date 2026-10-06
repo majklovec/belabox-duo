@@ -221,6 +221,7 @@ function encoderCard(status: Status): m.Vnode {
 export const encoderModule: BrowserModule = {
 	id: "encoder",
 	title: "Encoder",
-	defaultWidth: "full",
+	defaultSize: { w: 6, h: 5 },
+	minSize: { w: 4, h: 4 },
 	component: encoderCard,
 };

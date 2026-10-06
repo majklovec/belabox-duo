@@ -388,5 +388,18 @@
   "dash.widget_token": "Chat token",
   "dash.widget_not_configured": "Not configured – set a channel name",
   "ui.cancel": "Cancel",
-  "dash.widget_settings": "Channel settings"
+  "dash.widget_settings": "Channel settings",
+  "dash.new": "New",
+  "dash.rename": "Rename",
+  "dash.default_name": "Dashboard",
+  "dash.delete_confirm": "Delete dashboard “{0}”?",
+  "dash.delete_fail": "Delete failed",
+  "dash.done": "Done",
+  "dash.hide": "Hide",
+  "dash.remove": "Remove",
+  "dash.kick": "Kick (independent)",
+  "dash.saved": "Saved",
+  "dash.save_error": "Save failed",
+  "dash.conflict": "Changed by someone else — reloaded to latest",
+  "dash.device": "Device"
 }

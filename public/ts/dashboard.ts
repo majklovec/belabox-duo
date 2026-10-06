@@ -10,13 +10,14 @@ import type {
 	KickStats,
 	ServerDashboard,
 	ServerDashboardWidget,
+	GridSize,
 	Status,
 	SrtlaStats,
 	WidgetType,
 } from "../types";
 import { badge, button, widgetTable, type Child } from "./components/ui";
 import { createObsPanel, type ObsEvent, type ObsPanel, type ObsRequestResult } from "../../modules/obs-controller/frontend";
-import { widgetModule } from "../../modules/registry.frontend";
+import { getFrontendModule, widgetModule } from "../../modules/registry.frontend";
 import { WIDGET_MODULE_IDS } from "../../modules/widgets";
 import { t } from "./i18n";
 import { roleTag } from "./icons";
@@ -95,6 +96,15 @@ function ensureKickConn(): void {
 		}
 		m.redraw();
 	});
+	// Cross-client sync: the control server broadcasts `dashboards.changed` here
+	// whenever any client saves a dashboard; the owning page rebases against it.
+	kickConn.on("dashboards.changed", (data) => onDashboardsChanged(data));
+}
+
+/** Open the dashboards websocket (shared with the kick widgets) so the page can
+ * listen for `dashboards.changed` broadcasts, even when it has no kick widget. */
+export function ensureDashboardsWs(): void {
+	ensureKickConn();
 }
 
 /** A widget's normalized channel key ("" when not configured). */
@@ -348,6 +358,18 @@ export function setWidgetConfigSaver(fn: ((w: ServerDashboardWidget) => void) | 
 	widgetConfigSaver = fn;
 }
 
+/** Registered by the page owning the grid; called when the server broadcasts
+ * a `dashboards.changed` event (this dashboard was saved elsewhere). */
+let dashboardChangedSink: ((data: { id: string; widgets: ServerDashboardWidget[]; version: number } | null) => void) | null = null;
+export function setDashboardChangedSink(
+	fn: ((data: { id: string; widgets: ServerDashboardWidget[]; version: number } | null) => void) | null,
+): void {
+	dashboardChangedSink = fn;
+}
+export function onDashboardsChanged(data: unknown): void {
+	dashboardChangedSink?.(data as { id: string; widgets: ServerDashboardWidget[]; version: number } | null);
+}
+
 /** The inline editor that opens from the pencil icon on a configurable widget. */
 function configEditorForm(w: ServerDashboardWidget): m.Vnode {
 	const s =
@@ -406,46 +428,100 @@ export function widgetTitle(w: ServerDashboardWidget): string {
 	return prefix + t(`wtype.${w.type.replace("-", "_")}`);
 }
 
-export function widgetView(w: ServerDashboardWidget): m.Vnode {
+/** Live body for a widget, given its device connection. */
+function bodyFor(w: ServerDashboardWidget): m.Children {
 	const deviceId = effectiveDeviceId(w);
 	const conn = connectionFor(deviceId);
-	let body: m.Children;
 	switch (w.type) {
-		case "stats": body = statsWidget(deviceId, conn); break;
-		case "relay": body = relayWidget(deviceId, conn); break;
-		case "encoder": body = encoderWidget(deviceId, conn); break;
-		case "obs": body = obsWidget(w, conn); break;
+		case "stats": return statsWidget(deviceId, conn);
+		case "relay": return relayWidget(deviceId, conn);
+		case "encoder": return encoderWidget(deviceId, conn);
+		case "obs": return obsWidget(w, conn);
 		case "kick-stats":
 		case "kick-chat": {
 			const channel = w.config?.channel?.trim().toLowerCase();
-			body = widgetModule(w.type)?.body(w, channel ? kickLive.get(channel) ?? { chat: [] } : {}) as m.Children;
-			break;
+			return widgetModule(w.type)?.body(w, channel ? kickLive.get(channel) ?? { chat: [] } : {}) as m.Children;
 		}
-		default: body = statusWidget(deviceId, conn);
+		default: return statusWidget(deviceId, conn);
 	}
-	// Configurable widgets (kick-stats / kick-chat) get a pencil icon in the
-	// top-right card corner; it opens an inline editor for channel/token.
+}
+
+/** Default/min/max `{w, h}` for a widget type — the module contract for the
+ * device/obs widgets plus sensible fallbacks for the rest, used when adding a
+ * widget or constraining a resize. */
+/** Device-bound widget type → the frontend module that defines its grid size. */
+const WIDGET_TYPE_MODULE: Record<WidgetType, string | undefined> = {
+	obs: "obs-controller",
+	encoder: "encoder",
+	stats: "srtla",
+	relay: "srtla",
+	status: undefined,
+	"kick-stats": undefined,
+	"kick-chat": undefined,
+};
+
+export function widgetSize(type: WidgetType): { default: GridSize; min: GridSize; max?: GridSize } {
+	const mod = WIDGET_TYPE_MODULE[type] ? getFrontendModule(WIDGET_TYPE_MODULE[type]!) : undefined;
+	if (mod) return { default: mod.defaultSize, min: mod.minSize, max: mod.maxSize };
+	switch (type) {
+		case "kick-stats": return { default: { w: 3, h: 3 }, min: { w: 3, h: 3 } };
+		case "kick-chat": return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
+		default: return { default: { w: 4, h: 4 }, min: { w: 3, h: 3 } };
+	}
+}
+
+export interface WidgetActions {
+	remove: (w: ServerDashboardWidget) => void;
+	hide: (w: ServerDashboardWidget) => void;
+}
+
+/** The live grid content for one widget: a slim persistent header (title, and
+ * in edit mode a drag grip plus remove/hide/config actions) above the live body.
+ * GridStack owns the surrounding `.grid-stack-item`; this is what fills it. */
+export function widgetInner(w: ServerDashboardWidget, editMode: boolean, actions: WidgetActions): m.Vnode {
 	const key = widgetKey(w);
-	const editing = isIndependent(w.type) && (widgetConfigState.get(key)?.editing ?? false);
-	if (editing) body = configEditorForm(w);
-	const cardChildren: m.Children = [m("h2", widgetTitle(w))];
-	if (isIndependent(w.type))
-		cardChildren.push(
-			m(
-				"button.dash-card-pencil",
-				{
-					title: t("dash.widget_settings"),
-					"aria-label": t("dash.widget_settings"),
-					onclick: () => {
-						const s = widgetConfigState.get(key) ?? { editing: false, channel: w.config?.channel ?? "", token: w.config?.token ?? "" };
-						s.editing = !s.editing;
-						widgetConfigState.set(key, s);
-						m.redraw();
-					},
-				},
-				editing ? "✓" : "✎",
-			),
-		);
-	cardChildren.push(body);
-	return m("div.dashboard-item", { key: key || `${w.deviceId}:${w.type}:${w.name}`, class: `dash-w-${w.width}` }, m("article.card.dashboard-card", cardChildren));
+	const isKick = isIndependent(w.type);
+	const editing = isKick && editMode && (widgetConfigState.get(key)?.editing ?? false);
+	return m("div.dash-widget", { key, class: editing ? "is-editing" : undefined }, [
+		m("div.dash-widget-head", [
+			m("span.dash-grip", [
+				editMode ? m("span.dash-grip-icon", "⠿") : null,
+				m("span.dash-widget-title", widgetTitle(w)),
+			]),
+			editMode
+				? m("span.dash-widget-actions", [
+						isKick
+							? m("button.icon-btn.dash-widget-config", {
+									title: t("dash.widget_settings"),
+									"aria-label": t("dash.widget_settings"),
+									onclick: (e: Event) => {
+										e.stopPropagation();
+										const s = widgetConfigState.get(key) ?? { editing: false, channel: w.config?.channel ?? "", token: w.config?.token ?? "" };
+										s.editing = !s.editing;
+										widgetConfigState.set(key, s);
+										m.redraw();
+									},
+								}, editing ? "✓" : "⚙")
+							: null,
+						m("button.icon-btn.dash-widget-eye", {
+							title: t("dash.hide"),
+							"aria-label": t("dash.hide"),
+							onclick: (e: Event) => {
+								e.stopPropagation();
+								actions.hide(w);
+							},
+						}, "👁"),
+						m("button.icon-btn.dash-widget-remove", {
+							title: t("dash.remove"),
+							"aria-label": t("dash.remove"),
+							onclick: (e: Event) => {
+								e.stopPropagation();
+								actions.remove(w);
+							},
+						}, "×"),
+					])
+				: null,
+		]),
+		m("div.dash-widget-body", editing ? configEditorForm(w) : bodyFor(w)),
+	]);
 }

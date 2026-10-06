@@ -1,3 +1,5 @@
+@import "../../node_modules/gridstack/dist/gridstack.min.css";
+
 :root {
   color-scheme: dark;
 
@@ -835,45 +837,175 @@ td.num {
 }
 
 /* ---------------------------------------------------------------- dashboards */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: var(--gap, 16px);
+/* The grid is a GridStack container; the item + item-content are owned by
+ * GridStack (imported below) — this only skins the widget body inside it. */
+.dash-grid {
+  --dash-row-h: 60px;
   margin: 16px 0;
 }
-.dashboard-grid > .dashboard-item {
+/* NOTE: do NOT set `position` on .grid-stack-item here — GridStack positions
+ * each item with `position: absolute` + `left`/`top`. Overriding it (e.g. to
+ * `relative`) breaks placement: items render unpositioned in DOM order and
+ * snap around when a drag ends. */
+.dash-grid .grid-stack-item-content {
+  padding: 0;
+  height: 100%;
+}
+.dash-widget {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: color-mix(in srgb, var(--card-subtle) 92%, var(--base-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
   min-width: 0;
 }
-.dashboard-grid > .dash-w-4 {
-  grid-column: span 4;
+.dash-widget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--header-color) 8%, var(--base-2));
 }
-.dashboard-grid > .dash-w-6 {
-  grid-column: span 6;
+.dash-grip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.dashboard-grid > .dash-w-12 {
-  grid-column: span 12;
+.dash-grip-icon { font-size: 0.9rem; opacity: 0.7; }
+.dash-widget-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.is-editing .dash-grip {
+  cursor: grab;
+  user-select: none;
 }
-/* position: relative anchors the pencil config icon inside the card */
-.dashboard-grid > .dashboard-item > .card {
-  height: 100%;
-  position: relative;
+.is-editing .dash-grip:active { cursor: grabbing; }
+.dash-widget-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
 }
-.dash-card-pencil {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
-  z-index: 1;
-  padding: 0.1rem 0.5rem;
-  font-size: 0.9rem;
-  background: var(--border);
-  border-color: transparent;
+.dash-widget-actions .icon-btn {
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
+  background: transparent;
+  border: none;
   color: var(--muted);
   border-radius: var(--radius-sm);
-  box-shadow: none;
 }
-.dash-card-pencil:hover {
+.dash-widget-actions .icon-btn:hover {
+  background: var(--border);
   color: #fff;
   transform: none;
+}
+.dash-widget-actions .dash-widget-remove:hover { color: var(--danger, #ef4444); }
+.dash-widget-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.5rem 0.6rem;
+}
+/* GridStack's resize handle, reskinned to match the dark UI. */
+.dash-grid .grid-stack-item .grid-stack-resize-handle {
+  border-color: var(--muted);
+}
+.dash-grid:not(.grid-stack-resizable) .grid-stack-resize-handle { display: none; }
+
+/* Inline editor toolbar (name / add / edit-toggle live in the page header). */
+.dash-back {
+  color: var(--muted);
+  text-decoration: none;
+  margin-right: 0.5rem;
+  white-space: nowrap;
+}
+.dash-back:hover { color: #fff; }
+.dash-name-btn,
+.dash-add-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.dash-name,
+.dash-add {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dash-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 200px;
+  max-width: 320px;
+  background: var(--base-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.dash-name-menu button {
+  text-align: left;
+}
+.dash-name-menu button.danger { color: var(--danger, #ef4444); }
+.dash-add-devices { margin-bottom: 0.2rem; }
+.dash-add-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.dash-add-device {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.dash-add-options {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.dash-add-opt {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--card-subtle);
+}
+.dash-edittoggle { font-weight: 600; }
+.dash-save { font-size: 0.8rem; color: var(--muted); }
+.dash-save-saving { color: var(--accent); }
+.dash-save-saved { color: var(--success, #10b981); }
+.dash-save-error { color: var(--danger, #ef4444); }
+.dash-online { white-space: nowrap; }
+.dash-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 90;
+  background: var(--base-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.9rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  max-width: 80vw;
+}
+.dash-empty {
+  padding: 1.5rem 0;
+  text-align: center;
 }
 .dash-config-form {
   display: flex;
@@ -989,10 +1121,15 @@ p.message {
 }
 
 @media (max-width: 640px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
+  .dash-grid {
+    --dash-row-h: 48px;
   }
-  .dashboard-grid > .dashboard-item {
-    grid-column: 1 / -1 !important;
+  .dash-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .dash-name,
+  .dash-add {
+    font-size: 0.95rem;
   }
 }

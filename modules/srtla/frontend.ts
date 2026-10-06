@@ -139,6 +139,7 @@ function srtlaCard(status: Status): m.Vnode {
 export const srtlaModule: BrowserModule = {
 	id: "srtla",
 	title: "SRTLA",
-	defaultWidth: "full",
+	defaultSize: { w: 4, h: 4 },
+	minSize: { w: 3, h: 3 },
 	component: srtlaCard,
 };
