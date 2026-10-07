@@ -201,6 +201,7 @@ interface Device {
     color?: string;           // the device's header color, from the device's hello
     language?: Language;      // UI language, from the device's hello
     role?: Role;              // device type, from the upgrade header / hello / status
+    version?: string;         // app build stamp, from the device's hello (absent on pre-version builds)
     ws: Socket | null;
     address?: string;
     connectedAt?: number;
@@ -240,6 +241,7 @@ const deviceInfo = (d: Device): DeviceInfo => ({
     color: d.color,
     language: d.language,
     role: d.role,
+    version: d.version,
     online: d.ws !== null,
     connectedAt: d.connectedAt,
     lastSeen: d.lastSeen,
@@ -297,7 +299,7 @@ function failPending(predicate: (p: Pending) => boolean, error: string, code: nu
 }
 
 /** Apply the device's self-reported parameters (hello / status); returns whether any changed. */
-function updateDevice(d: Device, fields: Partial<Pick<Device, "role" | "hostname" | "color" | "language">>): boolean {
+function updateDevice(d: Device, fields: Partial<Pick<Device, "role" | "hostname" | "color" | "language" | "version">>): boolean {
     let changed = false;
     for (const [key, value] of Object.entries(fields) as [keyof typeof fields, string | undefined][]) {
         if (value === undefined || d[key] === value) continue;
@@ -350,6 +352,8 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
             hostname: typeof msg.hostname === "string" && msg.hostname !== "" ? msg.hostname : undefined,
             color: typeof msg.color === "string" && COLOR_RE.test(msg.color) ? msg.color : undefined,
             language: isLanguage(msg.language) ? msg.language : undefined,
+            // Absent on builds that predate version reporting — stays undefined, which the UI flags as "old app"
+            version: typeof msg.version === "string" && msg.version !== "" ? msg.version : undefined,
         });
         if (changed) publish(d, deviceEvent(d));
     }

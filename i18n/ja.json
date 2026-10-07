@@ -26,6 +26,7 @@
   "dash.widget.scene": "シーン",
   "dash.widget.streaming": "配信",
   "dash.widget_missing": "デバイスなし",
+  "dash.version_stale": "古いアプリ",
   "dash.widget_module_off": "デバイスのモジュールが無効です",
   "dash.widget_type": "タイプ",
   "dash.widget_waiting": "データを待っています…",

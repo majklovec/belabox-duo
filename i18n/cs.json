@@ -26,6 +26,7 @@
   "dash.widget.scene": "Scéna",
   "dash.widget.streaming": "Stream",
   "dash.widget_missing": "Žádné zařízení",
+  "dash.version_stale": "stará aplikace",
   "dash.widget_module_off": "Modul na zařízení vypnutý",
   "dash.widget_type": "Typ",
   "dash.widget_waiting": "Čeká na data…",

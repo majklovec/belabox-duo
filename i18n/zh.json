@@ -26,6 +26,7 @@
   "dash.widget.scene": "场景",
   "dash.widget.streaming": "推流",
   "dash.widget_missing": "无设备",
+  "dash.version_stale": "旧版应用",
   "dash.widget_module_off": "设备上的模块已禁用",
   "dash.widget_type": "类型",
   "dash.widget_waiting": "等待数据…",

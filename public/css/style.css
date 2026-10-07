@@ -892,6 +892,17 @@ td.num {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.dash-widget-version {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-family: var(--mono, ui-monospace, monospace);
+  opacity: 0.55;
+}
+.dash-widget-version.stale {
+  opacity: 1;
+  font-weight: 600;
+  color: #d97706;
+}
 .dash-widget-badge {
   flex-shrink: 0;
 }

@@ -24,6 +24,7 @@
   "dash.widget": "widget",
   "dash.widget.max": "Max",
   "dash.widget_missing": "No device",
+  "dash.version_stale": "old app",
   "dash.widget_module_off": "Module disabled on device",
   "dash.widget.pipeline": "Pipeline",
   "dash.widget.recording": "Recording",

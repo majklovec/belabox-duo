@@ -109,6 +109,8 @@ export interface DeviceInfo {
 	color?: string;
 	/** UI language the device was set to (see LANGUAGE_INFO in src/i18n.ts) */
 	language?: Language;
+	/** App build stamp (git short SHA) the device reports in its hello; undefined on builds predating version reporting */
+	version?: string;
 }
 
 /** One row of the control server's `GET /api/devices`. */

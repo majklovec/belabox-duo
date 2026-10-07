@@ -494,6 +494,19 @@ export function widgetTitle(w: ServerDashboardWidget): string {
 	return prefix + t(`wtype.${w.type.replace("-", "_")}`);
 }
 
+/** The app build a device reports in its hello, shown next to the title so a box
+ * stuck on an old build (no `pipelines.list`, no stats pushes) is visible here
+ * instead of as a silently empty widget. */
+function widgetVersion(w: ServerDashboardWidget): m.Vnode | null {
+	if (isIndependent(w.type)) return null;
+	const d = deviceById(w.deviceId);
+	const version = connectionFor(w.deviceId)?.live.device?.version ?? d?.version;
+	if (version) return m("span.dash-widget-version", { title: version }, version);
+	// A device that answers (hello without a version field) runs a pre-version
+	// build: its widget data (pipelines, stats) simply does not exist yet there.
+	return d?.online ? m("span.dash-widget-version stale", { title: t("dash.version_stale") }, "old app") : null;
+}
+
 /** Live body for a widget, given its device connection. */
 function bodyFor(w: ServerDashboardWidget): m.Children {
 	const deviceId = effectiveDeviceId(w);
@@ -557,7 +570,7 @@ export function widgetInner(w: ServerDashboardWidget, editMode: boolean, actions
 				editMode ? m("span.dash-grip-icon", "⠿") : null,
 				m("span.dash-widget-title", widgetTitle(w)),
 				// The status badge sits right next to the title (hidden while the config form is open).
-				editing ? null : m("span.dash-widget-badge", widgetBadge(w)),
+				editing ? null : [widgetVersion(w), m("span.dash-widget-badge", widgetBadge(w))],
 			]),
 			editMode
 				? m("span.dash-widget-actions", [

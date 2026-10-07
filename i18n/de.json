@@ -26,6 +26,7 @@
   "dash.widget.scene": "Szene",
   "dash.widget.streaming": "Streaming",
   "dash.widget_missing": "Kein Gerät",
+  "dash.version_stale": "alte App",
   "dash.widget_module_off": "Modul auf dem Gerät deaktiviert",
   "dash.widget_type": "Typ",
   "dash.widget_waiting": "Warte auf Daten…",
