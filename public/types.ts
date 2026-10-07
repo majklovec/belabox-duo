@@ -88,7 +88,7 @@ export interface GridSize {
 	w: number;
 	h: number;
 }
-/** Latest kick.stats event / one Kick chat message — wire shapes owned by the
+/** Latest kick.stats event / one Chat Kick message — wire shapes owned by the
  * widget module contract (the hub delivers them over the dashboard websocket). */
 export type KickStats = StatsLive;
 export type KickChatMessage = ChatLive;

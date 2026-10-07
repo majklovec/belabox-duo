@@ -1,6 +1,6 @@
 /* kick-stats widget body — scoped to the dashboard card (.dash-widget-body) */
 
-/* Kick stats card */
+/* Stats Kick card */
 .dash-widget-body .kick-stats {
   display: flex;
   flex-direction: column;
