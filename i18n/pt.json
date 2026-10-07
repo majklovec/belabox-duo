@@ -381,6 +381,7 @@
   "ui.start": "Iniciar",
   "ui.stop": "Parar",
   "ui.title_suffix": "– Belabox Duo",
+  "wtype.combined": "Codificador + relay",
   "wtype.encoder": "Codificador",
   "wtype.kick_chat": "Kick chat",
   "wtype.kick_stats": "Kick stats",

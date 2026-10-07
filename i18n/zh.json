@@ -381,6 +381,7 @@
   "ui.start": "启动",
   "ui.stop": "停止",
   "ui.title_suffix": "– Belabox Duo",
+  "wtype.combined": "编码器 + 中继",
   "wtype.encoder": "编码器",
   "wtype.kick_chat": "Kick 聊天",
   "wtype.kick_stats": "Kick 统计",

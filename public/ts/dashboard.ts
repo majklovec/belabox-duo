@@ -11,11 +11,16 @@ import type {
 	ServerDashboard,
 	ServerDashboardWidget,
 	GridSize,
+	Role,
 	Status,
 	SrtlaStats,
+	SrtlaStatsEvent,
 	WidgetType,
 } from "../types";
 import { badge, button, widgetTable, type Child } from "./components/ui";
+import { createCardHost, type DeviceCard } from "./device/store";
+import { encoderCardBody } from "../../modules/encoder/frontend";
+import { srtlaCardBody } from "../../modules/srtla/frontend";
 import { createObsPanel, type ObsEvent, type ObsPanel, type ObsRequestResult } from "../../modules/obs-controller/frontend";
 import { getFrontendModule, widgetModule } from "../../modules/registry.frontend";
 import { WIDGET_MODULE_IDS } from "../../modules/widgets";
@@ -44,6 +49,9 @@ interface DeviceLive {
 interface Connection {
 	rpc: RpcClient;
 	live: DeviceLive;
+	/** The module card host: feeds the encoder / relay / combined widgets,
+	 * which run the same interactive card as the device page. */
+	card: DeviceCard;
 }
 
 // ------------------------------------------------------------------------ kick
@@ -132,13 +140,19 @@ export const deviceLabel = (d: DeviceSummary): string => d.hostname || d.id;
 
 export const typeLabel = (type: WidgetType): string => t(`wtype.${type.replace("-", "_")}`);
 
+/** Widget types a role may place on a dashboard. */
+const ROLE_WIDGET_TYPES: Record<Role, WidgetType[]> = {
+	relay: ["stats", "relay"],
+	encoder: ["encoder"],
+	combined: ["combined"],
+	obs: ["obs"],
+	custom: ["status", "stats", "relay", "encoder", "combined", "obs"],
+};
+
 /** Widget types a specific device offers, from its role + enabled modules. */
 export function widgetTypesFor(d: DeviceSummary): WidgetType[] {
-	const types: WidgetType[] = ["status"];
-	if (d.role !== "encoder") types.push("stats", "relay");
-	if (d.role === "encoder" || d.role === "combined") types.push("encoder");
-	if (d.modules?.["obs-controller"]?.enabled) types.push("obs");
-	return types;
+	const types = ROLE_WIDGET_TYPES[d.role ?? "custom"] ?? ROLE_WIDGET_TYPES.custom;
+	return types.filter((type) => type !== "obs" || d.modules?.["obs-controller"]?.enabled);
 }
 
 /** Widget types that are not tied to a device: always offered; their data
@@ -174,11 +188,21 @@ export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
 			obsRecording: false,
 		};
 		const rpc = new RpcClient(() => socketUrl(`/d/${encodeURIComponent(id)}/ws`));
-		const conn: Connection = { rpc, live };
+		const conn: Connection = { rpc, live, card: createCardHost({ rpc }) };
 		connections.set(id, conn);
-		rpc.on("device", (data) => (live.device = data as DeviceInfo));
-		rpc.on("status", (data) => (live.status = data as Status));
-		rpc.on("srtla.stats", (data) => (live.srtla = (data as { stats?: SrtlaStats })?.stats ?? undefined));
+		rpc.on("device", (data) => {
+			const info = data as DeviceInfo;
+			if (live.device?.online === false && info.online) conn.card.onReconnect();
+			live.device = info;
+		});
+		rpc.on("status", (data) => {
+			live.status = data as Status;
+			conn.card.applyStatus(live.status!);
+		});
+		rpc.on("srtla.stats", (data) => {
+			live.srtla = (data as SrtlaStatsEvent).stats ?? undefined;
+			conn.card.handleStats(data as SrtlaStatsEvent);
+		});
 		rpc.on("obs.event", (data) => {
 			const e = data as { eventType: string; eventData?: Record<string, unknown> };
 			if (e.eventType === "CurrentProgramSceneChanged") {
@@ -201,6 +225,7 @@ export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
 		// module is not enabled there). `call` rejects before the socket is OPEN, so
 		// this must run from the "open" event — initial connect and every reconnect.
 		rpc.on("open", () => {
+			conn.card.onReconnect();
 			const kinds = (dash?.widgets ?? []).map((w) => w.type);
 			if (kinds.includes("obs")) {
 				rpc
@@ -272,25 +297,34 @@ function statsWidget(_deviceId: string, conn: Connection | undefined): m.Childre
 	return srtlaTable(s);
 }
 
+/** Card widgets render the full interactive module card (same as the device page);
+ * the wrapper keeps the module's CSS scope. */
 function relayWidget(deviceId: string, conn: Connection | undefined): m.Children {
-	const st = conn?.live.status?.state;
-	const rows: [string, Child][] = [
-		[t("dev.card.srtla"), st?.srtla?.running ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.stopped"), "warn")],
-	];
-	if (st?.srtla) rows.push([t("dev.field.remote_host"), `${st.srtla.remoteHost}:${st.srtla.remotePort}`]);
-	return widgetTable(rows);
+	const status = conn?.card.st.status;
+	if (!deviceById(deviceId)) return m("p.muted", t("dash.widget_missing"));
+	if (!status) return m("p.muted", conn ? t("dash.widget_waiting") : t("dev.badge.offline"));
+	return m("div.mod-srtla", srtlaCardBody(conn!.card, status));
 }
 
 function encoderWidget(deviceId: string, conn: Connection | undefined): m.Children {
-	const d = deviceById(deviceId);
-	const e = d?.encoder ?? conn?.live.status?.state?.encoder;
-	if (!d || !e) return m("p.muted", !conn ? t("dev.badge.offline") : t("dash.widget_waiting"));
-	const rows: [string, Child][] = [
-		[t("dev.card.encoder"), e.running ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.stopped"), "warn")],
-	];
-	if (e.config?.pipeline) rows.push([t("dash.widget.pipeline"), e.config.pipeline]);
-	if (e.config?.maxBitrate) rows.push([t("dash.widget.max"), formatBitrate(e.config.maxBitrate * 125)]);
-	return widgetTable(rows);
+	const status = conn?.card.st.status;
+	if (!deviceById(deviceId)) return m("p.muted", t("dash.widget_missing"));
+	if (!status) return m("p.muted", conn ? t("dash.widget_waiting") : t("dev.badge.offline"));
+	return m("div.mod-encoder", encoderCardBody(conn!.card, status));
+}
+
+/** Combined device: encoder card stacked over its SRTLA receiver card. */
+function combinedWidget(deviceId: string, conn: Connection | undefined): m.Children {
+	const status = conn?.card.st.status;
+	if (!deviceById(deviceId)) return m("p.muted", t("dash.widget_missing"));
+	if (!status) return m("p.muted", conn ? t("dash.widget_waiting") : t("dev.badge.offline"));
+	return m(
+		"div.mod-combined",
+		[
+			m("div.mod-encoder", encoderCardBody(conn!.card, status)),
+			m("div.mod-srtla", srtlaCardBody(conn!.card, status)),
+		],
+	);
 }
 
 /** One panel instance per obs widget (its own timers, VU canvas, pending guards). */
@@ -352,6 +386,7 @@ function widgetBadge(w: ServerDashboardWidget): m.Vnode {
 			const offline = !st;
 			return badge(offline ? t("dev.badge.offline") : t("dev.badge.online"), offline ? "off" : "on");
 		}
+		case "combined":
 		case "encoder": {
 			const deviceId = effectiveDeviceId(w);
 			const conn = connectionFor(deviceId);
@@ -473,6 +508,7 @@ function bodyFor(w: ServerDashboardWidget): m.Children {
 		case "stats": return statsWidget(deviceId, conn);
 		case "relay": return relayWidget(deviceId, conn);
 		case "encoder": return encoderWidget(deviceId, conn);
+		case "combined": return combinedWidget(deviceId, conn);
 		case "obs": return obsWidget(w, conn);
 		case "kick-stats":
 		case "kick-chat": {
@@ -492,6 +528,7 @@ const WIDGET_TYPE_MODULE: Record<WidgetType, string | undefined> = {
 	encoder: "encoder",
 	stats: "srtla",
 	relay: "srtla",
+	combined: undefined,
 	status: undefined,
 	"kick-stats": undefined,
 	"kick-chat": undefined,
@@ -501,6 +538,7 @@ export function widgetSize(type: WidgetType): { default: GridSize; min: GridSize
 	const mod = WIDGET_TYPE_MODULE[type] ? getFrontendModule(WIDGET_TYPE_MODULE[type]!) : undefined;
 	if (mod) return { default: mod.defaultSize, min: mod.minSize, max: mod.maxSize };
 	switch (type) {
+		case "combined": return { default: { w: 6, h: 10 }, min: { w: 4, h: 8 } };
 		case "kick-stats": return { default: { w: 3, h: 3 }, min: { w: 3, h: 3 } };
 		case "kick-chat": return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
 		default: return { default: { w: 4, h: 4 }, min: { w: 3, h: 3 } };

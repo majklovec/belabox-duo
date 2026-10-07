@@ -18,32 +18,34 @@ import {
 } from "../../public/ts/components/ui";
 import { since } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
-import { act, busy, enabled, encoderStart, fields, press, st, streamButtons } from "../../public/ts/device/store";
+import { card, type DeviceCard } from "../../public/ts/device/store";
 import type { BrowserModule } from "../types";
 
 type SrtlaOptions = Status["state"]["srtlaOptions"];
 
-function srtlaStart(): void {
+function srtlaStart(host: DeviceCard): void {
+	const { fields } = host;
 	if (!fields.listenPort || !fields.remoteHost || !fields.remotePort) return;
-	press("srtla-start", "srtla.start", {
+	host.press("srtla-start", "srtla.start", {
 		listenPort: fields.listenPort,
 		remoteHost: fields.remoteHost,
 		remotePort: fields.remotePort,
 	});
 }
 
-async function setOption(key: keyof SrtlaOptions, value: string | boolean): Promise<void> {
-	const result = await act<{ options: SrtlaOptions }>(`srtla-${key}`, "srtla.options", { [key]: value });
+async function setOption(host: DeviceCard, key: keyof SrtlaOptions, value: string | boolean): Promise<void> {
+	const result = await host.act<{ options: SrtlaOptions }>(`srtla-${key}`, "srtla.options", { [key]: value });
 	// The status push is debounced; do not flash the old value until it arrives
-	if (result && st.status) st.status.state.srtlaOptions = result.options;
+	if (result && host.st.status) host.st.status.state.srtlaOptions = result.options;
 }
 
 // Scheduler options: the saved settings, else what the running srtla_send reports, else its defaults
-function liveStats() {
-	return st.status?.state.srtla.running ? st.stats : null;
-}
-const modeValue = (): string => st.status?.state.srtlaOptions?.mode ?? liveStats()?.mode ?? "enhanced";
-const qualityValue = (): boolean => st.status?.state.srtlaOptions?.quality ?? liveStats()?.quality_enabled ?? true;
+const liveStats = (host: DeviceCard) =>
+	host.st.status?.state.srtla.running ? host.st.stats : null;
+const modeValue = (host: DeviceCard): string =>
+	host.st.status?.state.srtlaOptions?.mode ?? liveStats(host)?.mode ?? "enhanced";
+const qualityValue = (host: DeviceCard): boolean =>
+	host.st.status?.state.srtlaOptions?.quality ?? liveStats(host)?.quality_enabled ?? true;
 
 function controlBadge(status: Status): Child {
 	const c = status.srtlaControl;
@@ -52,7 +54,8 @@ function controlBadge(status: Status): Child {
 	return m("span.muted", { title: t("dev.control_unavailable_title") }, t("dev.control_unavailable"));
 }
 
-function srtlaCard(status: Status): m.Vnode {
+export function srtlaCardBody(host: DeviceCard, status: Status): m.Vnode {
+	const { fields, busy } = host;
 	const s = status.state.srtla;
 	const combined = status.role === "combined";
 	return m(
@@ -76,7 +79,7 @@ function srtlaCard(status: Status): m.Vnode {
 		]),
 		form(
 			// Enter in the receiver fields of a combined device means "start the stream"
-			{ onSubmit: combined ? encoderStart : srtlaStart },
+			{ onSubmit: combined ? host.encoderStart : () => srtlaStart(host) },
 			fieldGroup(
 				t("dev.group.connection"),
 				!combined && [
@@ -100,8 +103,8 @@ function srtlaCard(status: Status): m.Vnode {
 						"select",
 						{
 							disabled: busy.has("srtla-mode"),
-							value: modeValue(),
-							onchange: (e: Event) => void setOption("mode", (e.target as HTMLSelectElement).value),
+							value: modeValue(host),
+							onchange: (e: Event) => void setOption(host, "mode", (e.target as HTMLSelectElement).value),
 						},
 						schedulerOptions(),
 					),
@@ -110,26 +113,26 @@ function srtlaCard(status: Status): m.Vnode {
 					t("dev.quality_scoring"),
 					m("input", {
 						type: "checkbox",
-						checked: qualityValue(),
-						disabled: busy.has("srtla-quality") || modeValue() === "classic",
-						onchange: (e: Event) => void setOption("quality", (e.target as HTMLInputElement).checked),
+						checked: qualityValue(host),
+						disabled: busy.has("srtla-quality") || modeValue(host) === "classic",
+						onchange: (e: Event) => void setOption(host, "quality", (e.target as HTMLInputElement).checked),
 					}),
 					{ title: t("dev.quality_scoring_title") },
 				),
 			),
 			brk(),
 			combined
-				? streamButtons("stream.stop")
+				? host.streamButtons("stream.stop")
 				: actions(
-						button(t("ui.start"), { type: "submit", disabled: !enabled("srtla-start") }),
+						button(t("ui.start"), { type: "submit", disabled: !host.enabled("srtla-start") }),
 						button(t("ui.stop"), {
 							class: "danger",
-							disabled: !enabled("srtla-stop"),
-							onclick: () => press("srtla-stop", "srtla.stop"),
+							disabled: !host.enabled("srtla-stop"),
+							onclick: () => host.press("srtla-stop", "srtla.stop"),
 						}),
 						button(t("ui.reload"), {
-							disabled: !enabled("srtla-reload"),
-							onclick: () => press("srtla-reload", "srtla.reload"),
+							disabled: !host.enabled("srtla-reload"),
+							onclick: () => host.press("srtla-reload", "srtla.reload"),
 						}),
 					),
 		),
@@ -141,5 +144,5 @@ export const srtlaModule: BrowserModule = {
 	title: "SRTLA",
 	defaultSize: { w: 4, h: 4 },
 	minSize: { w: 3, h: 3 },
-	component: srtlaCard,
+	component: (status: Status) => srtlaCardBody(card, status),
 };

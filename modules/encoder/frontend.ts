@@ -24,17 +24,7 @@ import {
 } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import { optionalNumber, since } from "../../public/ts/util";
-import {
-	cera,
-	enabled,
-	encoderStart,
-	fields,
-	press,
-	selectedPipeline,
-	st,
-	streamButtons,
-	touched,
-} from "../../public/ts/device/store";
+import { card, type DeviceCard } from "../../public/ts/device/store";
 import type { BrowserModule } from "../types";
 
 // ----------------------------------------------------------------------
@@ -62,7 +52,8 @@ const CERA_PARAMS: Record<Exclude<CeraBalancer, "fixed">, readonly Param[]> = {
 const numbers = (group: Record<string, string>) =>
 	Object.fromEntries(Object.entries(group).map(([k, v]) => [k, optionalNumber(v)]));
 
-function ceracoderControls(): m.Children {
+function ceracoderControls(host: DeviceCard): m.Children {
+	const { cera, touched } = host;
 	const group = cera.balancer === "fixed" ? null : cera.balancer;
 	return fieldGroup(
 		t("dev.cera_section"),
@@ -86,9 +77,9 @@ function ceracoderControls(): m.Children {
 		actions(
 			button(t("dev.apply_cera"), {
 				class: "secondary",
-				disabled: !enabled("ceracoder-apply"),
+				disabled: !host.enabled("ceracoder-apply"),
 				onclick: () =>
-					press("ceracoder-apply", "ceracoder.set", {
+					host.press("ceracoder-apply", "ceracoder.set", {
 						balancer: cera.balancer,
 						adaptive: numbers(cera.adaptive),
 						aimd: numbers(cera.aimd),
@@ -104,22 +95,22 @@ function ceracoderControls(): m.Children {
 const stateBadge = ({ role, state: { encoder, srtla } }: Status): m.Vnode =>
 	encoderIssueBadge(role, encoder, srtla) ?? badge(t("dev.badge.streaming"), "on");
 
-function pipelineOptions(): m.Children {
+function pipelineOptions(host: DeviceCard): m.Children {
 	const groups = new Map<string, Pipeline[]>();
-	for (const p of st.pipelines) groups.set(p.group, [...(groups.get(p.group) ?? []), p]);
+	for (const p of host.st.pipelines) groups.set(p.group, [...(groups.get(p.group) ?? []), p]);
 	if (!groups.size)
-		return m("option", { value: "", disabled: true }, `${t("dev.no_pipelines", st.pipelineDir)} ${t("dev.no_pipelines_hint")}`);
+		return m("option", { value: "", disabled: true }, `${t("dev.no_pipelines", host.st.pipelineDir)} ${t("dev.no_pipelines_hint")}`);
 	return [...groups].map(([group, list]) => {
 		const opts = options(list.map((p) => [p.id, p.name]));
 		return group ? m("optgroup", { key: group, label: group }, opts) : m.fragment({ key: "" }, opts);
 	});
 }
 
-function statusRows(status: Status): [string, Child][] {
+function statusRows(host: DeviceCard, status: Status): [string, Child][] {
 	const { encoder: e } = status.state;
 	const cfg = e.config;
 	const combined = status.role === "combined";
-	const audioName = status.audioSources.find((a) => a.id === fields.audioSource)?.name;
+	const audioName = status.audioSources.find((a) => a.id === host.fields.audioSource)?.name;
 	return [
 		[t("dev.row.state"), stateBadge(status)],
 		[t("dev.row.encoder"), status.ceracoder ? "ceracoder" : "belacoder"],
@@ -141,20 +132,21 @@ function statusRows(status: Status): [string, Child][] {
 	];
 }
 
-function encoderCard(status: Status): m.Vnode {
+export function encoderCardBody(host: DeviceCard, status: Status): m.Vnode {
+	const { fields, touched } = host;
 	const combined = status.role === "combined";
-	const pipeline = selectedPipeline();
+	const pipeline = host.selectedPipeline();
 	return m(
 		Card,
 		{ title: t("dev.card.encoder"), class: "mod-encoder" },
-		definitionList(statusRows(status)),
+		definitionList(statusRows(host, status)),
 		form(
-			{ onSubmit: encoderStart },
+			{ onSubmit: host.encoderStart },
 			fieldGroup(
 				t("dev.group.video"),
 				field(
 					t("dev.row.pipeline"),
-					select(fields, "pipeline", pipelineOptions(), { required: true }, () => touched.add("pipeline")),
+					select(fields, "pipeline", pipelineOptions(host), { required: true }, () => touched.add("pipeline")),
 				),
 				pipeline?.overlay &&
 					checkField(
@@ -171,9 +163,9 @@ function encoderCard(status: Status): m.Vnode {
 						input(fields, "maxBitrate", BITRATE_ATTRS("5000")),
 						button(t("dev.apply_bitrate"), {
 							class: "secondary",
-							disabled: !enabled("encoder-bitrate"),
+							disabled: !host.enabled("encoder-bitrate"),
 							onclick: () =>
-								press("encoder-bitrate", "encoder.bitrate", {
+								host.press("encoder-bitrate", "encoder.bitrate", {
 									minBitrate: optionalNumber(fields.minBitrate),
 									maxBitrate: optionalNumber(fields.maxBitrate),
 								}),
@@ -181,7 +173,7 @@ function encoderCard(status: Status): m.Vnode {
 					),
 				),
 			),
-			status.ceracoder && ceracoderControls(),
+			status.ceracoder && ceracoderControls(host),
 			fieldGroup(
 				t("dev.group.audio"),
 				pipeline?.asrc &&
@@ -212,7 +204,7 @@ function encoderCard(status: Status): m.Vnode {
 				field(t("dev.field.srt_latency"), input(fields, "latency", numberAttrs(100, 10000, "2000", 100))),
 				field(t("dev.field.stream_id"), input(fields, "streamid", { placeholder: t("ui.optional") })),
 			),
-			!combined && [brk(), streamButtons("encoder.stop")],
+			!combined && [brk(), host.streamButtons("encoder.stop")],
 		),
 	);
 }
@@ -223,5 +215,5 @@ export const encoderModule: BrowserModule = {
 	title: "Encoder",
 	defaultSize: { w: 6, h: 5 },
 	minSize: { w: 4, h: 4 },
-	component: encoderCard,
+	component: (status: Status) => encoderCardBody(card, status),
 };

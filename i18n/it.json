@@ -381,6 +381,7 @@
   "ui.start": "Avvia",
   "ui.stop": "Arresta",
   "ui.title_suffix": "– Belabox Duo",
+  "wtype.combined": "Encoder + relay",
   "wtype.encoder": "Encoder",
   "wtype.kick_chat": "Kick chat",
   "wtype.kick_stats": "Kick stats",

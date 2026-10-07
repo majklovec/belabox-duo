@@ -381,6 +381,7 @@
   "ui.start": "Запустить",
   "ui.stop": "Остановить",
   "ui.title_suffix": "– Belabox Duo",
+  "wtype.combined": "Энкодер + ретранслятор",
   "wtype.encoder": "Энкодер",
   "wtype.kick_chat": "Kick-чат",
   "wtype.kick_stats": "Kick-статистика",

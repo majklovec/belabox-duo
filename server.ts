@@ -90,7 +90,7 @@ const REQUEST_TIMEOUT_MS = 60_000;
 const ID_RE = /^[\w.-]{1,64}$/;
 // /d/<id>, /d/<id>/, /d/<id>/ws, /d/<id>/settings[/], /d/<id>/setup[/]
 const DEVICE_PATH_RE = /^\/d\/([^/]+)(?:(\/)(?:(ws)|(settings|setup)(\/)?)?)?$/;
-const WIDGET_TYPES: WidgetType[] = ["obs", "stats", "status", "relay", "encoder", "kick-stats", "kick-chat"];
+const WIDGET_TYPES: WidgetType[] = ["obs", "stats", "status", "relay", "encoder", "combined", "kick-stats", "kick-chat"];
 const DASH_PATH_RE = /^\/api\/dashboards(?:\/([\w.-]{1,64}))?$/;
 const viewersTopic = (id: string) => `viewers:${id}`;
 const dashboardsTopic = "dashboards:kick";
@@ -103,6 +103,7 @@ const WIDGET_SIZE: Record<WidgetType, { w: number; h: number }> = {
 	stats: { w: 4, h: 4 },
 	relay: { w: 4, h: 4 },
 	encoder: { w: 6, h: 5 },
+	combined: { w: 6, h: 10 },
 	"kick-stats": { w: 3, h: 3 },
 	"kick-chat": { w: 3, h: 8 },
 };

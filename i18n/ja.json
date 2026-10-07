@@ -381,6 +381,7 @@
   "ui.start": "開始",
   "ui.stop": "停止",
   "ui.title_suffix": "– Belabox Duo",
+  "wtype.combined": "エンコーダー + リレー",
   "wtype.encoder": "エンコーダー",
   "wtype.kick_chat": "Kick チャット",
   "wtype.kick_stats": "Kick 統計",

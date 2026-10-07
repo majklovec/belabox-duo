@@ -3,7 +3,7 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 23,
+      "version": 26,
       "widgets": [
         {
           "id": "x1",
@@ -55,7 +55,7 @@
           "y": 8,
           "w": 6,
           "h": 3,
-          "visible": true
+          "visible": false
         },
         {
           "id": "7f794e81-1419-4254-93af-fa1df9a04e17",
@@ -66,6 +66,17 @@
           "y": 18,
           "w": 6,
           "h": 5,
+          "visible": false
+        },
+        {
+          "id": "39e60869-c0fa-442e-aad2-4a3583c5f866",
+          "deviceId": "c3241ebe-4188-44bd-87a8-17e3aced3091",
+          "type": "combined",
+          "name": "Enkodér + relay",
+          "x": 0,
+          "y": 8,
+          "w": 6,
+          "h": 10,
           "visible": true
         }
       ],

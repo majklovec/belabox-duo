@@ -48,7 +48,7 @@ export interface ModulesView {
 	"obs-controller": ObsModuleView;
 }
 /** A dashboard widget type, backed by (or showing) one of a device's modules. */
-export type WidgetType = "obs" | "stats" | "status" | "relay" | "encoder" | "kick-stats" | "kick-chat";
+export type WidgetType = "obs" | "stats" | "status" | "relay" | "encoder" | "combined" | "kick-stats" | "kick-chat";
 
 /**
  * Server-side dashboards: composed in the control server's dashboards page from

@@ -381,6 +381,7 @@
   "ui.start": "Spustiť",
   "ui.stop": "Zastaviť",
   "ui.title_suffix": "– Belabox Duo",
+  "wtype.combined": "Enkodér + relay",
   "wtype.encoder": "Enkodér",
   "wtype.kick_chat": "Kick chat",
   "wtype.kick_stats": "Kick stats",
