@@ -62,6 +62,17 @@ export interface KickChannelLive {
 	chat: KickChatMessage[];
 }
 export const kickLive = new Map<string, KickChannelLive>();
+
+/** Live data per channel for the tiktok/twitch/youtube chat widgets,
+ * accumulated from the dashboard websocket (same hub, their own frames). */
+export interface ChannelChatLive {
+	/** false while the hub's connection for this channel is down. */
+	connected?: boolean;
+	chat: KickChatMessage[];
+}
+export const tiktokLive = new Map<string, ChannelChatLive>();
+export const twitchLive = new Map<string, ChannelChatLive>();
+export const youtubeLive = new Map<string, ChannelChatLive>();
 let kickConn: RpcClient | null = null;
 
 /** One server websocket for the kick widgets; it feeds every channel at once. */
@@ -76,13 +87,19 @@ function ensureKickConn(): void {
 		return l;
 	};
 	kickConn = new RpcClient(() => socketUrl("/dashboards/ws"));
-	kickConn.on("kick.snapshot", (data) => {
+	kickConn.on("widget.snapshot", (data) => {
 		const snap = data as {
 			stats?: Record<string, KickStats | null>;
 			chat?: Record<string, { messages?: KickChatMessage[] }>;
+			tiktokChat?: Record<string, { connected?: boolean; messages?: KickChatMessage[] }>;
+			twitchChat?: Record<string, { connected?: boolean; messages?: KickChatMessage[] }>;
+			youtubeChat?: Record<string, { connected?: boolean; messages?: KickChatMessage[] }>;
 		};
 		for (const [channel, stats] of Object.entries(snap.stats ?? {})) if (stats) live(channel).stats = stats;
 		for (const [channel, c] of Object.entries(snap.chat ?? {})) live(channel).chat = (c.messages ?? []).slice(0, KICK_CHAT_CAP);
+		fillChatMap(tiktokLive, snap.tiktokChat);
+		fillChatMap(twitchLive, snap.twitchChat);
+		fillChatMap(youtubeLive, snap.youtubeChat);
 		m.redraw();
 	});
 	kickConn.on("kick.stats", (data) => {
@@ -104,9 +121,44 @@ function ensureKickConn(): void {
 		}
 		m.redraw();
 	});
+	kickConn.on("tiktok.chat", (data) => applyChatPush(tiktokLive, data, KICK_CHAT_CAP));
+	kickConn.on("twitch.chat", (data) => applyChatPush(twitchLive, data, KICK_CHAT_CAP));
+	kickConn.on("youtube.chat", (data) => applyChatPush(youtubeLive, data, KICK_CHAT_CAP));
 	// Cross-client sync: the control server broadcasts `dashboards.changed` here
 	// whenever any client saves a dashboard; the owning page rebases against it.
 	kickConn.on("dashboards.changed", (data) => onDashboardsChanged(data));
+}
+
+/** Warm-start one chat platform's live map from the snapshot fragment. */
+function fillChatMap(liveMap: Map<string, ChannelChatLive>, frag?: Record<string, { connected?: boolean; messages?: KickChatMessage[] }>): void {
+	for (const [channel, c] of Object.entries(frag ?? {})) {
+		let l = liveMap.get(channel);
+		if (!l) {
+			l = { chat: [] };
+			liveMap.set(channel, l);
+		}
+		l.connected = c.connected;
+		l.chat = (c.messages ?? []).slice(0, KICK_CHAT_CAP);
+	}
+}
+
+/** Apply one `<platform>.chat` push frame (message / reconnect buffer /
+ * disconnected) to the platform's live map. */
+function applyChatPush(liveMap: Map<string, ChannelChatLive>, data: unknown, cap: number): void {
+	const e = data as
+		| { channel?: string; message: KickChatMessage }
+		| { channel?: string; reconnect: boolean; messages: KickChatMessage[] }
+		| { channel?: string; disconnected: boolean };
+	if (!e.channel) return;
+	let l = liveMap.get(e.channel);
+	if (!l) {
+		l = { chat: [] };
+		liveMap.set(e.channel, l);
+	}
+	if ("message" in e) l.chat = [e.message, ...l.chat].slice(0, cap);
+	else if ("messages" in e) l.chat = e.messages.slice(0, cap);
+	else l.connected = false;
+	m.redraw();
 }
 
 /** Open the dashboards websocket (shared with the kick widgets) so the page can
@@ -118,6 +170,10 @@ export function ensureDashboardsWs(): void {
 /** A channel widget's normalized channel key ("" when not configured) — the
  * module owns which config parameter carries the channel name. */
 export const widgetChannel = (w: ServerDashboardWidget): string => widgetModule(w.type)?.channelOf(w) ?? "";
+
+/** The live-map a tiktok/twitch/youtube chat widget renders from. */
+const chatLiveFor = (type: WidgetType): Map<string, ChannelChatLive> =>
+	type === "tiktok-chat" ? tiktokLive : type === "twitch-chat" ? twitchLive : youtubeLive;
 
 // ---------------------------------------------------------------------- devices
 
@@ -408,6 +464,13 @@ function widgetBadge(w: ServerDashboardWidget): m.Vnode {
 			const live = channel ? kickLive.get(channel) ?? { chat: [] } : {};
 			return widgetModule(w.type)?.badge(w, live) as m.Vnode;
 		}
+		case "tiktok-chat":
+		case "twitch-chat":
+		case "youtube-chat": {
+			const channel = widgetChannel(w);
+			const live = channel ? chatLiveFor(w.type).get(channel) ?? { chat: [] } : {};
+			return widgetModule(w.type)?.badge(w, live) as m.Vnode;
+		}
 		default: {
 			const d = deviceById(effectiveDeviceId(w));
 			if (!d) return badge(t("dash.widget_missing"), "warn");
@@ -522,6 +585,12 @@ function bodyFor(w: ServerDashboardWidget): m.Children {
 			const channel = widgetChannel(w);
 			return widgetModule(w.type)?.body(w, channel ? kickLive.get(channel) ?? { chat: [] } : {}) as m.Children;
 		}
+		case "tiktok-chat":
+		case "twitch-chat":
+		case "youtube-chat": {
+			const channel = widgetChannel(w);
+			return widgetModule(w.type)?.body(w, channel ? chatLiveFor(w.type).get(channel) ?? { chat: [] } : {}) as m.Children;
+		}
 		default: return statusWidget(deviceId, conn);
 	}
 }
@@ -539,6 +608,9 @@ const WIDGET_TYPE_MODULE: Record<WidgetType, string | undefined> = {
 	status: undefined,
 	"kick-stats": undefined,
 	"kick-chat": undefined,
+	"tiktok-chat": undefined,
+	"twitch-chat": undefined,
+	"youtube-chat": undefined,
 };
 
 export function widgetSize(type: WidgetType): { default: GridSize; min: GridSize; max?: GridSize } {
@@ -548,6 +620,9 @@ export function widgetSize(type: WidgetType): { default: GridSize; min: GridSize
 		case "combined": return { default: { w: 6, h: 10 }, min: { w: 4, h: 8 } };
 		case "kick-stats": return { default: { w: 3, h: 3 }, min: { w: 3, h: 3 } };
 		case "kick-chat": return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
+		case "tiktok-chat": return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
+		case "twitch-chat": return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
+		case "youtube-chat": return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
 		default: return { default: { w: 4, h: 4 }, min: { w: 3, h: 3 } };
 	}
 }

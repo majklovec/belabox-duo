@@ -14,6 +14,9 @@ import { setFrontendEventSink } from "../public/ts/device/store";
 import type { ChannelWidgetModule } from "./widgets";
 import { kickChatModule } from "./kick-chat/frontend";
 import { kickStatsModule } from "./kick-stats/frontend";
+import { tiktokChatModule } from "./tiktok-chat/frontend";
+import { twitchChatModule } from "./twitch-chat/frontend";
+import { youtubeChatModule } from "./youtube-chat/frontend";
 import { encoderModule } from "./encoder/frontend";
 import { srtlaModule } from "./srtla/frontend";
 import { modemsModule } from "./modems/frontend";
@@ -26,7 +29,7 @@ export const getFrontendModule = (id: string) => FRONTEND_MODULES.find((mod) => 
 export const frontendModuleIds = (): string[] => FRONTEND_MODULES.map((mod) => mod.id);
 
 /** Dashboard widget modules (device-independent kick widgets), in registry order. */
-export const WIDGET_MODULES = [kickStatsModule, kickChatModule] as const;
+export const WIDGET_MODULES = [kickStatsModule, kickChatModule, tiktokChatModule, twitchChatModule, youtubeChatModule] as const;
 
 /** Descriptor of a widget module by widget type (undefined for device-bound types). */
 export const widgetModule = (id: string): ChannelWidgetModule<ServerDashboardWidget> | undefined =>

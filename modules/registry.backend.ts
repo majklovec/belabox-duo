@@ -131,6 +131,24 @@ function moduleSettingsEnabled(id: string): boolean {
 
 import { ChatChannelManager, chatSpecFromConfig, KICK_CHAT_CONFIG_FIELDS, type ChatSnapshot } from "./kick-chat/backend";
 import { StatsChannelManager, statsSpecFromConfig, KICK_STATS_CONFIG_FIELDS, type StatsSnapshot } from "./kick-stats/backend";
+import {
+	ChatChannelManager as TiktokChatChannelManager,
+	tiktokChatSpecFromConfig,
+	TIKTOK_CHAT_CONFIG_FIELDS,
+	type ChatSnapshot as TiktokChatSnapshot,
+} from "./tiktok-chat/backend";
+import {
+	ChatChannelManager as TwitchChatChannelManager,
+	twitchChatSpecFromConfig,
+	TWITCH_CHAT_CONFIG_FIELDS,
+	type ChatSnapshot as TwitchChatSnapshot,
+} from "./twitch-chat/backend";
+import {
+	ChatChannelManager as YoutubeChatChannelManager,
+	youtubeChatSpecFromConfig,
+	YOUTUBE_CHAT_CONFIG_FIELDS,
+	type ChatSnapshot as YoutubeChatSnapshot,
+} from "./youtube-chat/backend";
 import type { ChannelSpecs } from "./widgets";
 import type { ServerDashboard } from "../public/types";
 
@@ -139,24 +157,36 @@ import type { ServerDashboard } from "../public/types";
 const WIDGET_CONFIG_FIELDS: Record<string, readonly string[]> = {
 	"kick-stats": KICK_STATS_CONFIG_FIELDS,
 	"kick-chat": KICK_CHAT_CONFIG_FIELDS,
+	"tiktok-chat": TIKTOK_CHAT_CONFIG_FIELDS,
+	"twitch-chat": TWITCH_CHAT_CONFIG_FIELDS,
+	"youtube-chat": YOUTUBE_CHAT_CONFIG_FIELDS,
 };
 
 export const widgetConfigFields = (type: string): readonly string[] => WIDGET_CONFIG_FIELDS[type] ?? [];
 
-/** Per-channel stats + chat fragments merged for `kick.snapshot`. */
+/** Per-channel stats + chat fragments merged for the hub snapshot. */
 export interface WidgetHubSnapshot {
 	stats: StatsSnapshot;
 	chat: ChatSnapshot;
+	tiktokChat: TiktokChatSnapshot;
+	twitchChat: TwitchChatSnapshot;
+	youtubeChat: YoutubeChatSnapshot;
 }
 
-/** The widget manager pair — wired once by initWidgetHub(); no-ops before. */
+/** The widget managers — wired once by initWidgetHub(); no-ops before. */
 let widgetStats: StatsChannelManager | null = null;
 let widgetChat: ChatChannelManager | null = null;
+let widgetTiktokChat: TiktokChatChannelManager | null = null;
+let widgetTwitchChat: TwitchChatChannelManager | null = null;
+let widgetYoutubeChat: YoutubeChatChannelManager | null = null;
 
-/** Wire the kick channel widget backends to the dashboard websocket topic. */
+/** Wire the channel widget backends to the dashboard websocket topic. */
 export function initWidgetHub(publish: (msg: string) => void): void {
 	widgetStats = new StatsChannelManager(publish);
 	widgetChat = new ChatChannelManager(publish);
+	widgetTiktokChat = new TiktokChatChannelManager(publish);
+	widgetTwitchChat = new TwitchChatChannelManager(publish);
+	widgetYoutubeChat = new YoutubeChatChannelManager(publish);
 }
 
 /** Sync the widget backends with the dashboard configs (dashboards write path).
@@ -164,9 +194,12 @@ export function initWidgetHub(publish: (msg: string) => void): void {
  * (or kick-chat connection) is not started for a channel that only the other
  * widget type uses. */
 export function syncWidgetHub(dashboards: ServerDashboard[]): void {
-	if (!widgetStats || !widgetChat) return;
+	if (!widgetStats || !widgetChat || !widgetTiktokChat || !widgetTwitchChat || !widgetYoutubeChat) return;
 	widgetStats.sync(widgetChannelSpecs(dashboards, "kick-stats", statsSpecFromConfig));
 	widgetChat.sync(widgetChannelSpecs(dashboards, "kick-chat", chatSpecFromConfig));
+	widgetTiktokChat.sync(widgetChannelSpecs(dashboards, "tiktok-chat", tiktokChatSpecFromConfig));
+	widgetTwitchChat.sync(widgetChannelSpecs(dashboards, "twitch-chat", twitchChatSpecFromConfig));
+	widgetYoutubeChat.sync(widgetChannelSpecs(dashboards, "youtube-chat", youtubeChatSpecFromConfig));
 }
 
 /** Latest stats samples + chat history for warm-starting a dashboard viewer. */
@@ -174,6 +207,9 @@ export function widgetHubSnapshot(): WidgetHubSnapshot {
 	return {
 		stats: widgetStats?.snapshot() ?? {},
 		chat: widgetChat?.snapshot() ?? {},
+		tiktokChat: widgetTiktokChat?.snapshot() ?? {},
+		twitchChat: widgetTwitchChat?.snapshot() ?? {},
+		youtubeChat: widgetYoutubeChat?.snapshot() ?? {},
 	};
 }
 
@@ -181,8 +217,14 @@ export function widgetHubSnapshot(): WidgetHubSnapshot {
 export function destroyWidgetHub(): void {
 	widgetStats?.destroy();
 	widgetChat?.destroy();
+	widgetTiktokChat?.destroy();
+	widgetTwitchChat?.destroy();
+	widgetYoutubeChat?.destroy();
 	widgetStats = null;
 	widgetChat = null;
+	widgetTiktokChat = null;
+	widgetTwitchChat = null;
+	widgetYoutubeChat = null;
 }
 
 /** Channels to keep attached, from one type's dashboard widgets.

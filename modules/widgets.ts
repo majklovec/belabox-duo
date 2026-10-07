@@ -15,7 +15,7 @@ import type { ChannelLive } from "./types";
 export type { ChannelLive };
 
 /** Widget types owned by a channel widget module (device-independent widgets). */
-export const WIDGET_MODULE_IDS = ["kick-stats", "kick-chat"] as const;
+export const WIDGET_MODULE_IDS = ["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"] as const;
 export type WidgetModuleId = (typeof WIDGET_MODULE_IDS)[number];
 
 /** Channels to keep attached (lowercased names). */

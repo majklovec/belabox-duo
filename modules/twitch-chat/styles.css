@@ -1,0 +1,17 @@
+/* Twitch chat feed — same design as the kick-chat feed, module-scoped classes. */
+.dash-widget-body .twitch-chat-feed {
+  height: 100%;
+  overflow-y: auto;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.dash-widget-body .twitch-chat-line .chat-user {
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.dash-widget-body .twitch-chat-line .chat-text {
+  word-break: break-word;
+}

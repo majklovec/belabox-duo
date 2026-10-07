@@ -26,9 +26,10 @@
  *   DEL  /api/dashboards/<id>   remove a dashboard
  *   WS   /device           device connections (Authorization: Bearer <token>, x-device-id: <id>,
  *                          x-device-role: relay|encoder|combined)
- *   WS   /dashboards/ws    live kick data (kick.stats / kick.chat events,
- *                          kick.snapshot on connect) for the kick widgets; the
- *                          server polls kick.com per widget channel
+ *   WS   /dashboards/ws    live widget data (kick.stats / kick.chat /
+ *                          tiktok.chat / twitch.chat / youtube.chat events,
+ *                          widget.snapshot on connect) for the channel chat
+ *                          widgets; the server follows each widget channel
  *   GET  /healthz          liveness (no auth)
  *
  * Devices are keyed by a stable UUID (hostnames change); the per-device
@@ -90,11 +91,11 @@ const REQUEST_TIMEOUT_MS = 60_000;
 const ID_RE = /^[\w.-]{1,64}$/;
 // /d/<id>, /d/<id>/, /d/<id>/ws, /d/<id>/settings[/], /d/<id>/setup[/]
 const DEVICE_PATH_RE = /^\/d\/([^/]+)(?:(\/)(?:(ws)|(settings|setup)(\/)?)?)?$/;
-const WIDGET_TYPES: WidgetType[] = ["obs", "stats", "status", "relay", "encoder", "combined", "kick-stats", "kick-chat"];
+const WIDGET_TYPES: WidgetType[] = ["obs", "stats", "status", "relay", "encoder", "combined", "kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"];
 const DASH_PATH_RE = /^\/api\/dashboards(?:\/([\w.-]{1,64}))?$/;
 const viewersTopic = (id: string) => `viewers:${id}`;
 const dashboardsTopic = "dashboards:kick";
-const INDEPENDENT_WIDGETS: ReadonlySet<WidgetType> = new Set(["kick-stats", "kick-chat"]);
+const INDEPENDENT_WIDGETS: ReadonlySet<WidgetType> = new Set(["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"]);
 const DASH_COLUMNS = 12;
 /** Default `{w, h}` per widget type — seeds new widgets and migrates v1 rows. */
 const WIDGET_SIZE: Record<WidgetType, { w: number; h: number }> = {
@@ -106,6 +107,9 @@ const WIDGET_SIZE: Record<WidgetType, { w: number; h: number }> = {
 	combined: { w: 6, h: 10 },
 	"kick-stats": { w: 3, h: 3 },
 	"kick-chat": { w: 3, h: 8 },
+	"tiktok-chat": { w: 3, h: 8 },
+	"twitch-chat": { w: 3, h: 8 },
+	"youtube-chat": { w: 3, h: 8 },
 };
 
 // ----------------------------------------------------------------------
@@ -721,7 +725,7 @@ const server = Bun.serve({
             const { data } = ws;
             if (data.kind === "dashboards") {
                 ws.subscribe(dashboardsTopic);
-                ws.send(event("kick.snapshot", widgetHubSnapshot()));
+                ws.send(event("widget.snapshot", widgetHubSnapshot()));
                 return;
             }
             if (data.kind === "device") {

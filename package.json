@@ -3,10 +3,13 @@
     "@types/bun": "^1.4.2",
     "@types/mithril": "^2.2.9",
     "@types/node": "^26.6.3",
+    "@types/ws": "^8.18.2",
     "typescript": "^7.0.2"
   },
   "dependencies": {
     "gridstack": "^11",
-    "mithril": "^2.3.8"
+    "mithril": "^2.3.8",
+    "tiktok-live-connector": "^2.5.0",
+    "youtube-chat-next": "^3.1.0"
   }
 }
