@@ -46,6 +46,7 @@ import { arg, argFail, intArg } from "./src/args";
 import { ApiError, optionalStringList, requireString } from "./src/params";
 import { errorMessage, scrubUrl, textOf } from "./src/util";
 import { REMOTE_URL_RE } from "./src/validate";
+import { APP_VERSION } from "./src/version";
 
 export enum ObsOpCode {
   Hello = 0,
@@ -820,6 +821,7 @@ async function main(): Promise<void> {
         role: "obs",
         hostname: deviceName,
         color: "",
+        version: APP_VERSION,
         ...(remoteToken ? { token: remoteToken } : {}),
       }));
       pushStatus();
