@@ -24,7 +24,6 @@ const state = {
 	type: "" as WidgetType | "",
 	/** The device the picked type's option came from ("" when independent). */
 	device: "",
-	name: "",
 	/** The picked type's config parameter values (module-declared fields). */
 	config: {} as Record<string, string>,
 	saveState: "idle" as SaveState,
@@ -108,7 +107,7 @@ async function submit(): Promise<void> {
 		id: crypto.randomUUID(),
 		type,
 		deviceId: isIndependent(type) ? "" : state.device,
-		name: state.name.trim() || typeLabel(type),
+		name: typeLabel(type),
 		x,
 		y,
 		w: size.default.w,
@@ -188,7 +187,6 @@ const App: m.Component = {
 								],
 							),
 						),
-						field(t("dash.name"), input(state, "name", { type: "text", placeholder: type ? typeLabel(type) : "", maxlength: 60 })),
 						...(type ? (widgetModule(type)?.configFields ?? []).map((name) =>
 							field(t(`dash.widget_${name}`), input(state.config, name, { type: "text", placeholder: t(`dash.widget_${name}`) })),
 						) : []),
