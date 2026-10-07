@@ -552,11 +552,11 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 									disabled: ui.inFlight || ui.previewPaused,
 									onclick: () => void capturePreview(),
 								}),
-								button(t("obs.screenshot"), {
-									class: "secondary",
-									disabled: pending.has("obs.screenshot"),
-									onclick: () => void screenshot(),
-								}),
+								// button(t("obs.screenshot"), {
+								// 	class: "secondary",
+								// 	disabled: pending.has("obs.screenshot"),
+								// 	onclick: () => void screenshot(),
+								// }),
 							),
 						),
 						/* Scenes + output actions */
