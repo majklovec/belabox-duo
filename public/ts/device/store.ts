@@ -279,10 +279,11 @@ export function createCardHost(opts: {
 		lastRole = status.role;
 		syncFromStatus(status);
 		m.redraw();
-		// Only devices with an encoder module have the pipeline API (an obs
-		// device 404s it); pre-module builds lack `modules`, so fall back to the
-		// role check
-		const encoderOn = status.modules ? !!status.modules.encoder?.enabled : status.role !== "relay";
+		// Load whenever the encoder card is shown (see app.ts): every role that
+		// is not relay/obs — the module map does not gate the device's
+		// pipeline API (methods.ts gates it by role only), so a box with the
+		// encoder module toggled off must not be left with an empty select.
+		const encoderOn = status.role !== "relay" && status.role !== "obs";
 		if (encoderOn && !pipelinesLoaded) void loadPipelines();
 	};
 
