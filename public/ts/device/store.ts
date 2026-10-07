@@ -265,6 +265,10 @@ export function createCardHost(opts: {
 
 	const applyStatus = (status: Status): void => {
 		if (!status?.state) return;
+		// A device on an older build may omit runtime sections — fill stopped
+		// defaults so predicates and prefilling never read undefined.
+		status.state.srtla ??= { running: false };
+		status.state.encoder ??= { running: false };
 		st.status = status;
 		awaiting.clear();
 		if (lastRole !== status.role) touched.clear();

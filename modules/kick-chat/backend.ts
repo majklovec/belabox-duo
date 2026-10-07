@@ -33,6 +33,17 @@ export interface ChatSnapshot {
 	[channel: string]: { connected: boolean; messages: ChatLive[] };
 }
 
+/** kick-chat widget's configurable parameters (single source for the server
+ * validation and the frontend editor). */
+export const KICK_CHAT_CONFIG_FIELDS = ["channel", "token"] as const;
+
+/** Channel-hub spec from one widget's config (null when no channel set). */
+export function chatSpecFromConfig(config: Record<string, string> | undefined): { name: string; token: string } | null {
+	const name = (config?.["channel"] ?? "").trim().toLowerCase();
+	if (!name) return null;
+	return { name, token: config?.["token"] ?? "" };
+}
+
 type ChatChannelState = {
 	channel: string;
 	chatroom: number | null;

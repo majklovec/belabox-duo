@@ -42,11 +42,17 @@ export interface ChannelHub<TSnapshot = Record<string, unknown>> {
  * body from the shared `kickLive` map, no per-widget transport state.
  * TWidget is the dashboard widget row type; TLive the module's fragment of the
  * channel live state (stats / chat messages) the body renders.
+ *
+ * Parameter names live only here + in the module backend — the core (server
+ * validation, dashboard editor, shared types) handles the generic `config`
+ * record and never names its fields.
  */
 export interface ChannelWidgetModule<TWidget = unknown> {
 	id: string;
-	/** Config fields shown by the inline editor (form order). */
-	configFields: Array<"channel" | "token">;
+	/** Config parameter names this widget accepts, in editor form order. */
+	configFields: readonly string[];
+	/** The widget's channel name from its config ("" when not configured). */
+	channelOf(w: TWidget): string;
 	/** Render the widget body; `live` is the channel's live state fragment. */
 	body(w: TWidget, live: ChannelLive): unknown;
 	/** Status badge shown next to the widget title in the card head. */

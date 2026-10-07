@@ -67,7 +67,7 @@ import type { DeviceInfo, DeviceSummary, ServerDashboard, ServerDashboardWidget,
 import { arg, argFail, flag, intArg } from "./src/args";
 import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
 import { isLanguage, type Language, translate } from "./src/i18n";
-import { initWidgetHub, syncWidgetHub, widgetHubSnapshot } from "./modules/registry.backend";
+import { initWidgetHub, syncWidgetHub, widgetConfigFields, widgetHubSnapshot } from "./modules/registry.backend";
 import { LOG_MAX, type LogEntry, type LogEvent, type LogLevel } from "./src/logMessages";
 import { parseJsonObject, textOf } from "./src/util";
 import { COLOR_RE, isRole, type Role } from "./src/validate";
@@ -429,14 +429,23 @@ function parseWidgets(raw: unknown): ServerDashboardWidget[] {
 		// identity; assign one otherwise.
 		const id = typeof item.id === "string" && item.id ? item.id : randomUUID();
 		if (independent) {
-			// Kick widgets are device-independent: they carry their own data
-			// source (channel name, and a chat token for kick-chat).
+			// Channel widgets are device-independent: they carry their own data
+			// source parameters, declared by the widget module (the dashboard
+			// API owns their hub). Values may be missing/empty — a new widget
+			// is added first and its config filled in via the widget editor.
 			const cfg = (item.config && typeof item.config === "object" ? item.config : {}) as Record<string, unknown>;
-			const channel = cfg.channel;
-			if (typeof channel !== "string" || channel.trim() === "") throw new ApiError("Kick widget needs a config.channel");
-			const token = cfg.token;
-			if (token !== undefined && typeof token !== "string") throw new ApiError("config.token must be a string");
-			const config = { channel: channel.trim(), token: typeof token === "string" ? token : "" };
+			const fields = widgetConfigFields(type);
+			const config: Record<string, string> = {};
+			for (const key of fields) {
+				const v = cfg[key];
+				if (v !== undefined) {
+					if (typeof v !== "string") throw new ApiError(`config.${key} must be a string`);
+					config[key] = v.trim();
+				} else config[key] = "";
+			}
+			for (const key of Object.keys(cfg)) {
+				if (!fields.includes(key)) throw new ApiError(`Unknown config field: ${key}`);
+			}
 			return { id, deviceId: typeof deviceId === "string" ? deviceId : "", type: type as WidgetType, name, ...grid, visible, config };
 		}
 		if (typeof deviceId !== "string" || deviceId === "") throw new ApiError("Widget needs a deviceId");
@@ -477,9 +486,16 @@ function normalizeDashboard(raw: Record<string, unknown>, index: number): Server
 		}
 		const independent = INDEPENDENT_WIDGETS.has(type as WidgetType);
 		const cfgRaw = (item.config && typeof item.config === "object" ? item.config : {}) as Record<string, unknown>;
-		const config = independent && typeof cfgRaw.channel === "string"
-			? { channel: cfgRaw.channel, token: typeof cfgRaw.token === "string" ? cfgRaw.token : "" }
-			: undefined;
+		// Only the widget module's declared parameters count; keep the config
+		// only when it carries at least one.
+		let config: Record<string, string> | undefined;
+		if (independent) {
+			const kept: Record<string, string> = {};
+			for (const key of widgetConfigFields(type)) {
+				if (typeof cfgRaw[key] === "string") kept[key] = cfgRaw[key];
+			}
+			if (Object.keys(kept).length > 0) config = kept;
+		}
 		return {
 			id: typeof item.id === "string" && item.id ? item.id : randomUUID(),
 			deviceId: typeof item.deviceId === "string" ? item.deviceId : "",

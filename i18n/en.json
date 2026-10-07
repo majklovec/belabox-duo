@@ -22,7 +22,6 @@
   "dash.width_4": "third",
   "dash.width_6": "half",
   "dash.widget": "widget",
-  "dash.widget_device": "Device",
   "dash.widget.max": "Max",
   "dash.widget_missing": "No device",
   "dash.widget_module_off": "Module disabled on device",

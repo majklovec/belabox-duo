@@ -9,6 +9,17 @@ import { eventFrame, type StatsLive, type StatsSample } from "../types";
 import type { ChannelSpecs, PublishFn } from "../widgets";
 
 export const KICK_STATS_POLL_MS = 30_000;
+
+/** kick-stats widget's configurable parameters (single source for the server
+ * validation and the frontend editor). */
+export const KICK_STATS_CONFIG_FIELDS = ["channel"] as const;
+
+/** Channel-hub spec from one widget's config (null when no channel set).
+ * kick-stats takes no auth token. */
+export function statsSpecFromConfig(config: Record<string, string> | undefined): { name: string; token: string } | null {
+	const name = (config?.["channel"] ?? "").trim().toLowerCase();
+	return name ? { name, token: "" } : null;
+}
 /** Per-channel latest stats sample, for the merged hub snapshot. */
 export interface StatsSnapshot {
 	[channel: string]: StatsLive | null;

@@ -1,12 +1,14 @@
 /* Dedicated "add widget" page: /dashboards/add/<id>/. The dashboard's
- * "Add widget" button links here; picking a type (per device or an
- * independent kick widget) and its settings — device and channel — replaces
- * the old in-page dropdown. The widget lands on the next free grid slot and
- * the page returns to the (live) dashboard view. A 409 conflict reloads the
- * server copy; the widget is not added twice. */
+ * "Add widget" button links here; picking a type (per device group or an
+ * independent kick widget) and an optional name replaces the old in-page
+ * dropdown. The device is carried by the option itself (its group), and
+ * type-specific config (e.g. the kick channel) is set through the widget's
+ * own config editor after it lands on the grid. The widget lands on the next
+ * free grid slot and the page returns to the (live) dashboard view. A 409
+ * conflict reloads the server copy; the widget is not added twice. */
 import m from "mithril";
-import type { DeviceSummary, ServerDashboard, ServerDashboardWidget, WidgetType } from "../types";
-import { Page, button, field, fieldGroup, input, select, serverNav } from "./components/ui";
+import type { ServerDashboard, ServerDashboardWidget, WidgetType } from "../types";
+import { Page, button, field, fieldGroup, input, serverNav } from "./components/ui";
 import { devices, independentTypes, isIndependent, typeLabel, refreshDevices, widgetSize, widgetTypesFor } from "./dashboard";
 import { t } from "./i18n";
 import { mountPage } from "./util";
@@ -19,9 +21,9 @@ const state = {
 	dash: undefined as ServerDashboard | undefined,
 	notFound: false,
 	type: "" as WidgetType | "",
+	/** The device the picked type's option came from ("" when independent). */
 	device: "",
 	name: "",
-	channel: "",
 	saveState: "idle" as SaveState,
 };
 
@@ -45,32 +47,39 @@ function firstFreePosition(dash: ServerDashboard, size: { w: number; h: number }
 
 const sortedDevices = () => [...(devices.list ?? [])].sort((a, b) => Number(b.online) - Number(a.online));
 
-/** The widget types offered, grouped per device plus the independent kick types. */
-function typeGroups(): { label: string; types: WidgetType[] }[] {
+/** The widget types offered, grouped per device — the group *is* the device —
+ * plus the independent kick types. */
+function typeGroups(): { device: string; label: string; types: WidgetType[] }[] {
 	return [
-		...sortedDevices().filter((d) => widgetTypesFor(d).length).map((d) => ({ label: d.hostname || d.id, types: widgetTypesFor(d) })),
-		{ label: t("dash.grp_independent"), types: independentTypes() },
+		...sortedDevices().filter((d) => widgetTypesFor(d).length).map((d) => ({ device: d.id, label: d.hostname || d.id, types: widgetTypesFor(d) })),
+		{ device: "", label: t("dash.grp_independent"), types: independentTypes() },
 	];
 }
 
-/** The devices that offer the picked type (none when independent). */
-function devicesFor(type: WidgetType): DeviceSummary[] {
-	if (isIndependent(type)) return [];
-	return (devices.list ?? []).filter((d) => widgetTypesFor(d).includes(type));
+const optionValue = (device: string, type: WidgetType): string => (device ? `${device}|${type}` : type);
+
+/** The select value for the current choice ("" while nothing is picked). */
+function selectedValue(): string {
+	if (!state.type) return "";
+	if (!isIndependent(state.type)) return devices.list?.some((d) => d.id === state.device) ? optionValue(state.device, state.type) : "";
+	return state.type;
 }
 
-function onTypeChange(type: string): void {
-	const ty = (type || "") as WidgetType | "";
-	state.type = ty;
-	state.device = ty ? (devicesFor(ty)[0]?.id ?? "") : "";
-}
-
-function onDeviceChange(device: string): void {
-	const ty = state.type;
-	if (!ty) return;
-	// Guard against a device that no longer offers the picked type.
-	const offering = devicesFor(ty);
-	state.device = offering.some((d) => d.id === device) ? device : offering[0]?.id ?? "";
+function onTypeChange(value: string): void {
+	const sep = value.lastIndexOf("|");
+	if (sep >= 0) {
+		const deviceId = value.slice(0, sep);
+		const ty = (value.slice(sep + 1) || "") as WidgetType | "";
+		// Guard against a device that no longer offers the picked type.
+		const d = (devices.list ?? []).find((dd) => dd.id === deviceId);
+		if (d && ty !== "" && widgetTypesFor(d).includes(ty)) {
+			state.device = deviceId;
+			state.type = ty;
+			return;
+		}
+	}
+	state.device = "";
+	state.type = value === "" || isIndependent(value as WidgetType) ? (value as WidgetType | "") : "";
 }
 
 // ---------------------------------------------------------------------- save
@@ -93,7 +102,8 @@ async function submit(): Promise<void> {
 		h: size.default.h,
 		visible: true,
 	};
-	if (isIndependent(type)) widget.config = { channel: state.channel.trim(), token: "" };
+	// No config here: type-specific settings (e.g. the kick channel) are set
+	// through the widget's own config editor once it is on the grid.
 	state.saveState = "saving";
 	m.redraw();
 	const res = await fetch(`/api/dashboards/${encodeURIComponent(dash.id)}`, {
@@ -124,7 +134,6 @@ const App: m.Component = {
 		if (!dash) return m(Page, { title: t("dash.title"), nav: serverNav("dashboards") }, m("p.muted", t("mgmt.loading")));
 
 		const type = state.type;
-		const offlineTag = (id: string) => (devices.list?.find((d) => d.id === id)?.online ? "" : ` · ${t("dev.badge.offline")}`);
 		const groups = typeGroups();
 		return m(
 			Page,
@@ -149,31 +158,24 @@ const App: m.Component = {
 					[
 						field(
 							t("dash.widget_type"),
-							select(
-								state,
-								"type",
+							m(
+								"select",
+								{
+									value: selectedValue(),
+									onchange: (e: Event) => onTypeChange((e.target as HTMLSelectElement).value),
+								},
 								[
 									m("option", { key: "", value: "" }, "…"),
 									...groups.map((g) =>
 										m(
 											"optgroup",
 											{ key: g.label, label: g.label },
-											g.types.map((ty) => m("option", { key: ty, value: ty }, typeLabel(ty))),
+											g.types.map((ty) => m("option", { key: optionValue(g.device, ty), value: optionValue(g.device, ty) }, typeLabel(ty))),
 										),
 									),
 								],
-								{},
-								onTypeChange,
 							),
 						),
-						type
-							? isIndependent(type)
-								? field(t("dash.widget_channel"), input(state, "channel", { type: "text", placeholder: "xqc" }))
-								: field(
-										t("dash.widget_device"),
-										select(state, "device", devicesFor(type).map((d) => m("option", { key: d.id, value: d.id }, `${d.hostname || d.id}${offlineTag(d.id)}`)), {}, (v) => onDeviceChange(v)),
-									)
-							: null,
 						field(t("dash.name"), input(state, "name", { type: "text", placeholder: type ? typeLabel(type) : "", maxlength: 60 })),
 						m("div.dash-config-actions.dash-add-actions", [
 							button(t("dash.add"), { type: "submit", disabled: state.saveState === "saving" }),

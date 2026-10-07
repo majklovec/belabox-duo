@@ -115,8 +115,9 @@ export function ensureDashboardsWs(): void {
 	ensureKickConn();
 }
 
-/** A widget's normalized channel key ("" when not configured). */
-export const widgetChannel = (w: ServerDashboardWidget): string => (w.config?.channel ?? "").trim().toLowerCase();
+/** A channel widget's normalized channel key ("" when not configured) — the
+ * module owns which config parameter carries the channel name. */
+export const widgetChannel = (w: ServerDashboardWidget): string => widgetModule(w.type)?.channelOf(w) ?? "";
 
 // ---------------------------------------------------------------------- devices
 
@@ -415,11 +416,11 @@ function widgetBadge(w: ServerDashboardWidget): m.Vnode {
 	}
 }
 
-/** Per-widget state of the inline config editor (pencil icon). */
+/** Per-widget state of the inline config editor (pencil icon). The field
+ * names are the widget module's `configFields`; the core keeps them opaque. */
 interface WidgetConfigState {
 	editing: boolean;
-	channel: string;
-	token: string;
+	values: Record<string, string>;
 }
 const widgetConfigState = new Map<string, WidgetConfigState>();
 
@@ -442,39 +443,32 @@ export function onDashboardsChanged(data: unknown): void {
 	dashboardChangedSink?.(data as { id: string; widgets: ServerDashboardWidget[]; version: number } | null);
 }
 
-/** The inline editor that opens from the pencil icon on a configurable widget. */
+/** The inline editor that opens from the pencil icon on a configurable widget.
+ * One field per parameter in the widget module's `configFields` (labels and
+ * placeholders come from `dash.widget_<name>` i18n keys). */
 function configEditorForm(w: ServerDashboardWidget): m.Vnode {
-	const s =
-		widgetConfigState.get(widgetKey(w)) ?? { editing: true, channel: w.config?.channel ?? "", token: w.config?.token ?? "" };
+	const fields = widgetModule(w.type)?.configFields ?? [];
+	const key = widgetKey(w);
+	const s = widgetConfigState.get(key) ?? { editing: true, values: { ...(w.config ?? {}) } };
 	return m("div.dash-config-form", [
-		m("label", [
-			m("span", t("dash.widget_channel")),
-			m("input.dash-config-input", {
-				value: s.channel,
-				placeholder: t("dash.widget_channel"),
-				oninput: (e: Event) => {
-					s.channel = (e.target as HTMLInputElement).value;
-				},
-			}),
-		]),
-		(widgetModule(w.type)?.configFields.includes("token") ?? false)
-			? m("label", [
-					m("span", t("dash.widget_token")),
-					m("input.dash-config-input", {
-						value: s.token,
-						placeholder: t("dash.widget_token"),
-						oninput: (e: Event) => {
-							s.token = (e.target as HTMLInputElement).value;
-						},
-					}),
-				])
-			: null,
-		m("div.dash-config-actions", [
+		...fields.map((name) =>
+			m("label", { key: name }, [
+				m("span", t(`dash.widget_${name}`)),
+				m("input.dash-config-input", {
+					value: s.values[name] ?? "",
+					placeholder: t(`dash.widget_${name}`),
+					oninput: (e: Event) => {
+						s.values[name] = (e.target as HTMLInputElement).value;
+					},
+				}),
+			]),
+		),
+		m("div.dash-config-actions", { key: "actions" }, [
 			button(t("ui.save"), {
 				onclick: (e: Event) => {
 					e.preventDefault();
-					w.config = { channel: s.channel.trim(), token: widgetModule(w.type)?.configFields.includes("token") ? s.token.trim() : "" };
-					widgetConfigState.delete(widgetKey(w));
+					w.config = Object.fromEntries(fields.map((name) => [name, (s.values[name] ?? "").trim()]));
+					widgetConfigState.delete(key);
 					widgetConfigSaver?.(w);
 					m.redraw();
 				},
@@ -512,7 +506,7 @@ function bodyFor(w: ServerDashboardWidget): m.Children {
 		case "obs": return obsWidget(w, conn);
 		case "kick-stats":
 		case "kick-chat": {
-			const channel = w.config?.channel?.trim().toLowerCase();
+			const channel = widgetChannel(w);
 			return widgetModule(w.type)?.body(w, channel ? kickLive.get(channel) ?? { chat: [] } : {}) as m.Children;
 		}
 		default: return statusWidget(deviceId, conn);
@@ -573,21 +567,21 @@ export function widgetInner(w: ServerDashboardWidget, editMode: boolean, actions
 									"aria-label": t("dash.widget_settings"),
 									onclick: (e: Event) => {
 										e.stopPropagation();
-										const s = widgetConfigState.get(key) ?? { editing: false, channel: w.config?.channel ?? "", token: w.config?.token ?? "" };
+										const s = widgetConfigState.get(key) ?? { editing: false, values: { ...(w.config ?? {}) } };
 										s.editing = !s.editing;
 										widgetConfigState.set(key, s);
 										m.redraw();
 									},
 								}, editing ? "✓" : "⚙")
 							: null,
-						m("button.icon-btn.dash-widget-eye", {
-							title: t("dash.hide"),
-							"aria-label": t("dash.hide"),
-							onclick: (e: Event) => {
-								e.stopPropagation();
-								actions.hide(w);
-							},
-						}, "👁"),
+						// m("button.icon-btn.dash-widget-eye", {
+						// 	title: t("dash.hide"),
+						// 	"aria-label": t("dash.hide"),
+						// 	onclick: (e: Event) => {
+						// 		e.stopPropagation();
+						// 		actions.hide(w);
+						// 	},
+						// }, "👁"),
 						m("button.icon-btn.dash-widget-remove", {
 							title: t("dash.remove"),
 							"aria-label": t("dash.remove"),

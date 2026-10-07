@@ -25,7 +25,6 @@
   "dash.widget.recording": "录制",
   "dash.widget.scene": "场景",
   "dash.widget.streaming": "推流",
-  "dash.widget_device": "设备",
   "dash.widget_missing": "无设备",
   "dash.widget_module_off": "设备上的模块已禁用",
   "dash.widget_type": "类型",

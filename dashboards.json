@@ -3,7 +3,7 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 26,
+      "version": 59,
       "widgets": [
         {
           "id": "x1",
@@ -12,7 +12,7 @@
           "name": "chat",
           "x": 0,
           "y": 0,
-          "w": 6,
+          "w": 3,
           "h": 8,
           "visible": true,
           "config": {
@@ -25,10 +25,10 @@
           "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
           "type": "obs",
           "name": "OBS Studio",
-          "x": 6,
-          "y": 5,
-          "w": 6,
-          "h": 13,
+          "x": 0,
+          "y": 8,
+          "w": 4,
+          "h": 14,
           "visible": true
         },
         {
@@ -36,14 +36,13 @@
           "deviceId": "",
           "type": "kick-stats",
           "name": "Kick stats",
-          "x": 6,
+          "x": 3,
           "y": 0,
-          "w": 6,
-          "h": 5,
+          "w": 3,
+          "h": 8,
           "visible": true,
           "config": {
-            "channel": "destiny",
-            "token": ""
+            "channel": "destiny"
           }
         },
         {
@@ -73,11 +72,25 @@
           "deviceId": "c3241ebe-4188-44bd-87a8-17e3aced3091",
           "type": "combined",
           "name": "Enkodér + relay",
-          "x": 0,
-          "y": 8,
-          "w": 6,
-          "h": 10,
+          "x": 6,
+          "y": 0,
+          "w": 4,
+          "h": 26,
           "visible": true
+        },
+        {
+          "id": "3e684b5f-678d-4717-b5ad-12ee7b390675",
+          "deviceId": "",
+          "type": "kick-stats",
+          "name": "Kick stats",
+          "x": 0,
+          "y": 22,
+          "w": 3,
+          "h": 3,
+          "visible": false,
+          "config": {
+            "channel": ""
+          }
         }
       ],
       "columns": 12

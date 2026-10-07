@@ -25,7 +25,6 @@
   "dash.widget.recording": "Запись",
   "dash.widget.scene": "Сцена",
   "dash.widget.streaming": "Стриминг",
-  "dash.widget_device": "Устройство",
   "dash.widget_missing": "Нет устройства",
   "dash.widget_module_off": "Модуль на устройстве отключён",
   "dash.widget_type": "Тип",

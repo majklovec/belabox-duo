@@ -129,10 +129,19 @@ function moduleSettingsEnabled(id: string): boolean {
 // imports module internals (core-imports-registered-modules-only rule).
 // ---------------------------------------------------------------------------
 
-import { ChatChannelManager, type ChatSnapshot } from "./kick-chat/backend";
-import { StatsChannelManager, type StatsSnapshot } from "./kick-stats/backend";
+import { ChatChannelManager, chatSpecFromConfig, KICK_CHAT_CONFIG_FIELDS, type ChatSnapshot } from "./kick-chat/backend";
+import { StatsChannelManager, statsSpecFromConfig, KICK_STATS_CONFIG_FIELDS, type StatsSnapshot } from "./kick-stats/backend";
 import type { ChannelSpecs } from "./widgets";
 import type { ServerDashboard } from "../public/types";
+
+/** Config parameter names per widget type — declared by the modules, looked up
+ * generically by the core (server validation + dashboard editor). */
+const WIDGET_CONFIG_FIELDS: Record<string, readonly string[]> = {
+	"kick-stats": KICK_STATS_CONFIG_FIELDS,
+	"kick-chat": KICK_CHAT_CONFIG_FIELDS,
+};
+
+export const widgetConfigFields = (type: string): readonly string[] => WIDGET_CONFIG_FIELDS[type] ?? [];
 
 /** Per-channel stats + chat fragments merged for `kick.snapshot`. */
 export interface WidgetHubSnapshot {
@@ -156,8 +165,8 @@ export function initWidgetHub(publish: (msg: string) => void): void {
  * widget type uses. */
 export function syncWidgetHub(dashboards: ServerDashboard[]): void {
 	if (!widgetStats || !widgetChat) return;
-	widgetStats.sync(widgetChannelSpecs(dashboards, "kick-stats"));
-	widgetChat.sync(widgetChannelSpecs(dashboards, "kick-chat"));
+	widgetStats.sync(widgetChannelSpecs(dashboards, "kick-stats", statsSpecFromConfig));
+	widgetChat.sync(widgetChannelSpecs(dashboards, "kick-chat", chatSpecFromConfig));
 }
 
 /** Latest stats samples + chat history for warm-starting a dashboard viewer. */
@@ -177,15 +186,20 @@ export function destroyWidgetHub(): void {
 }
 
 /** Channel specs from one type's dashboard widgets: channel -> chat token.
- * The token is meaningful for kick-chat only; kick-stats ignores it. */
-export function widgetChannelSpecs(dashboards: ServerDashboard[], type: "kick-stats" | "kick-chat"): ChannelSpecs {
+ * The token is meaningful for kick-chat only; kick-stats ignores it.
+ * `specFromConfig` is the type's module builder, so no config parameter name
+ * is known to the core here. */
+export function widgetChannelSpecs(
+	dashboards: ServerDashboard[],
+	type: string,
+	specFromConfig: (config: Record<string, string> | undefined) => { name: string; token: string } | null,
+): ChannelSpecs {
 	const channels = new Map<string, string>();
 	for (const dash of dashboards) {
 		for (const w of dash.widgets) {
-			if (w.type !== type || !w.config?.channel) continue;
-			const key = w.config.channel.trim().toLowerCase();
-			if (!key) continue;
-			channels.set(key, w.config.token ?? "");
+			if (w.type !== type) continue;
+			const spec = specFromConfig(w.config);
+			if (spec?.name) channels.set(spec.name, spec.token);
 		}
 	}
 	return channels;

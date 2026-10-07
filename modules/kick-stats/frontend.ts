@@ -8,12 +8,19 @@ import { ChannelWidgetModule } from "../widgets";
 import type { ChannelLive, StatsSample } from "../types";
 import { badge as badgeEl } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
+import { KICK_STATS_CONFIG_FIELDS } from "./backend";
 import { LineChart } from "./graph-linechart";
 import "./styles.css";
 
+/** The widget's channel name ("" when not configured) — the module owns which
+ * config parameter carries it. */
+function channelOf(w: ServerDashboardWidget): string {
+	return (w.config?.["channel"] ?? "").trim().toLowerCase();
+}
+
 /** Card head: the stream badge (not configured, waiting, else streaming/offline). */
 function badge(w: ServerDashboardWidget, live: ChannelLive): m.Vnode {
-	const channel = w.config?.channel?.trim();
+	const channel = channelOf(w);
 	if (!channel) return badgeEl(t("dash.widget_not_configured"), "warn");
 	const s = live.stats;
 	if (!s) return badgeEl(t("dash.widget_waiting"), "warn");
@@ -31,7 +38,7 @@ function durationMinutes(fromMs: number, toMs: number): string {
 
 /** The card body: stream info on top, the viewers line chart below. */
 function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
-	const channel = w.config?.channel?.trim();
+	const channel = channelOf(w);
 	if (!channel) return m("p.muted", t("dash.widget_not_configured"));
 	const s = live.stats;
 	if (!s) return m("p.muted", t("kickstats.waiting"));
@@ -57,7 +64,8 @@ function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 
 export const kickStatsModule: ChannelWidgetModule<ServerDashboardWidget> = {
 	id: "kick-stats",
-	configFields: ["channel"],
+	configFields: KICK_STATS_CONFIG_FIELDS,
+	channelOf,
 	body,
 	badge,
 };

@@ -25,7 +25,6 @@
   "dash.widget.recording": "録画",
   "dash.widget.scene": "シーン",
   "dash.widget.streaming": "配信",
-  "dash.widget_device": "デバイス",
   "dash.widget_missing": "デバイスなし",
   "dash.widget_module_off": "デバイスのモジュールが無効です",
   "dash.widget_type": "タイプ",

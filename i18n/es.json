@@ -25,7 +25,6 @@
   "dash.widget.recording": "Grabando",
   "dash.widget.scene": "Escena",
   "dash.widget.streaming": "Streaming",
-  "dash.widget_device": "Dispositivo",
   "dash.widget_missing": "Sin dispositivo",
   "dash.widget_module_off": "Módulo desactivado en el dispositivo",
   "dash.widget_type": "Tipo",

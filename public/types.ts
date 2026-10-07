@@ -68,9 +68,10 @@ export interface ServerDashboardWidget {
 	h: number;
 	/** Hidden widgets keep their position/size; they are not rendered. */
 	visible: boolean;
-	/** Kick widgets only: their own data source — the channel name polled/chat
-	 * on the control server (token for kick-chat, "" when none). */
-	config?: { channel: string; token: string };
+	/** Channel-widget modules only: their own data source parameters. The
+	 * parameter names are declared by the widget module's `configFields` (the
+	 * core stores an opaque record and never names its fields). */
+	config?: Record<string, string>;
 }
 export interface ServerDashboard {
 	id: string;
