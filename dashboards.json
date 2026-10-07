@@ -3,25 +3,73 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 2,
-      "columns": 12,
+      "version": 23,
       "widgets": [
         {
-          "id": "f8ec8b66-6e91-4611-b08c-5aec616c0773",
+          "id": "x1",
           "deviceId": "",
           "type": "kick-chat",
           "name": "chat",
           "x": 0,
           "y": 0,
-          "w": 3,
+          "w": 6,
           "h": 8,
           "visible": true,
           "config": {
-            "channel": "czechcloud",
+            "channel": "destiny",
             "token": ""
           }
+        },
+        {
+          "id": "1ef11d76-7f89-45da-9016-076d37d5572b",
+          "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
+          "type": "obs",
+          "name": "OBS Studio",
+          "x": 6,
+          "y": 5,
+          "w": 6,
+          "h": 13,
+          "visible": true
+        },
+        {
+          "id": "34aad0a5-0102-4cb0-bd3b-d50009aec4f1",
+          "deviceId": "",
+          "type": "kick-stats",
+          "name": "Kick stats",
+          "x": 6,
+          "y": 0,
+          "w": 6,
+          "h": 5,
+          "visible": true,
+          "config": {
+            "channel": "destiny",
+            "token": ""
+          }
+        },
+        {
+          "id": "e043268c-238d-4a5c-a835-552551169b8b",
+          "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
+          "type": "status",
+          "name": "Stav",
+          "x": 0,
+          "y": 8,
+          "w": 6,
+          "h": 3,
+          "visible": true
+        },
+        {
+          "id": "7f794e81-1419-4254-93af-fa1df9a04e17",
+          "deviceId": "c3241ebe-4188-44bd-87a8-17e3aced3091",
+          "type": "encoder",
+          "name": "Enkodér",
+          "x": 4,
+          "y": 18,
+          "w": 6,
+          "h": 5,
+          "visible": true
         }
-      ]
+      ],
+      "columns": 12
     }
   ]
 }

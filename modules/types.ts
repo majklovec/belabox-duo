@@ -179,14 +179,28 @@ export interface BrowserModule {
 // KickChatMessage in public/types.ts so this file stays dependency-free.
 // ----------------------------------------------------------------------
 
+/** One viewer-count sample for the kick-stats line chart (oldest first). */
+export interface StatsSample {
+	/** Poll time (epoch ms) */
+	t: number;
+	/** Viewers (0 when the channel is offline) */
+	v: number;
+}
+
 /** Latest kick.stats sample (the server's Kick channel stats poll). */
 export interface StatsLive {
 	viewers?: number;
 	followers?: number;
 	isLive: boolean;
 	title?: string;
+	/** Current stream category name (e.g. "Just Chatting"). */
+	category?: string;
+	/** Current stream start time (epoch ms). */
+	startTime?: number;
 	/** Server-side timestamp of the poll */
 	at: number;
+	/** Recent viewer samples (oldest first), capped by the poller. */
+	series?: StatsSample[];
 }
 
 /** One Kick chat message (Kick message id used for deduplication). */

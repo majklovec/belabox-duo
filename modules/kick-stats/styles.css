@@ -1,30 +1,71 @@
-/* kick-stats widget body — scoped to the dashboard card (.dashboard-card) */
+/* kick-stats widget body — scoped to the dashboard card (.dash-widget-body) */
 
 /* Kick stats card */
-.dash-card .kick-stats-top {
+.dash-widget-body .kick-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+}
+.dash-widget-body .kick-stats-top {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
-.dash-card .kick-stats-top .big {
-  font-size: 2rem;
+.dash-widget-body .kick-stats-top .big {
+  font-size: 1.8rem;
   font-weight: 700;
+  line-height: 1;
 }
-.dash-card .kick-stats-top .kick-viewers {
+.dash-widget-body .kick-stats-top .kick-viewers {
   color: var(--accent-hover);
 }
-.dash-card .kick-title {
+.dash-widget-body .kick-title {
   font-size: 0.9rem;
-  color: var(--muted);
-  margin: 4px 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.dash-card .kick-spark {
+.dash-widget-body .kick-stats-meta {
   display: flex;
-  align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--muted);
 }
-.dash-card svg.spark polyline {
+
+/* Viewers line chart (svg.spark) */
+.dash-widget-body .kick-spark {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+}
+.dash-widget-body svg.spark {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.dash-widget-body svg.spark .spark-grid line {
+  stroke: var(--border);
+  opacity: 0.6;
+  stroke-width: 0.3;
+  stroke-dasharray: 1, 1;
+}
+.dash-widget-body svg.spark .spark-axis text {
+  fill: var(--muted);
+  font-family: inherit;
+}
+.dash-widget-body svg.spark .spark-points circle {
+  fill: var(--accent);
+}
+.dash-widget-body svg.spark .spark-line polyline {
   stroke: var(--accent);
   fill: none;
+  stroke-width: 1;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }

@@ -1,11 +1,11 @@
 /*
  * kick-stats backend — one half of the server-side Kick channel hub. The
  * kick-stats dashboard widgets are device-independent, so the control server
- * polls Kick's public channel stats API here for every configured channel and
+ * polls Kick's public channel API here for every configured channel and
  * pushes `kick.stats` events (tagged with the channel) to dashboard websocket
  * subscribers. One instance serves all stats widgets.
  */
-import { eventFrame, type StatsLive } from "../types";
+import { eventFrame, type StatsLive, type StatsSample } from "../types";
 import type { ChannelSpecs, PublishFn } from "../widgets";
 
 export const KICK_STATS_POLL_MS = 30_000;
@@ -15,13 +15,23 @@ export interface StatsSnapshot {
 }
 const FETCH_TIMEOUT_MS = 10_000;
 const KICK_API = "https://kick.com/api/v1";
+/** Viewer samples kept per channel for the line chart (30s × 120 = 1 h window). */
+const SERIES_CAP = 120;
 
 type StatsChannelState = {
 	channel: string;
 	stats: StatsLive | null;
+	series: StatsSample[];
 	polling: boolean;
 	timer: ReturnType<typeof setInterval> | null;
 };
+
+/** Kick's `start_time` strings are UTC without an offset ("2026-10-06 19:26:57"). */
+function parseKickTime(value: string | undefined): number | undefined {
+	if (!value) return undefined;
+	const ms = Date.parse(value.replace(" ", "T") + "Z");
+	return Number.isNaN(ms) ? undefined : ms;
+}
 
 /**
  * State manager for kick-stats channels. `sync(specs)` starts pollers for
@@ -39,7 +49,7 @@ export class StatsChannelManager {
 		const key = name.trim().toLowerCase();
 		if (!key) return;
 		this.stop(key);
-		const state: StatsChannelState = { channel: key, stats: null, polling: false, timer: null };
+		const state: StatsChannelState = { channel: key, stats: null, series: [], polling: false, timer: null };
 		this.#channels.set(key, state);
 		void this.#poll(state);
 		state.timer = setInterval(() => void this.#poll(state), KICK_STATS_POLL_MS);
@@ -82,18 +92,35 @@ export class StatsChannelManager {
 		if (state.polling) return;
 		state.polling = true;
 		try {
-			const res = await fetch(`${KICK_API}/channels/${encodeURIComponent(state.channel)}/stats`, {
+			const res = await fetch(`${KICK_API}/channels/${encodeURIComponent(state.channel)}`, {
 				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 				headers: { accept: "application/json" },
 			});
 			if (!res.ok) throw new Error(`kick stats HTTP ${res.status}`);
-			const payload = (await res.json()) as { data?: { viewers?: number; followers?: number; is_live?: boolean; name?: string } };
+			const payload = (await res.json()) as {
+				followersCount?: number;
+				livestream?: {
+					viewers?: number;
+					is_live?: boolean;
+					session_title?: string;
+					start_time?: string;
+					categories?: { name?: string }[];
+				} | null;
+			};
+			const stream = payload.livestream ?? null;
+			const at = Date.now();
+			// Offline polls record 0, so the chart shows the dip (as the reference page does).
+			state.series.push({ t: at, v: stream?.viewers ?? 0 });
+			if (state.series.length > SERIES_CAP) state.series.shift();
 			state.stats = {
-				viewers: payload.data?.viewers ?? undefined,
-				followers: payload.data?.followers ?? undefined,
-				isLive: Boolean(payload.data?.is_live),
-				title: payload.data?.name ?? undefined,
-				at: Date.now(),
+				viewers: stream?.viewers,
+				followers: payload.followersCount,
+				isLive: Boolean(stream?.is_live),
+				title: stream?.session_title,
+				category: stream?.categories?.[0]?.name,
+				startTime: parseKickTime(stream?.start_time),
+				at,
+				series: [...state.series],
 			};
 			this.#publish(eventFrame("kick.stats", { channel: state.channel, stats: state.stats }));
 		} catch (err: unknown) {

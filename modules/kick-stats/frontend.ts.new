@@ -68,13 +68,13 @@ export const LineChart: m.Component<{ points: StatsSample[]; title?: string }> =
 		const pt = (i: number): Pt => [xs(i), ys(points[i]!.v)];
 		const fmt = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 
-		// X legends: up to 5 evenly placed ticks (start, end, …).
-		const tickCount = n < 2 ? 1 : Math.min(5, n);
+		// X legends: 5 evenly placed ticks (start, end, …).
+		const tickCount = Math.min(5, n);
 		const xTicks: m.Children[] = [];
 		for (let i = 0; i < tickCount; i++) {
-			const idx = tickCount === 1 ? 0 : Math.round((i * (n - 1)) / (tickCount - 1));
-			const [x] = pt(idx);
-			xTicks.push(m("text", { key: `x${i}`, x, y: CHART.y1 + 6, "text-anchor": "middle", "font-size": 3 }, timeLabel(points[idx]!.t)));
+			const idx = (i * (n - 1)) / (tickCount - 1);
+			const [x] = pt(Math.round(idx));
+			xTicks.push(m("text", { key: `x${i}`, x, y: CHART.y1 + 6, "text-anchor": "middle", "font-size": 3 }, timeLabel(points[Math.round(idx)]!.t)));
 		}
 
 		return m(
@@ -135,7 +135,7 @@ function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 		]),
 		m("div.kick-spark", [
 			(s.series && s.series.length >= 2)
-				? m(LineChart, { points: s.series, title: `${channel} — ${t("kickstats.chart")}`, key: `c${s.series.length}` })
+				? m(LineChart, { points: s.series, title: `${channel} — ${t("kickstats.chart")}` })
 				: m("span.muted", t("kickstats.spark_pending")),
 		]),
 	]);
