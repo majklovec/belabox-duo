@@ -24,7 +24,7 @@ function badge(w: ServerDashboardWidget, live: ChannelLive): m.Vnode {
 	if (!channel) return badgeEl(t("dash.widget_not_configured"), "warn");
 	const s = live.stats;
 	if (!s) return badgeEl(t("dash.widget_waiting"), "warn");
-	return badgeEl(s.isLive ? t("dev.badge.streaming") : t("dev.badge.offline"), s.isLive ? "on" : "off");
+	return badgeEl(s.isLive ? t("dev.badge.online") : t("dev.badge.offline"), s.isLive ? "on" : "off");
 }
 
 
