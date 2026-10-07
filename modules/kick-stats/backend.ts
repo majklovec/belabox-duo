@@ -14,11 +14,10 @@ export const KICK_STATS_POLL_MS = 30_000;
  * validation and the frontend editor). */
 export const KICK_STATS_CONFIG_FIELDS = ["channel"] as const;
 
-/** Channel-hub spec from one widget's config (null when no channel set).
- * kick-stats takes no auth token. */
-export function statsSpecFromConfig(config: Record<string, string> | undefined): { name: string; token: string } | null {
+/** Channel-hub spec from one widget's config (null when no channel set). */
+export function statsSpecFromConfig(config: Record<string, string> | undefined): string | null {
 	const name = (config?.["channel"] ?? "").trim().toLowerCase();
-	return name ? { name, token: "" } : null;
+	return name || null;
 }
 /** Per-channel latest stats sample, for the merged hub snapshot. */
 export interface StatsSnapshot {
@@ -56,7 +55,7 @@ export class StatsChannelManager {
 		this.#publish = publish;
 	}
 
-	start(name: string, token: string): void {
+	start(name: string): void {
 		const key = name.trim().toLowerCase();
 		if (!key) return;
 		this.stop(key);
@@ -75,9 +74,9 @@ export class StatsChannelManager {
 	}
 
 	sync(specs: ChannelSpecs): void {
-		for (const [name] of specs) {
+		for (const name of specs) {
 			const key = name.trim().toLowerCase();
-			if (key && !this.#channels.has(key)) this.start(key, "");
+			if (key && !this.#channels.has(key)) this.start(key);
 		}
 		for (const key of [...this.#channels.keys()]) {
 			if (!specs.has(key)) this.stop(key);

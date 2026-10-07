@@ -18,18 +18,18 @@ export type { ChannelLive };
 export const WIDGET_MODULE_IDS = ["kick-stats", "kick-chat"] as const;
 export type WidgetModuleId = (typeof WIDGET_MODULE_IDS)[number];
 
-/** channel (lowercased) -> auth token ("" when unauthenticated). */
-export type ChannelSpecs = Map<string, string>;
+/** Channels to keep attached (lowercased names). */
+export type ChannelSpecs = Set<string>;
 
 /** Deliver a serialized event frame ({type:"event", event, data}) to subscribers. */
 export type PublishFn = (msg: string) => void;
 
 /**
  * One widget module backend state manager. `sync` starts channels not yet
- * attached, re-auths on token change, stops removed channels.
+ * attached and stops removed ones.
  */
 export interface ChannelHub<TSnapshot = Record<string, unknown>> {
-	/** channel (lowercased) -> config. */
+	/** channels to keep attached (lowercased names). */
 	sync(specs: ChannelSpecs): void;
 	startedChannels(): string[];
 	/** Current per-channel state for the `kick.snapshot` handshake. */

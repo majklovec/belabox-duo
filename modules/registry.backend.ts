@@ -185,21 +185,20 @@ export function destroyWidgetHub(): void {
 	widgetChat = null;
 }
 
-/** Channel specs from one type's dashboard widgets: channel -> chat token.
- * The token is meaningful for kick-chat only; kick-stats ignores it.
+/** Channels to keep attached, from one type's dashboard widgets.
  * `specFromConfig` is the type's module builder, so no config parameter name
  * is known to the core here. */
 export function widgetChannelSpecs(
 	dashboards: ServerDashboard[],
 	type: string,
-	specFromConfig: (config: Record<string, string> | undefined) => { name: string; token: string } | null,
+	specFromConfig: (config: Record<string, string> | undefined) => string | null,
 ): ChannelSpecs {
-	const channels = new Map<string, string>();
+	const channels = new Set<string>();
 	for (const dash of dashboards) {
 		for (const w of dash.widgets) {
 			if (w.type !== type) continue;
-			const spec = specFromConfig(w.config);
-			if (spec?.name) channels.set(spec.name, spec.token);
+			const name = specFromConfig(w.config);
+			if (name) channels.add(name);
 		}
 	}
 	return channels;

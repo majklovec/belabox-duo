@@ -389,7 +389,6 @@
   "wtype.stats": "Statistiche relay",
   "wtype.status": "Stato",
   "dash.widget_channel": "Canale",
-  "dash.widget_token": "Token chat",
   "dash.widget_not_configured": "Non configurato – imposta un canale",
   "ui.cancel": "Annulla",
   "dash.widget_settings": "Impostazioni canale",

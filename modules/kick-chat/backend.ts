@@ -1,10 +1,9 @@
 /*
  * kick-chat backend — one half of the server-side Kick channel hub. The
  * kick-chat dashboard widgets are device-independent, so the control server
- * keeps a Kick chat websocket per channel here (the widget's optional token is
- * unused: Kick chat is public) and pushes `kick.chat` events (tagged with the
- * channel) to dashboard websocket subscribers. One instance serves all chat
- * widgets.
+ * keeps a Kick chat websocket per channel here (Kick chat is public; no auth)
+ * and pushes `kick.chat` events (tagged with the channel) to dashboard
+ * websocket subscribers. One instance serves all chat widgets.
  *
  * Kick does not expose a direct chat websocket — chat rides Pusher. Each
  * channel is resolved to its chatroom id through kick.com's public REST API,
@@ -35,13 +34,12 @@ export interface ChatSnapshot {
 
 /** kick-chat widget's configurable parameters (single source for the server
  * validation and the frontend editor). */
-export const KICK_CHAT_CONFIG_FIELDS = ["channel", "token"] as const;
+export const KICK_CHAT_CONFIG_FIELDS = ["channel"] as const;
 
 /** Channel-hub spec from one widget's config (null when no channel set). */
-export function chatSpecFromConfig(config: Record<string, string> | undefined): { name: string; token: string } | null {
+export function chatSpecFromConfig(config: Record<string, string> | undefined): string | null {
 	const name = (config?.["channel"] ?? "").trim().toLowerCase();
-	if (!name) return null;
-	return { name, token: config?.["token"] ?? "" };
+	return name || null;
 }
 
 type ChatChannelState = {
@@ -103,8 +101,7 @@ function asChatMessage(raw: unknown): ChatLive | null {
 
 /**
  * State manager for kick-chat channels. `sync(specs)` starts channels not yet
- * attached (token changes are ignored — public chat needs no auth) and stops
- * removed ones.
+ * attached and stops removed ones.
  */
 export class ChatChannelManager {
 	#channels = new Map<string, ChatChannelState>();
@@ -114,7 +111,7 @@ export class ChatChannelManager {
 		this.#publish = publish;
 	}
 
-	start(name: string, _token: string): void {
+	start(name: string): void {
 		const key = name.trim().toLowerCase();
 		if (!key) return;
 		this.stop(key);
@@ -147,9 +144,9 @@ export class ChatChannelManager {
 	}
 
 	sync(specs: ChannelSpecs): void {
-		for (const [name] of specs) {
+		for (const name of specs) {
 			const key = name.trim().toLowerCase();
-			if (key && !this.#channels.has(key)) this.start(key, "");
+			if (key && !this.#channels.has(key)) this.start(key);
 		}
 		for (const key of [...this.#channels.keys()]) {
 			if (!specs.has(key)) this.stop(key);

@@ -389,7 +389,6 @@
   "wtype.stats": "Stats du relay",
   "wtype.status": "Statut",
   "dash.widget_channel": "Chaîne",
-  "dash.widget_token": "Jeton de chat",
   "dash.widget_not_configured": "Non configuré – indiquez un canal",
   "ui.cancel": "Annuler",
   "dash.widget_settings": "Réglages du canal",

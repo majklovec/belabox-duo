@@ -389,7 +389,6 @@
   "wtype.stats": "Relay stats",
   "wtype.status": "Status",
   "dash.widget_channel": "Channel",
-  "dash.widget_token": "Chat token",
   "dash.widget_not_configured": "Not configured – set a channel name",
   "ui.cancel": "Cancel",
   "dash.widget_settings": "Channel settings",

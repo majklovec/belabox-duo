@@ -10,6 +10,7 @@ import m from "mithril";
 import type { ServerDashboard, ServerDashboardWidget, WidgetType } from "../types";
 import { Page, button, field, fieldGroup, input, serverNav } from "./components/ui";
 import { devices, independentTypes, isIndependent, typeLabel, refreshDevices, widgetSize, widgetTypesFor } from "./dashboard";
+import { widgetModule } from "../../modules/registry.frontend";
 import { t } from "./i18n";
 import { mountPage } from "./util";
 
@@ -24,6 +25,8 @@ const state = {
 	/** The device the picked type's option came from ("" when independent). */
 	device: "",
 	name: "",
+	/** The picked type's config parameter values (module-declared fields). */
+	config: {} as Record<string, string>,
 	saveState: "idle" as SaveState,
 };
 
@@ -56,6 +59,14 @@ function typeGroups(): { device: string; label: string; types: WidgetType[] }[] 
 	];
 }
 
+/** The picked type's trimmed config parameters (`config` for the widget row) —
+ * only types whose module declares fields get one. */
+function widgetConfigFor(type: WidgetType): { config: Record<string, string> } | {} {
+	const fields = widgetModule(type)?.configFields ?? [];
+	if (fields.length === 0) return {};
+	return { config: Object.fromEntries(fields.map((name) => [name, (state.config[name] ?? "").trim()])) };
+}
+
 const optionValue = (device: string, type: WidgetType): string => (device ? `${device}|${type}` : type);
 
 /** The select value for the current choice ("" while nothing is picked). */
@@ -75,11 +86,13 @@ function onTypeChange(value: string): void {
 		if (d && ty !== "" && widgetTypesFor(d).includes(ty)) {
 			state.device = deviceId;
 			state.type = ty;
+			state.config = {};
 			return;
 		}
 	}
 	state.device = "";
 	state.type = value === "" || isIndependent(value as WidgetType) ? (value as WidgetType | "") : "";
+	state.config = {};
 }
 
 // ---------------------------------------------------------------------- save
@@ -101,9 +114,8 @@ async function submit(): Promise<void> {
 		w: size.default.w,
 		h: size.default.h,
 		visible: true,
+		...widgetConfigFor(type),
 	};
-	// No config here: type-specific settings (e.g. the kick channel) are set
-	// through the widget's own config editor once it is on the grid.
 	state.saveState = "saving";
 	m.redraw();
 	const res = await fetch(`/api/dashboards/${encodeURIComponent(dash.id)}`, {
@@ -165,7 +177,7 @@ const App: m.Component = {
 									onchange: (e: Event) => onTypeChange((e.target as HTMLSelectElement).value),
 								},
 								[
-									m("option", { key: "", value: "" }, "…"),
+									// m("option", { key: "", value: "" }, "…"),
 									...groups.map((g) =>
 										m(
 											"optgroup",
@@ -177,6 +189,9 @@ const App: m.Component = {
 							),
 						),
 						field(t("dash.name"), input(state, "name", { type: "text", placeholder: type ? typeLabel(type) : "", maxlength: 60 })),
+						...(type ? (widgetModule(type)?.configFields ?? []).map((name) =>
+							field(t(`dash.widget_${name}`), input(state.config, name, { type: "text", placeholder: t(`dash.widget_${name}`) })),
+						) : []),
 						m("div.dash-config-actions.dash-add-actions", [
 							button(t("dash.add"), { type: "submit", disabled: state.saveState === "saving" }),
 							state.saveState === "saving" ? m("span.dash-save.dash-save-saving", t("dash.saving")) : null,
