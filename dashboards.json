@@ -3,7 +3,7 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 70,
+      "version": 84,
       "widgets": [
         {
           "id": "x1",
@@ -24,10 +24,10 @@
           "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
           "type": "obs",
           "name": "OBS Studio",
-          "x": 0,
-          "y": 5,
+          "x": 6,
+          "y": 0,
           "w": 6,
-          "h": 21,
+          "h": 16,
           "visible": true
         },
         {
@@ -71,8 +71,8 @@
           "deviceId": "c3241ebe-4188-44bd-87a8-17e3aced3091",
           "type": "combined",
           "name": "Enkodér + relay",
-          "x": 6,
-          "y": 0,
+          "x": 0,
+          "y": 5,
           "w": 6,
           "h": 26,
           "visible": true
