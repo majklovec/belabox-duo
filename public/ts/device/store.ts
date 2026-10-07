@@ -252,12 +252,16 @@ export function createCardHost(opts: {
 	async function loadPipelines(): Promise<void> {
 		pipelinesLoaded = true;
 		const result = await act<{ dir: string; pipelines: Pipeline[] } | undefined>(null, "pipelines.list");
-		if (!result) {
+		if (!result || !Array.isArray(result.pipelines)) {
 			pipelinesLoaded = false;
 			return;
 		}
 		st.pipelineDir = result.dir;
 		st.pipelines = result.pipelines;
+		// An empty list is common right after a fresh device (the pipeline
+		// scripts are copied over later): don't latch the flag, so the next
+		// status push re-fetches until the directory actually has pipelines.
+		if (st.pipelines.length === 0) pipelinesLoaded = false;
 		const current = fields.pipeline || st.status?.state.encoder.config?.pipeline || "";
 		fields.pipeline = result.pipelines.some((p) => p.id === current) ? current : "";
 		m.redraw();
