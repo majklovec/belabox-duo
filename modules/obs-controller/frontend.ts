@@ -60,6 +60,33 @@ export interface ObsPanel {
 	destroy(): void;
 }
 
+/** Per-input VU meter frame: the smoothed display level plus its target. */
+interface VuFrame {
+	/** 0..1 target level from the last InputVolumeMeters push. */
+	target: number;
+	/** Displayed (smoothed) level. */
+	level: number;
+	/** Peak-hold level. */
+	peak: number;
+	/** Frames left before the peak starts to decay. */
+	peakHold: number;
+}
+
+/** Outline microphone (24×24, strokes with currentColor); muted adds a slash. */
+function micIcon(muted: boolean): m.Vnode {
+	return m(
+		"svg.obs-mic-icon",
+		{ viewBox: "0 0 24 24", "aria-hidden": "true" },
+		[
+			m("rect", { x: "9", y: "3", width: "6", height: "11", rx: "3" }),
+			m("path", { d: "M5 11a7 7 0 0 0 14 0" }),
+			m("path", { d: "M12 18v3" }),
+			m("path", { d: "M8 21h8" }),
+			muted ? m("path", { d: "M4 4 20 20" }) : null,
+		],
+	);
+}
+
 /**
  * Build the panel. `component()` renders the card body; `head()` the card
  * header extras (connection badge + refresh); `handleEvent` feeds pushes.
@@ -69,12 +96,11 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 	const ui = {
 		/** GetSceneList names; the active one is ui.scene. */
 		scenes: [] as string[],
-		/** GetInputList names, for the VU meter select. */
+		/** Metering input names (seeded from GetInputList, then follows InputVolumeMeters) — one row per source. */
 		vuInputs: [] as string[],
-		vuInput: null as string | null,
-		vuTarget: 0,
+		/** Per-input mute state, for each row's mic toggle icon. */
+		vuMuted: new Map<string, boolean>(),
 		studio: false,
-		micMuted: false,
 		connected: false,
 		streaming: false,
 		recording: false,
@@ -99,12 +125,19 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 	let rafId = 0;
 	let pingInFlight = false;
 	let lastPing = 0;
-	let vuCanvasEl: HTMLCanvasElement | null = null;
 
-	/* VU smoothing, as in obs.html: fast attack, 30-frame peak hold, slow decay. */
-	let vuLevel = 0;
-	let vuPeak = 0;
-	let vuPeakHold = 0;
+	/* One meter canvas per input plus its smoothed frame. Smoothing is as in
+	 * obs.html: fast attack, 30-frame peak hold, slow decay. */
+	const vuCanvases = new Map<string, HTMLCanvasElement>();
+	const vuState = new Map<string, VuFrame>();
+	const getVuFrame = (name: string): VuFrame => {
+		let f = vuState.get(name);
+		if (!f) {
+			f = { target: 0, level: 0, peak: 0, peakHold: 0 };
+			vuState.set(name, f);
+		}
+		return f;
+	};
 
 	const pushState = (): void => {
 		state.connected = ui.connected;
@@ -137,15 +170,27 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		}
 	}
 
-	/** Re-read the selected VU input's mute state so the badge/button follow selector changes. */
-	async function syncMicMute(): Promise<void> {
-		const name = ui.vuInput;
-		if (!name) return;
-		const mute = await obsCall<{ inputMuted: boolean }>("GetInputMute", { inputName: name });
-		if (mute && ui.vuInput === name) {
-			ui.micMuted = mute.inputMuted === true;
-			m.redraw();
-		}
+	/** Re-read every input's mute state so each row's mic icon reflects OBS. */
+	async function syncAllMute(): Promise<void> {
+		const names = ui.vuInputs;
+		await Promise.all(
+			names.map(async (name) => {
+				const mute = await obsCall<{ inputMuted: boolean }>("GetInputMute", { inputName: name });
+				if (mute) ui.vuMuted.set(name, mute.inputMuted === true);
+			}),
+		);
+		m.redraw();
+	}
+
+	/** Fetch a single input's mute state the first time it reports volume (scene switch brings new sources). */
+	function ensureMute(name: string): void {
+		if (ui.vuMuted.has(name)) return;
+		void obsCall<{ inputMuted: boolean }>("GetInputMute", { inputName: name }).then((mute) => {
+			if (mute) {
+				ui.vuMuted.set(name, mute.inputMuted === true);
+				m.redraw();
+			}
+		});
 	}
 
 	/** Scenes, inputs, the active scene, studio mode and the selected input's mute state. */
@@ -165,10 +210,9 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		if (scene?.currentProgramSceneName) ui.scene = scene.currentProgramSceneName;
 		if (inputs?.inputs) {
 			ui.vuInputs = inputs.inputs.map((i) => i.inputName);
-			ui.vuInput = ui.vuInputs.includes(ui.vuInput ?? "") ? ui.vuInput : ui.vuInputs[0] ?? null;
 		}
 		if (studio?.studioModeEnabled !== undefined) ui.studio = studio.studioModeEnabled;
-		await syncMicMute();
+		await syncAllMute();
 		ui.loading = false;
 		ui.loaded = true;
 		m.redraw();
@@ -181,9 +225,10 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		ui.recording = false;
 		ui.scene = null;
 		ui.loaded = false;
-		ui.vuTarget = 0;
-		vuLevel = 0;
-		vuPeak = 0;
+		vuCanvases.clear();
+		vuState.clear();
+		ui.vuMuted.clear();
+		ui.vuInputs = [];
 		ui.previewData = null;
 		ui.previewFailed = false;
 		ui.inFlight = false;
@@ -308,9 +353,8 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		m.redraw();
 	};
 
-	function drawVuStep(): void {
-		const c = vuCanvasEl;
-		if (!c) return;
+	/** Smooth one input's level/peak and paint its meter canvas. */
+	function drawVu(c: HTMLCanvasElement, f: VuFrame): void {
 		const dpr = window.devicePixelRatio || 1;
 		const rect = c.getBoundingClientRect();
 		const W = Math.max(1, Math.round(rect.width * dpr));
@@ -320,13 +364,13 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		const ctx = c.getContext("2d");
 		if (!ctx) return;
 
-		vuLevel += (ui.vuTarget - vuLevel) * 0.35;
-		if (ui.vuTarget > vuPeak) {
-			vuPeak = ui.vuTarget;
-			vuPeakHold = 30;
-		} else if (vuPeakHold > 0) {
-			vuPeakHold--;
-		} else vuPeak = Math.max(vuLevel, vuPeak - 0.008);
+		f.level += (f.target - f.level) * 0.35;
+		if (f.target > f.peak) {
+			f.peak = f.target;
+			f.peakHold = 30;
+		} else if (f.peakHold > 0) {
+			f.peakHold--;
+		} else f.peak = Math.max(f.level, f.peak - 0.008);
 
 		ctx.fillStyle = "#0a0a0a";
 		ctx.fillRect(0, 0, W, H);
@@ -336,15 +380,15 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		g.addColorStop(0.85, "#ff9800");
 		g.addColorStop(1, "#f44336");
 		ctx.fillStyle = g;
-		ctx.fillRect(0, 0, Math.min(vuLevel, 1) * W, H);
-		if (vuPeak > 0.01) {
+		ctx.fillRect(0, 0, Math.min(f.level, 1) * W, H);
+		if (f.peak > 0.01) {
 			ctx.fillStyle = "#fff";
-			ctx.fillRect(Math.min(vuPeak, 1) * W - 2, 0, 2, H);
+			ctx.fillRect(Math.min(f.peak, 1) * W - 2, 0, 2, H);
 		}
 	}
 
 	const vuLoop = (): void => {
-		drawVuStep();
+		for (const [name, c] of vuCanvases) drawVu(c, getVuFrame(name));
 		rafId = requestAnimationFrame(vuLoop);
 	};
 
@@ -375,9 +419,12 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 			// OBS 31+ renamed InputMute to InputMuteStateChanged — handle both.
 			case "InputMute":
 			case "InputMuteStateChanged":
-				if (d.inputName === ui.vuInput && (d.inputMuted === true) !== ui.micMuted) {
-					ui.micMuted = d.inputMuted === true;
-					dirty = true;
+				if (typeof d.inputName === "string") {
+					const next = d.inputMuted === true;
+					if (ui.vuMuted.get(d.inputName) !== next) {
+						ui.vuMuted.set(d.inputName, next);
+						dirty = true;
+					}
 				}
 				break;
 			case "InputVolumeMeters": {
@@ -385,11 +432,23 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 				// 2D `[[L,R,M],[L,R,M]]` for the two buses; flatten to per-channel levels.
 				const inputs = d.inputs as Array<{ inputName: string; inputLevelsMul: number[] | number[][] }> | undefined;
 				if (inputs?.length) {
-					const pick = inputs.find((i) => i.inputName === ui.vuInput) ?? inputs[0];
-					const bus = pick?.inputLevelsMul ?? [];
-					const flat = [...bus].flat();
-					const avg = flat.reduce((a, b) => a + b, 0) / Math.max(1, flat.length);
-					ui.vuTarget = Math.min(1, Math.max(0, Math.pow(avg, 0.5)));
+					// The row list follows the sources that are actually metering: a scene
+					// change swaps them, so adopt the incoming set — keep current order for
+					// sources still present, append new ones in arrival order, drop the rest.
+					const incoming = inputs.map((i) => i.inputName);
+					const dropped = ui.vuInputs.filter((n) => !incoming.includes(n));
+					const fresh = incoming.filter((n) => !ui.vuInputs.includes(n));
+					if (dropped.length || fresh.length) {
+						ui.vuInputs = [...ui.vuInputs.filter((n) => incoming.includes(n)), ...fresh];
+						for (const n of dropped) vuState.delete(n);
+						for (const n of fresh) ensureMute(n);
+						dirty = true; // the row set changed — re-render the list
+					}
+					for (const inp of inputs) {
+						const flat = [...(inp.inputLevelsMul ?? [])].flat();
+						const avg = flat.reduce((a, b) => a + b, 0) / Math.max(1, flat.length);
+						getVuFrame(inp.inputName).target = Math.min(1, Math.max(0, Math.pow(avg, 0.5)));
+					}
 				}
 				// The first event after a drop is what proves the link is back up
 				if (!ui.connected) {
@@ -437,7 +496,6 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 			{
 				oncreate: () => {
 					mounts++;
-					vuCanvasEl = null;
 					if (mounts === 1) {
 						if (startConnected?.()) ui.connected = true;
 						tickTimer = window.setInterval(tick, 500);
@@ -446,7 +504,6 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 				},
 				onremove: () => {
 					mounts--;
-					vuCanvasEl = null;
 					if (mounts <= 0) {
 						mounts = 0;
 						destroy();
@@ -540,79 +597,65 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 										"obs-action-record",
 										() => press("obs.record", ui.recording ? "StopRecord" : "StartRecord"),
 									),
-									actionBtn(
-										"obs.studio",
-										t("obs.studio"),
-										ui.studio,
-										"obs-action-studio",
-										() =>
-											toggle(
-												"obs.studio",
-												"GetStudioModeEnabled",
-												{},
-												(r) => r.studioModeEnabled === true,
-												"SetStudioModeEnabled",
-												(next) => ({ studioModeEnabled: next }),
-												(next) => {
-													ui.studio = next;
-												},
-											),
-									),
+									// actionBtn(
+									// 	"obs.studio",
+									// 	t("obs.studio"),
+									// 	ui.studio,
+									// 	"obs-action-studio",
+									// 	() =>
+									// 		toggle(
+									// 			"obs.studio",
+									// 			"GetStudioModeEnabled",
+									// 			{},
+									// 			(r) => r.studioModeEnabled === true,
+									// 			"SetStudioModeEnabled",
+									// 			(next) => ({ studioModeEnabled: next }),
+									// 			(next) => {
+									// 				ui.studio = next;
+									// 			},
+									// 		),
+									// ),
 								),
 							),
 						),
-						/* Audio */
+						/* Audio — one meter row per input, each with its own mic mute toggle. */
 						m(
 							"div.obs-deck",
 							m("h3.obs-section", t("obs.audio")),
 							m(
 								"div.obs-audio",
-								m(
-									"select",
-									{
-										disabled: !ui.connected,
-										value: ui.vuInput ?? "",
-										onchange: (e: Event) => {
-											ui.vuInput = (e.target as HTMLSelectElement).value || null;
-											void syncMicMute();
-										},
-									},
-									ui.vuInputs.length
-										? ui.vuInputs.map((name) => m("option", { key: name, value: name }, name))
-										: m("option", { value: "" }, t("obs.no_inputs")),
-								),
-								/* Meter + live mic state — the badge makes muted/unmuted visible at a glance. */
-								m(
-									"div.obs-audio-meters",
-									[
-										m("canvas.obs-vu", {
-											oncreate: (v) => (vuCanvasEl = v.dom as HTMLCanvasElement),
-											onremove: () => (vuCanvasEl = null),
-										}),
-										badge(
-											t(ui.micMuted ? "obs.mic_muted" : "obs.mic_live"),
-											ui.micMuted ? "warn" : "on",
-										),
-									],
-								),
-								actionBtn(
-									"obs.mute",
-									ui.micMuted ? t("obs.unmute") : t("obs.mute"),
-									ui.micMuted,
-									"obs-action-mute",
-									() =>
-										toggle(
-											"obs.mute",
-											"GetInputMute",
-											{ inputName: ui.vuInput ?? "" },
-											(r) => r.inputMuted === true,
-											"SetInputMute",
-											(next) => ({ inputName: ui.vuInput ?? "", inputMuted: next }),
-											(next) => {
-												ui.micMuted = next;
-											},
-										),
-								),
+								ui.vuInputs.length
+									? ui.vuInputs.map((name) => {
+										const muted = ui.vuMuted.get(name) === true;
+										const muteKey = `obs.mute.${name}`;
+										return m(
+											"div.obs-audio-row",
+											{ key: name },
+											button(micIcon(muted), {
+												class: muted ? "obs-mic muted" : "obs-mic",
+												title: t(muted ? "obs.unmute" : "obs.mute"),
+												disabled: !ui.connected || pending.has(muteKey),
+												onclick: () =>
+													toggle(
+														muteKey,
+														"GetInputMute",
+														{ inputName: name },
+														(r) => r.inputMuted === true,
+														"SetInputMute",
+														(next) => ({ inputName: name, inputMuted: next }),
+														(next) => {
+															ui.vuMuted.set(name, next);
+														},
+													),
+											}),
+											m("span.obs-audio-name", { title: name }, name),
+											m("canvas.obs-vu", {
+												oncreate: (v) => vuCanvases.set(name, v.dom as HTMLCanvasElement),
+												onremove: () => vuCanvases.delete(name),
+											}),
+										);
+									})
+									: m("span.muted", t("obs.no_inputs")),
 							),
 						),
 					],
@@ -628,6 +671,8 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		destroyed = true;
 		window.clearInterval(tickTimer);
 		cancelAnimationFrame(rafId);
+		vuCanvases.clear();
+		vuState.clear();
 		unsubscribe();
 		onDestroy?.();
 	}

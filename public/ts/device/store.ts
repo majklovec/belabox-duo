@@ -275,7 +275,11 @@ export function createCardHost(opts: {
 		lastRole = status.role;
 		syncFromStatus(status);
 		m.redraw();
-		if (status.role !== "relay" && !pipelinesLoaded) void loadPipelines();
+		// Only devices with an encoder module have the pipeline API (an obs
+		// device 404s it); pre-module builds lack `modules`, so fall back to the
+		// role check
+		const encoderOn = status.modules ? !!status.modules.encoder?.enabled : status.role !== "relay";
+		if (encoderOn && !pipelinesLoaded) void loadPipelines();
 	};
 
 	const handleStats = (data: SrtlaStatsEvent): void => {
