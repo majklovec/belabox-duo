@@ -64,13 +64,47 @@ type ChatChannelState = {
 	seen: Set<string>;
 };
 
+/** Curated palette of distinct, readable chat colors. YouTube's live-chat API
+ * sends no per-user color, so we derive one deterministically from the
+ * username; the same name always gets the same color. */
+const USER_COLORS = [
+	"#ff7eb6",
+	"#7ee8fa",
+	"#ffd166",
+	"#8aff80",
+	"#c792ea",
+	"#ff8a65",
+	"#4fc3f7",
+	"#aed581",
+	"#ffb74d",
+	"#ba68c8",
+	"#4dd0e1",
+	"#f06292",
+	"#9ccc65",
+	"#7986cb",
+	"#ffca28",
+	"#26a69a",
+	"#e57373",
+	"#64b5f6",
+];
+
+/** Stable username display color (a palette entry, hashed from the name). */
+function userNameColor(username: string): string {
+	let h = 0;
+	for (let i = 0; i < username.length; i++) h = (h * 31 + username.charCodeAt(i)) | 0;
+	return USER_COLORS[Math.abs(h) % USER_COLORS.length];
+}
+
 /** Map one chat ChatItem to the wire shape (text parts joined, emoji parts
- * rendered by their unicode/label). */
+ * rendered by their unicode/label). The `@` is dropped from the name (it is a
+ * handle, not the display name YouTube shows in chat) and a stable color is
+ * attached for the username display. */
 function asChatMessage(item: ChatItem): ChatLive | null {
 	const text = item.message
 		.map((part) => ("text" in (part as object) ? (part as { text: string }).text : (part as { emojiText: string }).emojiText))
 		.join("");
-	return { id: item.id, username: item.author?.name, text, ts: item.timestamp.getTime() };
+	const username = item.author?.name?.replace(/^@/, "") || undefined;
+	return { id: item.id, username, text, ts: item.timestamp.getTime(), color: username ? userNameColor(username) : undefined };
 }
 
 /**
@@ -184,6 +218,10 @@ export class ChatChannelManager {
 			}
 
 			let failures = 0;
+			// The first fetched page is YouTube's buffered history (up to ~50
+			// messages, minutes old) — skip it so viewers only see fresh
+			// messages arriving live, then take its continuation token.
+			let live = false;
 			while (!state.stopped) {
 				try {
 					const [items, continuation] = await fetchChat(options);
@@ -193,15 +231,19 @@ export class ChatChannelManager {
 						this.#onEnd(state);
 						return;
 					}
-					if (!state.connected) {
-						state.connected = true;
-						state.attempt = 0;
-						// Re-deliver the rolling buffer so a fresh viewer can
-						// top up.
-						this.#publish(eventFrame("youtube.chat", { channel: state.channel, reconnect: true, messages: state.history }));
-					}
-					this.#applyItems(state, items);
 					options.continuation = continuation;
+					if (!live) {
+						live = true;
+					} else {
+						if (!state.connected) {
+							state.connected = true;
+							state.attempt = 0;
+							// Re-deliver the rolling buffer so a fresh viewer
+							// can top up.
+							this.#publish(eventFrame("youtube.chat", { channel: state.channel, reconnect: true, messages: state.history }));
+						}
+						this.#applyItems(state, items);
+					}
 				} catch (err) {
 					if (state.stopped) return;
 					// ScrapeError means the response shape no longer parses —
