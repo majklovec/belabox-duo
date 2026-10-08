@@ -70,6 +70,9 @@ const METHOD_LOG: Record<string, MethodLog> = {
     "modems.disconnect": log("Modems", "Disconnect", (p) => t("mlog.done.modem_disconnected", p.index)),
     "modems.reset": log("Modems", "Reset", (p) => t("mlog.done.modem_reset", p.index)),
     "autostart.set": log("Autostart", "Update", (p) => t(p.enabled ? "mlog.done.enabled" : "mlog.done.disabled")),
+    "modules.enable": log("Modules", "Enable", (p) => t("mlog.done.module_enabled", p.id)),
+    "modules.disable": log("Modules", "Disable", (p) => t("mlog.done.module_disabled", p.id)),
+    "modules.configure": log("Modules", "Configuration", (p) => t("mlog.done.module_configured", p.id)),
 };
 
 /** Whether the device records this method in its event log. */
@@ -89,6 +92,7 @@ const SECTIONS: Record<string, string> = {
     interfaces: "Interfaces",
     pipelines: "Pipelines",
     autostart: "Autostart",
+    modules: "Modules",
 };
 
 /**
@@ -118,6 +122,7 @@ const LABEL_KEYS: Record<string, string> = {
     Stream: "mgmt.th.stream",
     Setup: "mlog.section.setup",
     Unknown: "mlog.section.unknown",
+    Modules: "mlog.section.modules",
     // actions
     Start: "ui.start",
     Stop: "ui.stop",
@@ -133,6 +138,10 @@ const LABEL_KEYS: Record<string, string> = {
     "Bond selection": "mlog.action.bond_selection",
     "Bond toggle": "mlog.action.bond_toggle",
     "Load": "mlog.action.load",
+    Configuration: "mlog.action.configuration",
+    Create: "mlog.action.create",
+    Delete: "mlog.action.delete",
+    Activate: "mlog.action.activate",
     Update: "mlog.action.update",
 };
 

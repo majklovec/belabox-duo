@@ -44,13 +44,12 @@
  * responses carry `"logged": true` so clients do not log them a second time.
  */
 import { randomUUID } from "node:crypto";
-import { Ceracoder } from "./encoders/ceracoder";
 import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
-import { AUDIO_CODECS, AUDIO_DEFAULT, type EncoderConfig, encoder, listAudioSources, listPipelines } from "./encoder";
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
-import { connectModem, detectModems, disconnectModem, resetModem, setModemEnabled } from "./modems";
+import { callModule, encoderServices, getModule, moduleStatuses, modemServices, obsServices, restartRegisteredModule, srtlaServices } from "../modules/registry.backend";
+import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo, SrtlaState } from "../modules/types";
 import {
 	ApiError,
 	checkColor,
@@ -67,12 +66,15 @@ import {
 	requirePort,
 	requireString,
 } from "./params";
+import { configureModule, moduleEnabled, modulesView } from "./modules";
 import { removePipelineRepository, syncPipelineRepository } from "./pipelineRepos";
 import { applyRemoteSettings } from "./remote";
 import { detectInterfaces, isMonitorRunning, type ModemConfig, reconfigure, resolveSelection, setSelection } from "./routing";
-import { reloadSrtla, setSrtlaOptions, srtlaStatus, startSrtla, stopSrtla } from "./srtla";
-import { latestSrtlaStats, SRTLA_MODES, srtlaControlState } from "./srtlaControl";
-import { completeSetup, type SrtlaOptions, saveState, setupRequired, type SrtlaTarget, state, uiLanguage } from "./state";
+import {
+	ALL_MODULES, completeSetup, defaultModules, type SrtlaOptions, type SrtlaOptionsResult,
+	saveState, setupRequired, type SrtlaTarget, state, uiLanguage,
+	OBS_MODULE,
+} from "./state";
 import { cancelAutostart, setAutostart, startCombined, stopCombined } from "./stream";
 import { errorMessage, scrubUrl, textOf } from "./util";
 import { BITRATE_KBPS, DEFAULT_COLOR, type Role, ROLES } from "./validate";
@@ -89,19 +91,22 @@ const effectiveRole = (): Role => state.settings.role ?? ROLE;
 
 export async function buildStatus() {
 	const role = effectiveRole();
-	const enc = encoder();
-	// One ModemManager scan serves both the interface enrichment and the modem list
-	const modems = await detectModems();
+	const enc = encoderServices.encoder();
+	// Module status fragments (modems module provides the modem list, encoder
+	// the ceracoder settings); one ModemManager scan serves both the interface
+	// enrichment and the modem list
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const modems = (await moduleStatuses().then((f) => f.modems) as any) as ModemInfo[];
 	const [interfaces, audioSources] = await Promise.all([
 		detectInterfaces(modems),
-		role !== "relay" ? listAudioSources() : [],
+		role !== "relay" ? encoderServices.listAudioSources() : [],
 	]);
 	return {
 		role,
 		setupRequired,
 		state: {
 			selection: state.selection,
-			srtla: srtlaStatus(),
+			srtla: srtlaServices.srtlaStatus(),
 			encoder: enc.status(),
 			stream: state.stream,
 			srtlaTarget: state.srtlaTarget,
@@ -114,10 +119,12 @@ export async function buildStatus() {
 		modems: role !== "encoder" ? modems : [],
 		audioSources,
 		uplinksFile: UPLINKS_FILE,
-		srtlaControl: srtlaControlState(),
+		srtlaControl: srtlaServices.controlState(),
 		monitor: { running: isMonitorRunning(), reloadMode: RELOAD_MODE },
 		// null when the encoder binary is not ceracoder; the UI hides its settings then
-		ceracoder: enc instanceof Ceracoder ? enc.config() : null,
+		ceracoder: encoderServices.ceracoderConfig(),
+		// Module system: enabled flags + non-secret settings (secrets => {configured})
+		modules: modulesView(),
 	};
 }
 
@@ -125,7 +132,7 @@ export async function buildStatus() {
 async function reconfigureAndReload() {
 	const result = await reconfigure();
 	if (!result.ok) throw new ApiError(result.error ?? "reconfigure failed", 500);
-	if (result.changed) await reloadSrtla();
+	if (result.changed) await srtlaServices.reloadSrtla();
 	return result;
 }
 
@@ -160,9 +167,9 @@ function parseEncoderConfig(p: Params, host: string, port: string): EncoderConfi
 	const prev = state.encoder.config;
 	const streamid = p.streamid === undefined || p.streamid === "" ? undefined : requireString(p, "streamid");
 	const audioSource = p.audioSource === undefined || p.audioSource === ""
-		? prev?.audioSource ?? AUDIO_DEFAULT
+		? prev?.audioSource ?? encoderServices.AUDIO_DEFAULT
 		: requireString(p, "audioSource");
-	const audioCodec = oneOf(p.audioCodec ?? prev?.audioCodec ?? "aac", "audioCodec", AUDIO_CODECS);
+	const audioCodec = oneOf(p.audioCodec ?? prev?.audioCodec ?? "aac", "audioCodec", encoderServices.AUDIO_CODECS);
 	if (p.bitrateOverlay !== undefined) requireBoolean(p, "bitrateOverlay");
 	const { minBitrate, maxBitrate } = parseBitrates(p);
 	return {
@@ -198,7 +205,7 @@ async function startStream(p: Params) {
 	const cfg = parseEncoderConfig(p, "127.0.0.1", listenPort);
 	cancelAutostart();
 	await startChecked(() => startCombined({ remoteHost, remotePort, listenPort }, cfg));
-	return { srtla: srtlaStatus(), encoder: encoder().status() };
+	return { srtla: srtlaServices.srtlaStatus(), encoder: encoderServices.encoder().status() };
 }
 
 // ----------------------------------------------------------------------
@@ -237,7 +244,7 @@ async function setupComplete(p: Params): Promise<object> {
 			remotePort: requirePort(p, "srtlaRemotePort"),
 		};
 		srtlaOptions = {
-			mode: oneOf(requireString(p, "srtlaMode"), "srtlaMode", SRTLA_MODES),
+			mode: oneOf(requireString(p, "srtlaMode"), "srtlaMode", srtlaServices.modes),
 			quality: requireBoolean(p, "srtlaQuality"),
 		};
 	}
@@ -310,6 +317,36 @@ async function updateSettings(p: Params): Promise<object> {
 // ----------------------------------------------------------------------
 // Method table
 // ----------------------------------------------------------------------
+/**
+ * Which module owns each RPC method (dispatched through the backend
+ * registry; methods.ts never imports concrete modules). Extended as each
+ * module migrates (see TODO.md).
+ */
+const METHOD_OWNER: Record<string, string> = {
+	"encoder.status": "encoder",
+	"encoder.start": "encoder",
+	"encoder.stop": "encoder",
+	"encoder.bitrate": "encoder",
+	"ceracoder.set": "encoder",
+	"srtla.status": "srtla",
+	"srtla.start": "srtla",
+	"srtla.stop": "srtla",
+	"srtla.reload": "srtla",
+	"srtla.stats": "srtla",
+	"srtla.options": "srtla",
+	"modems.enable": "modems",
+	"modems.disable": "modems",
+	"modems.reset": "modems",
+	"modems.connect": "modems",
+	"modems.disconnect": "modems",
+	"obs.request": "obs-controller",
+	"obs.requestBatch": "obs-controller",
+	"obs.setEventSubscriptions": "obs-controller",
+};
+
+const moduleDispatch = (method: string, params: Record<string, unknown>): Promise<unknown> =>
+	callModule(METHOD_OWNER[method]!, method, params);
+
 const modemAction =
 	(action: string, fn: (index: number) => Promise<boolean>): Method =>
 	async (p) => {
@@ -325,6 +362,7 @@ const manual =
 		return fn(p);
 	};
 
+
 const methods: Record<string, Method> = {
 	status: buildStatus,
 
@@ -333,8 +371,8 @@ const methods: Record<string, Method> = {
 		hostname: state.settings.hostname ?? "",
 		color: state.settings.color ?? DEFAULT_COLOR,
 		language: uiLanguage(),
-		pipelines: await listPipelines(),
-		audioSources: await listAudioSources(),
+		pipelines: await encoderServices.listPipelines(),
+		audioSources: await encoderServices.listAudioSources(),
 	}),
 
 	"setup.complete": setupComplete,
@@ -348,7 +386,7 @@ const methods: Record<string, Method> = {
 	reconfigure: reconfigureAndReload,
 
 	"modems.list": async () => {
-		const modems = await detectModems();
+		const modems = await modemServices.detect();
 		const all = await detectInterfaces(modems);
 		return { selection: state.selection, selected: resolveSelection(all), modems };
 	},
@@ -374,53 +412,53 @@ const methods: Record<string, Method> = {
 	},
 
 	// Monitor picks up the resulting netlink events and pushes a status update
-	"modems.enable": modemAction("enable", (i) => setModemEnabled(i, true)),
-	"modems.disable": modemAction("disable", (i) => setModemEnabled(i, false)),
-	"modems.reset": modemAction("reset", resetModem),
-	"modems.connect": modemAction("connect", connectModem),
-	"modems.disconnect": modemAction("disconnect", disconnectModem),
+	"modems.enable": modemAction("enable", (i) => moduleDispatch("modems.enable", { index: i }) as Promise<boolean>),
+	"modems.disable": modemAction("disable", (i) => moduleDispatch("modems.disable", { index: i }) as Promise<boolean>),
+	"modems.reset": modemAction("reset", (i) => moduleDispatch("modems.reset", { index: i }) as Promise<boolean>),
+	"modems.connect": modemAction("connect", (i) => moduleDispatch("modems.connect", { index: i }) as Promise<boolean>),
+	"modems.disconnect": modemAction("disconnect", (i) => moduleDispatch("modems.disconnect", { index: i }) as Promise<boolean>),
 
-	"srtla.status": () => ({ srtla: srtlaStatus() }),
+	"srtla.status": () => ({ srtla: srtlaServices.srtlaStatus() }),
 
 	"srtla.start": manual(async (p) => {
 		const listenPort = requirePort(p, "listenPort");
 		const remoteHost = requireHost(p, "remoteHost");
 		const remotePort = requirePort(p, "remotePort");
 		try {
-			return { srtla: await startSrtla(listenPort, remoteHost, remotePort) };
+			return { srtla: await startChecked(() => moduleDispatch("srtla.start", { listenPort, remoteHost, remotePort }) as Promise<SrtlaState>) };
 		} catch (e: unknown) {
 			throw new ApiError(errorMessage(e), 409);
 		}
 	}),
 
 	"srtla.stop": manual(async () => {
-		await stopSrtla();
-		return { srtla: srtlaStatus() };
+		await moduleDispatch("srtla.stop", {});
+		return { srtla: srtlaServices.srtlaStatus() };
 	}),
 
 	"srtla.reload": async () => {
-		await reloadSrtla();
-		return { srtla: srtlaStatus() };
+		await moduleDispatch("srtla.reload", {});
+		return { srtla: srtlaServices.srtlaStatus() };
 	},
 
-	"srtla.stats": () => latestSrtlaStats(),
+	"srtla.stats": () => srtlaServices.latestStats(),
 
 	"srtla.options": async (p) => {
 		const opts: SrtlaOptions = {};
-		if (p.mode !== undefined) opts.mode = oneOf(p.mode, "mode", SRTLA_MODES);
+		if (p.mode !== undefined) opts.mode = oneOf(p.mode, "mode", srtlaServices.modes);
 		if (p.quality !== undefined) opts.quality = requireBoolean(p, "quality");
 		if (opts.mode === undefined && opts.quality === undefined) throw new ApiError("mode or quality is required");
-		let result: Awaited<ReturnType<typeof setSrtlaOptions>>;
+		let result: SrtlaOptionsResult;
 		try {
-			result = await setSrtlaOptions(opts);
+			result = (await moduleDispatch("srtla.options", { mode: opts.mode, quality: opts.quality })) as SrtlaOptionsResult;
 		} catch (e: unknown) {
 			throw new ApiError(errorMessage(e), 502);
 		}
-		if (!result.applied && srtlaStatus().running) logEvent("warn", "SRTLA", t("log.no_control_socket"));
+		if (!result.applied && srtlaServices.srtlaStatus().running) logEvent("warn", "SRTLA", t("log.no_control_socket"));
 		return result;
 	},
 
-	"pipelines.list": async () => ({ dir: PIPELINES_DIR, pipelines: await listPipelines() }),
+	"pipelines.list": async () => ({ dir: PIPELINES_DIR, pipelines: await encoderServices.listPipelines() }),
 
 	"pipelines.repositories.add": async (p) => {
 		const repository = requireString(p, "repository").trim();
@@ -447,29 +485,28 @@ const methods: Record<string, Method> = {
 		return { repositories, results };
 	},
 
-	"encoder.status": () => ({ encoder: encoder().status() }),
+	"encoder.status": () => ({ encoder: encoderServices.encoder().status() }),
 
 	"encoder.start": manual(async (p) => {
 		const cfg = parseEncoderConfig(p, requireHost(p, "host"), requirePort(p, "port"));
-		return { encoder: await startChecked(() => encoder().start(cfg)) };
+		return { encoder: await startChecked(() => moduleDispatch("encoder.start", cfg as unknown as Record<string, unknown>) as Promise<EncoderState>) };
 	}),
 
 	"encoder.stop": manual(async () => {
-		await encoder().stop();
-		return { encoder: encoder().status() };
+		await moduleDispatch("encoder.stop", {});
+		return { encoder: encoderServices.encoder().status() };
 	}),
 
 	"encoder.bitrate": async (p) => {
 		if (p.minBitrate === undefined && p.maxBitrate === undefined) throw new ApiError("maxBitrate or minBitrate is required");
 		const { minBitrate, maxBitrate } = parseBitrates(p, true);
-		return { encoder: await encoder().setBitrate(minBitrate, maxBitrate) };
+		return { encoder: (await moduleDispatch("encoder.bitrate", { minBitrate, maxBitrate })) as EncoderState };
 	},
 
 	"ceracoder.set": async (p) => {
-		const enc = encoder();
-		if (!(enc instanceof Ceracoder)) throw new ApiError("The device encoder is not ceracoder");
+		if (!encoderServices.isCera(encoderServices.encoder())) throw new ApiError("The device encoder is not ceracoder");
 		try {
-			return { ceracoder: await enc.update(p) };
+			return { ceracoder: (await moduleDispatch("ceracoder.set", p)) as CeraConfig };
 		} catch (e: unknown) {
 			throw new ApiError(errorMessage(e));
 		}
@@ -479,7 +516,7 @@ const methods: Record<string, Method> = {
 
 	"stream.stop": manual(async () => {
 		await stopCombined();
-		return { srtla: srtlaStatus(), encoder: encoder().status() };
+		return { srtla: srtlaServices.srtlaStatus(), encoder: encoderServices.encoder().status() };
 	}),
 
 	"autostart.set": async (p) => {
@@ -488,11 +525,93 @@ const methods: Record<string, Method> = {
 	},
 
 	"log.list": () => ({ entries: logEntries() }),
+
+	// ---------------------------------------------------------------- modules
+	"modules.list": () => ({ modules: modulesView() }),
+	"modules.enable": (p) => {
+		const id = oneOf(requireString(p, "id"), "id", ALL_MODULES);
+		const modules = (state.settings.modules ??= defaultModules(ROLE));
+		modules[id].enabled = true;
+		saveState();
+		// relay has no running state to re-apply; real modules go through the registry
+		void restartRegisteredModule(id);
+		return { ok: true, modules: modulesView() };
+	},
+	"modules.disable": (p) => {
+		const id = oneOf(requireString(p, "id"), "id", ALL_MODULES);
+		const modules = (state.settings.modules ??= defaultModules(ROLE));
+		modules[id].enabled = false;
+		saveState();
+		// relay has no running state to re-apply; real modules go through the registry
+		void restartRegisteredModule(id);
+		return { ok: true, modules: modulesView() };
+	},
+	"modules.configure": (p) => {
+		const id = oneOf(requireString(p, "id"), "id", ALL_MODULES);
+		const config =
+			p.config && typeof p.config === "object" && !Array.isArray(p.config) ? (p.config as Record<string, unknown>) : {};
+		state.settings.modules ??= defaultModules(ROLE);
+		if (id === OBS_MODULE) {
+			// Registered module: the obs slice is applied by the module itself,
+			// then re-applied through the registry
+			obsServices.configure(config);
+			saveState();
+			void restartRegisteredModule(id);
+		} else {
+			configureModule(id, config);
+			saveState();
+		}
+		return { ok: true, modules: modulesView() };
+	},
+
+	// -------------------------------------------------------------------- obs
+	"obs.request": (p) => {
+		const requestType = requireString(p, "requestType");
+		const requestId = typeof p.requestId === "string" && p.requestId ? p.requestId : crypto.randomUUID();
+		const requestData =
+			p.requestData && typeof p.requestData === "object" && !Array.isArray(p.requestData)
+				? (p.requestData as Record<string, unknown>)
+				: {};
+		// op7 passthrough: the obs-websocket v5 response `d`, statuses unmapped
+		return moduleDispatch("obs.request", { requestType, requestId, requestData });
+	},
+	"obs.requestBatch": (p) => {
+		const requests = p.requests;
+		if (!Array.isArray(requests) || !requests.length) throw new ApiError("requests must be a non-empty array");
+		for (const r of requests) {
+			if (!r || typeof r !== "object" || typeof (r as Record<string, unknown>).requestType !== "string") {
+				throw new ApiError("Each request needs a string requestType");
+			}
+		}
+		const requestId = typeof p.requestId === "string" && p.requestId ? p.requestId : crypto.randomUUID();
+		// op9 passthrough: the obs-websocket v5 batch response `d`
+		return moduleDispatch("obs.requestBatch", {
+			requestId,
+			requests: requests.map((r) => {
+				const it = r as Record<string, unknown>;
+				return {
+					requestType: it.requestType as string,
+					requestId: typeof it.requestId === "string" && it.requestId ? it.requestId : crypto.randomUUID(),
+					...(it.requestData ? { requestData: it.requestData as Record<string, unknown> } : {}),
+				};
+			}),
+			...(p.haltOnFailure !== undefined ? { haltOnFailure: !!p.haltOnFailure } : {}),
+			...(p.executionType !== undefined ? { executionType: p.executionType as 0 | 1 | 2 } : {}),
+		});
+	},
+	"obs.setEventSubscriptions": (p) => {
+		const names = optionalStringList(p, "eventSubscriptions") ?? [];
+		const intents = obsServices.subscriptionMask(names);
+		return moduleDispatch("obs.setEventSubscriptions", { eventSubscriptions: intents });
+	},
+
 };
 
 function methodAllowed(name: string): boolean {
 	const role = effectiveRole();
 	if (name.startsWith("stream.")) return role === "combined";
+	// Module-owned API surface: 409 when the owning module is disabled
+	if (name.startsWith("obs.") && !moduleEnabled(OBS_MODULE)) return false;
 	if (name.startsWith("encoder.") || name.startsWith("ceracoder.") || name === "pipelines.list") return role !== "relay";
 	if (name.startsWith("modems.") || name.startsWith("srtla.") || name === "reconfigure") return role !== "encoder";
 	return true;

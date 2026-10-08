@@ -11,16 +11,14 @@
  */
 import { randomUUID } from "node:crypto";
 
-import type { CeraConfig } from "./encoders/ceracoder";
 import { CONFIG_EXISTS, CONFIG_FILE, DRY_RUN, INITIAL_CONFIG } from "./config";
-import type { EncoderConfig, EncoderState } from "./encoder";
+import type { CeraConfig, EncoderConfig, EncoderState, SrtlaState } from "../modules/types";
 import { writeFileAtomic } from "./files";
 import { asLanguage, DEFAULT_LANGUAGE, type Language, setCurrentLanguage } from "./i18n";
 import type { ModemConfig } from "./routing";
 import type { SrtlaMode } from "./srtlaControl";
-import type { SrtlaState } from "./srtla";
 import { stableStringify } from "./util";
-import { DEFAULT_COLOR, type Role } from "./validate";
+import { DEFAULT_COLOR, modulesForRole, type Role } from "./validate";
 
 /** Device settings that can be changed from the control UI and used on restart. */
 export interface DeviceSettings {
@@ -34,10 +32,15 @@ export interface DeviceSettings {
     pipelineRepositories?: string[];
     /** UI language (see LANGUAGE_INFO in i18n.ts); defaults to "en". */
     language?: Language;
+    /** Per-module settings (relay/encoder/obs-controller). */
+    modules?: ModulesState;
 }
 
 /** srtla_send scheduler settings; applied live over the control socket and on every start. */
 export interface SrtlaOptions { mode?: SrtlaMode; quality?: boolean; }
+
+/** Result of persisting+applying scheduler settings (`applied` is false until the next start). */
+export interface SrtlaOptionsResult { options: SrtlaOptions; applied: boolean; }
 
 /** Last target of a combined-device stream (`stream.start`), kept for the UI to prefill. */
 export interface StreamTarget { remoteHost: string; remotePort: string; listenPort: string; }
@@ -52,6 +55,24 @@ export interface SrtlaConfig {
     quality: boolean;
     remoteHost: string;
     remotePort: string;
+}
+
+/** New-style per-module settings (config key "modules"). */
+export interface ObsModuleConfig {
+    enabled: boolean;
+    obsUrl: string;
+    obsPassword: string;
+    sceneEvents: boolean;
+}
+/** All module keys the registry knows, and their on-disk shape. */
+export const ALL_MODULES = ["relay", "encoder", "obs-controller"] as const;
+export type ModuleId = (typeof ALL_MODULES)[number];
+
+export const OBS_MODULE = "obs-controller" as const;
+export interface ModulesState {
+    relay: { enabled: boolean };
+    encoder: { enabled: boolean };
+    "obs-controller": ObsModuleConfig;
 }
 
 /** Permanent device parameters persisted to the config file (no process state). */
@@ -71,6 +92,7 @@ export interface DeviceConfig {
     /** Bonding selection (old modems.json). */
     modems?: ModemConfig;
     srtla: SrtlaConfig;
+    modules?: ModulesState;
 }
 
 /** Merged in-memory view of config (persisted) + runtime (memory only). */
@@ -118,6 +140,7 @@ function projectConfig(s: PersistentState): DeviceConfig {
     if (settings.remoteToken) cfg.remoteToken = settings.remoteToken;
     if (settings.pipelineRepositories?.length) cfg.pipelineRepositories = settings.pipelineRepositories;
     if (s.ceracoder) cfg.ceracoder = s.ceracoder;
+    if (settings.modules) cfg.modules = settings.modules;
     return cfg;
 }
 
@@ -137,6 +160,9 @@ function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
             color: cfg?.color,
             pipelineRepositories: cfg?.pipelineRepositories,
             language: cfg?.language,
+            // Backfill: pre-module configs get a modules map with the role's
+            // preset modules enabled.
+            modules: cfg?.modules ?? defaultModules(cfg?.role),
         },
         selection: cfg?.modems ?? {},
         srtla: { running: false },
@@ -148,6 +174,21 @@ function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
         ceracoder: cfg?.ceracoder,
         stream: target,
         autostart: cfg?.autostart,
+    };
+}
+
+/**
+ * Default per-module settings for configs written before the module system:
+ * the role's pre-selected modules are enabled, all others disabled. The relay
+ * and encoder modules mirror the legacy flat config (targets/URLs live on the
+ * existing settings fields, so only `enabled` is carried here).
+ */
+export function defaultModules(role?: Role): ModulesState {
+    const on = new Set(role ? modulesForRole(role) : []);
+    return {
+        relay: { enabled: on.has("relay") },
+        encoder: { enabled: on.has("encoder") },
+        "obs-controller": { enabled: false, obsUrl: "", obsPassword: "", sceneEvents: true },
     };
 }
 
@@ -180,6 +221,11 @@ export async function saveState(): Promise<void> {
 }
 
 export async function completeSetup(): Promise<void> {
+    // A fresh device had no config, so its in-memory state has no modules yet:
+    // seed them from the role picked in the wizard.
+    if (!state.settings.modules) {
+        state.settings.modules = defaultModules(state.settings.role);
+    }
     setupRequired = false;
     await saveState();
 }

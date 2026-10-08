@@ -1,0 +1,98 @@
+{
+  "dashboards": [
+    {
+      "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
+      "name": "Dash",
+      "version": 124,
+      "widgets": [
+        {
+          "id": "x1",
+          "deviceId": "",
+          "type": "kick-chat",
+          "name": "chat",
+          "x": 4,
+          "y": 4,
+          "w": 3,
+          "h": 14,
+          "visible": true,
+          "config": {
+            "channel": "cicero_mt"
+          }
+        },
+        {
+          "id": "1ef11d76-7f89-45da-9016-076d37d5572b",
+          "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
+          "type": "obs",
+          "name": "OBS Studio",
+          "x": 7,
+          "y": 0,
+          "w": 4,
+          "h": 18,
+          "visible": true
+        },
+        {
+          "id": "34aad0a5-0102-4cb0-bd3b-d50009aec4f1",
+          "deviceId": "",
+          "type": "kick-stats",
+          "name": "Stats Kick",
+          "x": 4,
+          "y": 0,
+          "w": 3,
+          "h": 4,
+          "visible": true,
+          "config": {
+            "channel": "cicero_mt"
+          }
+        },
+        {
+          "id": "e043268c-238d-4a5c-a835-552551169b8b",
+          "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
+          "type": "status",
+          "name": "Stav",
+          "x": 0,
+          "y": 8,
+          "w": 6,
+          "h": 3,
+          "visible": false
+        },
+        {
+          "id": "7f794e81-1419-4254-93af-fa1df9a04e17",
+          "deviceId": "c3241ebe-4188-44bd-87a8-17e3aced3091",
+          "type": "encoder",
+          "name": "Enkodér",
+          "x": 4,
+          "y": 18,
+          "w": 6,
+          "h": 5,
+          "visible": false
+        },
+        {
+          "id": "3e684b5f-678d-4717-b5ad-12ee7b390675",
+          "deviceId": "",
+          "type": "kick-stats",
+          "name": "Stats Kick",
+          "x": 0,
+          "y": 22,
+          "w": 3,
+          "h": 3,
+          "visible": false,
+          "config": {
+            "channel": ""
+          }
+        },
+        {
+          "id": "1541d79a-7cd5-42ad-ab58-8d0141108578",
+          "deviceId": "239b2703-6577-4381-a395-b595c3202ce3",
+          "type": "combined",
+          "name": "Enkodér + relay",
+          "x": 0,
+          "y": 0,
+          "w": 4,
+          "h": 27,
+          "visible": true
+        }
+      ],
+      "columns": 12
+    }
+  ]
+}

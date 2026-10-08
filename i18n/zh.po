@@ -1,0 +1,1245 @@
+# zh — Belabox Duo UI translations (PO format)
+# msgid is the key; msgstr is the translation. Single-line entries,
+# quotes JSON-escaped; the empty msgid is the header and is ignored.
+
+msgid ""
+msgstr "Content-Type: text/plain; charset=utf-8\nMIME-Version: 1.0\nLanguage: zh\n"
+
+msgid "dash.add_widget"
+msgstr "添加小组件"
+
+msgid "dash.add"
+msgstr "添加"
+
+msgid "dash.back"
+msgstr "返回仪表盘"
+
+msgid "dash.create"
+msgstr "创建"
+
+msgid "dash.create_new"
+msgstr "创建新的仪表盘"
+
+msgid "dash.delete"
+msgstr "删除"
+
+msgid "dash.devices"
+msgstr "设备"
+
+msgid "dash.edit"
+msgstr "编辑"
+
+msgid "dash.empty"
+msgstr "还没有仪表盘"
+
+msgid "dash.grp_independent"
+msgstr "独立"
+
+msgid "dash.modules"
+msgstr "模块"
+
+msgid "dash.move_down"
+msgstr "下移"
+
+msgid "dash.move_up"
+msgstr "上移"
+
+msgid "dash.name"
+msgstr "名称"
+
+msgid "dash.new_placeholder"
+msgstr "例如：推流"
+
+msgid "dash.no_widgets"
+msgstr "暂无小组件 — 请在下方添加"
+
+msgid "dash.not_found"
+msgstr "未找到仪表盘"
+
+msgid "dash.saving"
+msgstr "正在保存…"
+
+msgid "dash.title"
+msgstr "仪表盘"
+
+msgid "dash.view"
+msgstr "查看"
+
+msgid "dash.widget"
+msgstr "小组件"
+
+msgid "dash.widget.max"
+msgstr "最大"
+
+msgid "dash.widget.pipeline"
+msgstr "管线"
+
+msgid "dash.widget.recording"
+msgstr "录制"
+
+msgid "dash.widget.scene"
+msgstr "场景"
+
+msgid "dash.widget.streaming"
+msgstr "推流"
+
+msgid "dash.widget_missing"
+msgstr "无设备"
+
+msgid "dash.version_stale"
+msgstr "旧版应用"
+
+msgid "dash.widget_module_off"
+msgstr "设备上的模块已禁用"
+
+msgid "dash.widget_type"
+msgstr "类型"
+
+msgid "dash.widget_waiting"
+msgstr "等待数据…"
+
+msgid "dash.widgets"
+msgstr "小组件"
+
+msgid "dash.width"
+msgstr "宽度"
+
+msgid "dash.width_12"
+msgstr "完整"
+
+msgid "dash.width_4"
+msgstr "三分之一"
+
+msgid "dash.width_6"
+msgstr "一半"
+
+msgid "dev.all_devices_title"
+msgstr "返回设备列表"
+
+msgid "dev.apply_bitrate"
+msgstr "应用码率"
+
+msgid "dev.apply_cera"
+msgstr "应用 设置"
+
+msgid "dev.audio_pipeline_default"
+msgstr "默认管线"
+
+msgid "dev.autostart_title"
+msgstr "设置开机自动或手动启动"
+
+msgid "dev.badge.live"
+msgstr "直播中"
+
+msgid "dev.badge.no_links"
+msgstr "无链路"
+
+msgid "dev.badge.offline"
+msgstr "离线"
+
+msgid "dev.badge.online"
+msgstr "在线"
+
+msgid "dev.badge.online_count"
+msgstr "{0}/{1} 在线"
+
+msgid "dev.badge.restarting"
+msgstr "重启中"
+
+msgid "dev.badge.srtla_send_down"
+msgstr "srtla_send 已断开"
+
+msgid "dev.badge.stopped"
+msgstr "已停止"
+
+msgid "dev.badge.streaming"
+msgstr "推流中"
+
+msgid "dev.balancer.adaptive"
+msgstr "自适应 (RTT + 缓冲区)"
+
+msgid "dev.balancer.aimd"
+msgstr "AIMD（TCP 风格）"
+
+msgid "dev.balancer.fixed"
+msgstr "固定码率"
+
+msgid "dev.card.encoder"
+msgstr "编码器"
+
+msgid "dev.card.interfaces"
+msgstr "接口"
+
+msgid "dev.card.log"
+msgstr "日志"
+
+msgid "dev.card.modems"
+msgstr "调制解调器"
+
+msgid "dev.card.srtla"
+msgstr "中继"
+
+msgid "dev.cera_section"
+msgstr "码率控制"
+
+msgid "dev.connected"
+msgstr "已连接"
+
+msgid "dev.control"
+msgstr "控制"
+
+msgid "dev.control_connecting"
+msgstr "连接中"
+
+msgid "dev.control_unavailable"
+msgstr "不可用"
+
+msgid "dev.control_unavailable_title"
+msgstr "未连接控制 websocket"
+
+msgid "dev.device_offline"
+msgstr "设备离线"
+
+msgid "dev.disconnected"
+msgstr "已断开"
+
+msgid "dev.field.audio_codec"
+msgstr "音频编解码器"
+
+msgid "dev.field.audio_delay"
+msgstr "音频延迟 (ms)"
+
+msgid "dev.field.audio_source"
+msgstr "音频源"
+
+msgid "dev.field.balancer"
+msgstr "码率均衡器"
+
+msgid "dev.field.bitrate_overlay"
+msgstr "码率叠加"
+
+msgid "dev.field.cera_decr_interval"
+msgstr "降低间隔 (ms)"
+
+msgid "dev.field.cera_decr_mult"
+msgstr "拥塞乘数 (0-1)"
+
+msgid "dev.field.cera_decr_step"
+msgstr "降低步长 (kbps)"
+
+msgid "dev.field.cera_incr_interval"
+msgstr "提高间隔 (ms)"
+
+msgid "dev.field.cera_incr_step"
+msgstr "提高步长 (kbps)"
+
+msgid "dev.field.max_bitrate"
+msgstr "最大码率 (kbps)"
+
+msgid "dev.field.min_bitrate"
+msgstr "最小码率 (kbps)"
+
+msgid "dev.field.remote_host"
+msgstr "SRTLA 远程主机"
+
+msgid "dev.field.remote_port"
+msgstr "SRTLA 远程端口"
+
+msgid "dev.field.srt_latency"
+msgstr "SRT 延迟 (ms)"
+
+msgid "dev.field.srt_listen_port"
+msgstr "SRT 监听端口"
+
+msgid "dev.field.stream_host"
+msgstr "流主机"
+
+msgid "dev.field.stream_id"
+msgstr "Stream ID"
+
+msgid "dev.field.stream_srt_port"
+msgstr "流 SRT 端口"
+
+msgid "dev.group.audio"
+msgstr "音频"
+
+msgid "dev.group.bitrate"
+msgstr "码率"
+
+msgid "dev.group.connection"
+msgstr "连接"
+
+msgid "dev.group.scheduling"
+msgstr "链路调度"
+
+msgid "dev.group.srt"
+msgstr "SRT 输出"
+
+msgid "dev.group.video"
+msgstr "视频"
+
+msgid "dev.iface_modem"
+msgstr "调制解调器 #{0}"
+
+msgid "dev.imei"
+msgstr "IMEI"
+
+msgid "dev.include_in_bond"
+msgstr "加入聚合"
+
+msgid "dev.latency_audio"
+msgstr "{0} ms（音频延迟 {1} ms）"
+
+msgid "dev.link_min_rtt"
+msgstr "最小 {0} ms"
+
+msgid "dev.link_score"
+msgstr "评分 {0}"
+
+msgid "dev.link_share_title"
+msgstr "占总量 {0}%（最小 RTT {1} ms）"
+
+msgid "dev.link_sole"
+msgstr "唯一链路"
+
+msgid "dev.link_stalled"
+msgstr "停滞"
+
+msgid "dev.link_timed_out"
+msgstr "超时"
+
+msgid "dev.link_up"
+msgstr "正常"
+
+msgid "dev.link_weak"
+msgstr "较弱"
+
+msgid "dev.listen_port"
+msgstr "（监听 {0}）"
+
+msgid "dev.lost_reconnecting"
+msgstr "已丢失，正在重连…"
+
+msgid "dev.max_value"
+msgstr "最大 {0}"
+
+msgid "dev.minmax_kbps"
+msgstr "最小 {0} / 最大 {1} kbps"
+
+msgid "dev.modem_fallback"
+msgstr "调制解调器"
+
+msgid "dev.monitor"
+msgstr "监视器"
+
+msgid "dev.monitor_watching"
+msgstr "监视中"
+
+msgid "dev.no_interfaces"
+msgstr "未检测到接口"
+
+msgid "dev.no_modems"
+msgstr "未找到调制解调器 (ModemManager)。"
+
+msgid "dev.no_pipelines"
+msgstr "{0} 中没有管线。"
+
+msgid "dev.no_pipelines_hint"
+msgstr "在设置中添加管线仓库。"
+
+msgid "dev.operator"
+msgstr "运营商"
+
+msgid "dev.power"
+msgstr "电源"
+
+msgid "dev.quality_scoring"
+msgstr "质量评分"
+
+msgid "dev.quality_scoring_title"
+msgstr "用于选择最佳链路的 SRTLA 评分"
+
+msgid "dev.reconnected"
+msgstr "已重连"
+
+msgid "dev.registration"
+msgstr "注册"
+
+msgid "dev.reloads"
+msgstr "重载"
+
+msgid "dev.reloads_detail"
+msgstr "{0}（上次 {1}，模式 {2}）"
+
+msgid "dev.reset_confirm"
+msgstr "重置调制解调器 #{0}？"
+
+msgid "dev.row.audio"
+msgstr "音频"
+
+msgid "dev.row.balancer"
+msgstr "均衡器"
+
+msgid "dev.row.bitrate"
+msgstr "码率"
+
+msgid "dev.row.encoder"
+msgstr "编码器"
+
+msgid "dev.row.latency"
+msgstr "延迟"
+
+msgid "dev.row.pipeline"
+msgstr "管线"
+
+msgid "dev.row.restarts"
+msgstr "重启"
+
+msgid "dev.row.started"
+msgstr "已启动"
+
+msgid "dev.row.state"
+msgstr "状态"
+
+msgid "dev.row.target"
+msgstr "目标"
+
+msgid "dev.row_state_running"
+msgstr "运行中"
+
+msgid "dev.scheduler"
+msgstr "调度器"
+
+msgid "dev.scheduler_classic"
+msgstr "经典"
+
+msgid "dev.scheduler_enhanced"
+msgstr "增强"
+
+msgid "dev.signal"
+msgstr "信号"
+
+msgid "dev.stale"
+msgstr "过期，{0}"
+
+msgid "dev.tech"
+msgstr "技术"
+
+msgid "dev.th.bond"
+msgstr "聚合"
+
+msgid "dev.th.in_flight"
+msgstr "传输中"
+
+msgid "dev.th.in_flight_title"
+msgstr "排队到 SRTLA 的 SRTLA 数据缓冲区数量"
+
+msgid "dev.th.interface"
+msgstr "接口"
+
+msgid "dev.th.link"
+msgstr "链路"
+
+msgid "dev.th.loss"
+msgstr "丢包 %"
+
+msgid "dev.th.naks"
+msgstr "NAKs"
+
+msgid "dev.th.network"
+msgstr "网络"
+
+msgid "dev.th.quality"
+msgstr "质量"
+
+msgid "dev.title"
+msgstr "Belabox Duo"
+
+msgid "dev.unit_gbs"
+msgstr "{0} Gb/s"
+
+msgid "dev.unit_kbps"
+msgstr "kbps"
+
+msgid "dev.unit_mbps"
+msgstr "Mbps"
+
+msgid "dev.unit_mbs"
+msgstr "{0} Mb/s"
+
+msgid "kickchat.card"
+msgstr "Kick 聊天"
+
+msgid "kickchat.connected"
+msgstr "已连接"
+
+msgid "kickchat.disabled"
+msgstr "模块已禁用"
+
+msgid "kickchat.disconnected"
+msgstr "已断开"
+
+msgid "kickchat.empty"
+msgstr "暂无消息"
+
+msgid "tiktokchat.empty"
+msgstr "暂无消息"
+
+msgid "twitchchat.empty"
+msgstr "暂无消息"
+
+msgid "youtubechat.empty"
+msgstr "暂无消息"
+
+msgid "kickstats.card"
+msgstr "Kick 统计"
+
+msgid "kickstats.disabled"
+msgstr "模块已禁用"
+
+msgid "kickstats.followers"
+msgstr "关注者"
+
+msgid "kickstats.live"
+msgstr "LIVE"
+
+msgid "kickstats.chart"
+msgstr "观众数"
+
+msgid "kickstats.start"
+msgstr "开始"
+
+msgid "kickstats.duration"
+msgstr "时长"
+
+msgid "kickstats.offline"
+msgstr "离线"
+
+msgid "kickstats.spark_pending"
+msgstr "正在采集样本…"
+
+msgid "kickstats.title"
+msgstr "标题"
+
+msgid "kickstats.viewers"
+msgstr "观看"
+
+msgid "kickstats.waiting"
+msgstr "等待首次轮询…"
+
+msgid "log.encoder_exited"
+msgstr "编码器以代码 {0} 退出；将在 {1}s 后重启"
+
+msgid "log.level.error"
+msgstr "错误"
+
+msgid "log.level.info"
+msgstr "INFO"
+
+msgid "log.level.warning"
+msgstr "警告"
+
+msgid "log.no_control_socket"
+msgstr "没有控制 socket；设置将在下次启动时生效"
+
+msgid "log.no_stream_settings"
+msgstr "没有可恢复的上次流设置"
+
+msgid "log.reconfigure_failed"
+msgstr "初始重新配置失败：{0}"
+
+msgid "log.restart_failed"
+msgstr "重启失败：{0}"
+
+msgid "log.settings_saved_reconnect"
+msgstr "设置已保存；正在重连到 {0}"
+
+msgid "log.srtla_exited"
+msgstr "srtla_send 以代码 {0} 退出；将在 {1}s 后重启"
+
+msgid "log.started"
+msgstr "服务已启动 ({0})"
+
+msgid "log.stopped_signal"
+msgstr "服务已停止 ({0})"
+
+msgid "log.stream_resumed"
+msgstr "流已恢复"
+
+msgid "log.stream_start_retry"
+msgstr "启动失败，将在 {0}s 后重试：{1}"
+
+msgid "mgmt.devices"
+msgstr "设备"
+
+msgid "mgmt.last_seen"
+msgstr "上次在线 {0}"
+
+msgid "mgmt.loading"
+msgstr "加载中…"
+
+msgid "mgmt.none"
+msgstr "尚无设备连接。"
+
+msgid "mgmt.th.connected"
+msgstr "已连接"
+
+msgid "mgmt.th.device"
+msgstr "设备"
+
+msgid "mgmt.th.links"
+msgstr "链路"
+
+msgid "mgmt.th.role"
+msgstr "角色"
+
+msgid "mgmt.th.status"
+msgstr "状态"
+
+msgid "mgmt.th.stream"
+msgstr "流"
+
+msgid "mgmt.th_bitrate"
+msgstr "码率 / 最大"
+
+msgid "mgmt.title"
+msgstr "Belabox Duo 控制"
+
+msgid "mlog.action.activate"
+msgstr "激活"
+
+msgid "mlog.action.bitrate"
+msgstr "码率更改"
+
+msgid "mlog.action.bond_selection"
+msgstr "聚合选择"
+
+msgid "mlog.action.bond_toggle"
+msgstr "聚合切换"
+
+msgid "mlog.action.configuration"
+msgstr "配置"
+
+msgid "mlog.action.create"
+msgstr "创建"
+
+msgid "mlog.action.delete"
+msgstr "删除"
+
+msgid "mlog.action.load"
+msgstr "加载"
+
+msgid "mlog.action.options"
+msgstr "选项更新"
+
+msgid "mlog.action.update"
+msgstr "更新"
+
+msgid "mlog.done.bitrate"
+msgstr "码率设为最小 {0} / 最大 {1} kbps"
+
+msgid "mlog.done.bond_toggled"
+msgstr "{0} 已在聚合中切换"
+
+msgid "mlog.done.bond_updated"
+msgstr "聚合选择已更新"
+
+msgid "mlog.done.cera_settings"
+msgstr "码率控制设置已应用"
+
+msgid "mlog.done.disabled"
+msgstr "已禁用"
+
+msgid "mlog.done.enabled"
+msgstr "已启用"
+
+msgid "mlog.done.generic"
+msgstr "{0} 完成"
+
+msgid "mlog.done.loaded"
+msgstr "已加载"
+
+msgid "mlog.done.mode"
+msgstr "模式设为 {0}"
+
+msgid "mlog.done.modem_connected"
+msgstr "调制解调器 #{0} 已连接"
+
+msgid "mlog.done.modem_disabled"
+msgstr "调制解调器 #{0} 已禁用"
+
+msgid "mlog.done.modem_disconnected"
+msgstr "调制解调器 #{0} 已断开"
+
+msgid "mlog.done.modem_enabled"
+msgstr "调制解调器 #{0} 已启用"
+
+msgid "mlog.done.modem_reset"
+msgstr "调制解调器 #{0} 已重置"
+
+msgid "mlog.done.module_configured"
+msgstr "模块 {0} 已配置"
+
+msgid "mlog.done.module_disabled"
+msgstr "模块 {0} 已禁用"
+
+msgid "mlog.done.module_enabled"
+msgstr "模块 {0} 已启用"
+
+msgid "mlog.done.quality_off"
+msgstr "质量：关闭"
+
+msgid "mlog.done.quality_on"
+msgstr "质量：开启"
+
+msgid "mlog.done.reconfigured"
+msgstr "已重新配置"
+
+msgid "mlog.done.reloaded"
+msgstr "已重载"
+
+msgid "mlog.done.remote_disabled"
+msgstr "远程控制服务器已禁用"
+
+msgid "mlog.done.settings_saved"
+msgstr "设置已保存"
+
+msgid "mlog.done.started"
+msgstr "已启动"
+
+msgid "mlog.done.stopped"
+msgstr "已停止"
+
+msgid "mlog.failed"
+msgstr "{0} 失败：{1}"
+
+msgid "mlog.section.connection"
+msgstr "连接"
+
+msgid "mlog.section.encoder"
+msgstr "编码器"
+
+msgid "mlog.section.modules"
+msgstr "模块"
+
+msgid "mlog.section.pipelines"
+msgstr "管线"
+
+msgid "mlog.section.service"
+msgstr "服务"
+
+msgid "mlog.section.settings"
+msgstr "设置"
+
+msgid "mlog.section.setup"
+msgstr "初始设置"
+
+msgid "mlog.section.unknown"
+msgstr "未知"
+
+msgid "mod.config"
+msgstr "配置"
+
+msgid "mod.enabled"
+msgstr "状态"
+
+msgid "mod.encoder"
+msgstr "编码器"
+
+msgid "mod.kick_channel"
+msgstr "Kick 频道"
+
+msgid "mod.kick_chat"
+msgstr "Kick 聊天"
+
+msgid "mod.kick_stats"
+msgstr "Kick 统计"
+
+msgid "mod.kick_token"
+msgstr "聊天令牌"
+
+msgid "mod.kick_token_placeholder"
+msgstr "留空以保留"
+
+msgid "mod.name"
+msgstr "模块"
+
+msgid "mod.obs"
+msgstr "OBS Studio"
+
+msgid "mod.obs_password"
+msgstr "密码"
+
+msgid "mod.obs_password_placeholder"
+msgstr "留空以保留"
+
+msgid "mod.obs_url"
+msgstr "OBS WebSocket 地址"
+
+msgid "mod.relay"
+msgstr "Relay (SRTLA)"
+
+msgid "mod.scene_events"
+msgstr "订阅场景事件"
+
+msgid "obs.audio"
+msgstr "音频电平"
+
+msgid "obs.card"
+msgstr "OBS Studio"
+
+msgid "obs.connected"
+msgstr "已连接"
+
+msgid "obs.disabled"
+msgstr "模块已禁用"
+
+msgid "obs.manual"
+msgstr "手动"
+
+msgid "obs.mic_live"
+msgstr "麦克风直播"
+
+msgid "obs.mic_muted"
+msgstr "麦克风已静音"
+
+msgid "obs.mute"
+msgstr "静音麦克风"
+
+msgid "obs.next"
+msgstr "{0}秒后刷新"
+
+msgid "obs.no_inputs"
+msgstr "无输入"
+
+msgid "obs.no_scenes"
+msgstr "无场景"
+
+msgid "obs.offline"
+msgstr "离线"
+
+msgid "obs.output"
+msgstr "输出"
+
+msgid "obs.pause"
+msgstr "暂停"
+
+msgid "obs.paused"
+msgstr "已暂停"
+
+msgid "obs.preview"
+msgstr "预览"
+
+msgid "obs.preview_failed"
+msgstr "更新失败"
+
+msgid "obs.preview_now"
+msgstr "立即刷新"
+
+msgid "obs.recording"
+msgstr "录制"
+
+msgid "obs.refresh"
+msgstr "刷新"
+
+msgid "obs.resume"
+msgstr "继续"
+
+msgid "obs.scene"
+msgstr "当前场景"
+
+msgid "obs.scenes"
+msgstr "场景"
+
+msgid "obs.screenshot"
+msgstr "截图"
+
+msgid "obs.start_record"
+msgstr "开始录制"
+
+msgid "obs.start_stream"
+msgstr "开始推流"
+
+msgid "obs.stop_record"
+msgstr "停止录制"
+
+msgid "obs.stop_stream"
+msgstr "停止推流"
+
+msgid "obs.streaming"
+msgstr "推流中"
+
+msgid "obs.studio"
+msgstr "演播室模式"
+
+msgid "obs.unmute"
+msgstr "取消静音麦克风"
+
+msgid "obs.updated"
+msgstr "已更新 {0}"
+
+msgid "obs.waiting"
+msgstr "加载中…"
+
+msgid "role.combined"
+msgstr "编码器 + 中继"
+
+msgid "role.custom"
+msgstr "自定义"
+
+msgid "role.encoder"
+msgstr "编码器"
+
+msgid "role.obs"
+msgstr "obs"
+
+msgid "role.relay"
+msgstr "中继"
+
+msgid "set.back"
+msgstr "返回设备"
+
+msgid "set.color"
+msgstr "强调色"
+
+msgid "set.description"
+msgstr "保存后，设置会在控制服务器上重新应用。"
+
+msgid "set.hostname"
+msgstr "主机名"
+
+msgid "set.no_repos"
+msgstr "未配置管线仓库。"
+
+msgid "set.remote_token"
+msgstr "远程令牌"
+
+msgid "set.remote_url"
+msgstr "控制服务器 URL"
+
+msgid "set.repo_add"
+msgstr "添加仓库"
+
+msgid "set.repo_field"
+msgstr "GitHub 仓库"
+
+msgid "set.repo_imported"
+msgstr "已导入 {0} 个文件。"
+
+msgid "set.repo_importing"
+msgstr "正在导入 {0}…"
+
+msgid "set.repo_removed"
+msgstr "已移除 {0}。"
+
+msgid "set.repo_removing"
+msgstr "正在移除 {0}…"
+
+msgid "set.repo_update_all"
+msgstr "全部更新"
+
+msgid "set.repo_updated_all"
+msgstr "已更新 {0} 个仓库（{1} 个文件）。"
+
+msgid "set.repo_updating_all"
+msgstr "正在更新所有管线仓库…"
+
+msgid "set.repos"
+msgstr "管线仓库"
+
+msgid "set.repos_desc"
+msgstr "管线会从每个仓库的 pipelines/ 目录递归导入，并在每次 git pull 后重新导入。"
+
+msgid "set.restart_required"
+msgstr "新角色将在重启设备服务后生效。"
+
+msgid "set.role"
+msgstr "设备角色"
+
+msgid "set.role_keep"
+msgstr "保留当前"
+
+msgid "set.save"
+msgstr "保存设置"
+
+msgid "set.saved"
+msgstr "设置已保存。"
+
+msgid "set.title"
+msgstr "设备设置"
+
+msgid "set.token_ph_configured"
+msgstr "已配置（留空以保留）"
+
+msgid "set.token_ph_missing"
+msgstr "未配置"
+
+msgid "set.token_ph_unchanged"
+msgstr "未更改"
+
+msgid "setup.autostart"
+msgstr "重启后自动启动已保存的流"
+
+msgid "setup.control_desc"
+msgstr "将此设置连接到现有控制服务器。"
+
+msgid "setup.control_token"
+msgstr "控制令牌"
+
+msgid "setup.encoder_desc"
+msgstr "采集管线的编码器专用字段。"
+
+msgid "setup.hostname"
+msgstr "设备名称"
+
+msgid "setup.hostname_title"
+msgstr "使用小写字母、数字、点和连字符（最多 64 个字符）。"
+
+msgid "setup.identity"
+msgstr "身份和外观"
+
+msgid "setup.identity_desc"
+msgstr "设备如何向控制服务器标识自己。"
+
+msgid "setup.language_desc"
+msgstr "选择整个界面使用的语言。"
+
+msgid "setup.loading"
+msgstr "正在加载设置数据…"
+
+msgid "setup.relay_desc"
+msgstr "SRTLA 中继字段（仅中继角色）。"
+
+msgid "setup.restart_required"
+msgstr "新角色将在重启设备服务后生效。"
+
+msgid "setup.review_desc"
+msgstr "可用“返回”检查选择，然后保存配置。"
+
+msgid "setup.role.combined"
+msgstr "组合"
+
+msgid "setup.role.combined_tag"
+msgstr "在单个服务中编码并中继"
+
+msgid "setup.role.encoder"
+msgstr "编码器"
+
+msgid "setup.role.encoder_tag"
+msgstr "采集 GStreamer 管线并通过 SRT 发送"
+
+msgid "setup.role.relay_tag"
+msgstr "接收流并使用 SRTLA 转发"
+
+msgid "setup.save"
+msgstr "保存配置"
+
+msgid "setup.saved"
+msgstr "配置已保存。重启服务以应用所选角色、主机名和控制服务器。"
+
+msgid "setup.step.control"
+msgstr "控制服务器"
+
+msgid "setup.step.control_sub"
+msgstr "可选连接到中央服务器。"
+
+msgid "setup.step.encoder"
+msgstr "编码器"
+
+msgid "setup.step.encoder_sub"
+msgstr "管线、码率和音频延迟。"
+
+msgid "setup.step.identity"
+msgstr "身份"
+
+msgid "setup.step.identity_sub"
+msgstr "设备的主机名和强调色。"
+
+msgid "setup.step.language_sub"
+msgstr "选择界面语言。"
+
+msgid "setup.step.relay"
+msgstr "中继"
+
+msgid "setup.step.relay_sub"
+msgstr "SRTLA 设置"
+
+msgid "setup.step.review"
+msgstr "检查"
+
+msgid "setup.step.role_sub"
+msgstr "选择此 Belabox 加入网络的方式。"
+
+msgid "setup.title"
+msgstr "Belabox Duo 设置"
+
+msgid "srv.offline"
+msgstr "设备离线 ({0})"
+
+msgid "srv.online"
+msgstr "设备在线 ({0})"
+
+msgid "status.card"
+msgstr "状态"
+
+msgid "status.connection"
+msgstr "连接"
+
+msgid "status.role"
+msgstr "角色"
+
+msgid "status.state"
+msgstr "状态"
+
+msgid "time.h_ago"
+msgstr "{0}小时前"
+
+msgid "time.m_ago"
+msgstr "{0}分钟前"
+
+msgid "time.s_ago"
+msgstr "{0}秒前"
+
+msgid "ui.autostart"
+msgstr "自动启动"
+
+msgid "ui.back"
+msgstr "返回"
+
+msgid "ui.connect"
+msgstr "连接"
+
+msgid "ui.disable"
+msgstr "禁用"
+
+msgid "ui.disconnect"
+msgstr "断开"
+
+msgid "ui.enable"
+msgstr "启用"
+
+msgid "ui.error"
+msgstr "错误"
+
+msgid "ui.language_label"
+msgstr "语言"
+
+msgid "ui.next"
+msgstr "下一步"
+
+msgid "ui.off"
+msgstr "关闭"
+
+msgid "ui.on"
+msgstr "开启"
+
+msgid "ui.optional"
+msgstr "可选"
+
+msgid "ui.reconfigure"
+msgstr "重新配置"
+
+msgid "ui.reload"
+msgstr "重载"
+
+msgid "ui.remove"
+msgstr "移除"
+
+msgid "ui.reset"
+msgstr "重置"
+
+msgid "ui.save"
+msgstr "保存"
+
+msgid "ui.start"
+msgstr "启动"
+
+msgid "ui.stop"
+msgstr "停止"
+
+msgid "ui.title_suffix"
+msgstr "– Belabox Duo"
+
+msgid "wtype.combined"
+msgstr "编码器 + 中继"
+
+msgid "wtype.encoder"
+msgstr "编码器"
+
+msgid "wtype.kick_chat"
+msgstr "Kick 聊天"
+
+msgid "wtype.tiktok_chat"
+msgstr "TikTok 聊天"
+
+msgid "wtype.twitch_chat"
+msgstr "Twitch 聊天"
+
+msgid "wtype.youtube_chat"
+msgstr "YouTube 聊天"
+
+msgid "wtype.kick_stats"
+msgstr "Kick 统计"
+
+msgid "wtype.obs"
+msgstr "OBS Studio"
+
+msgid "wtype.relay"
+msgstr "Relay"
+
+msgid "wtype.stats"
+msgstr "Relay 统计"
+
+msgid "wtype.status"
+msgstr "状态"
+
+msgid "dash.widget_channel"
+msgstr "频道"
+
+msgid "dash.widget_not_configured"
+msgstr "未配置 – 请填写频道名"
+
+msgid "ui.cancel"
+msgstr "取消"
+
+msgid "dash.widget_settings"
+msgstr "频道设置"
+
+msgid "dash.new"
+msgstr "Nová"
+
+msgid "dash.rename"
+msgstr "Přejmenovat"
+
+msgid "dash.default_name"
+msgstr "Přehled"
+
+msgid "dash.delete_confirm"
+msgstr "Smazat přehled „{0}“?"
+
+msgid "dash.delete_fail"
+msgstr "Smazení se nezdařilo"
+
+msgid "dash.done"
+msgstr "Hotovo"
+
+msgid "dash.hide"
+msgstr "Skrýt"
+
+msgid "dash.remove"
+msgstr "Odebrat"
+
+msgid "dash.kick"
+msgstr "Kick (nezávislý)"
+
+msgid "dash.saved"
+msgstr "Uloženo"
+
+msgid "dash.save_error"
+msgstr "Uložení se nezdařilo"
+
+msgid "dash.conflict"
+msgstr "Změnil jiný uživatel — načteno poslední"
+
+msgid "dash.device"
+msgstr "Zařízení"

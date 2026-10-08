@@ -15,8 +15,26 @@
  *   GET  /d/<id>/setup/    setup wizard for one device
  *   WS   /d/<id>/ws        browser ⇄ device; same protocol as the relay's local /ws
  *   GET  /api/devices      JSON list of known devices
+ *   GET  /dashboards/      server dashboards: compose dashboards from the modules
+ *                          of connected devices (public/dashboards.html)
+ *   GET  /dashboards/view/<id>/  /edit/<id>/  dashboard grid; edit starts in
+ *                          edit mode (public/dashboardview.html)
+ *   GET  /dashboards/add/<id>/   dedicated "add widget" page (public/dashboardadd.html)
+ *   GET  /api/dashboards   JSON list of dashboards
+ *   POST /api/dashboards   create a dashboard {name, widgets}
+ *   PUT  /api/dashboards/<id>   replace a dashboard {name, widgets}
+ *   DEL  /api/dashboards/<id>   remove a dashboard
  *   WS   /device           device connections (Authorization: Bearer <token>, x-device-id: <id>,
  *                          x-device-role: relay|encoder|combined)
+ *   WS   /dashboards/ws    the shared live feed: widget data (kick.stats /
+ *                          kick.chat / tiktok.chat / twitch.chat / youtube.chat
+ *                          events, widget.snapshot on connect) for the channel
+ *                          chat widgets (the server follows each widget
+ *                          channel), plus the live device list (devices.snapshot
+ *                          on connect, devices.changed whenever any device's
+ *                          state/telemetry/parameters change) and the dashboard
+ *                          list (dashboards.snapshot on connect; the
+ *                          dashboards.changed broadcasts above)
  *   GET  /healthz          liveness (no auth)
  *
  * Devices are keyed by a stable UUID (hostnames change); the per-device
@@ -42,15 +60,20 @@
  *            --ui-password / SRTLA_UI_PASSWORD)
  *   --no-auth disables both (local testing only).
  *
+ * Dashboards are a server-level feature: the dashboards page composes them from the
+ * modules of connected devices and persists them to --dashboards (default
+ * dashboards.json, created on the first change).
+ *
  * Usage:
  *   SRTLA_DEVICE_TOKEN=devsecret SRTLA_UI_PASSWORD=uipass bun server.ts --port 8090
  */
 import type { ServerWebSocket } from "bun";
-import { createHash, timingSafeEqual } from "node:crypto";
-import type { DeviceInfo, DeviceSummary, SrtlaStats, SrtlaStatsEvent, Status } from "./public/types";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import type { DeviceInfo, DeviceSummary, ServerDashboard, ServerDashboardWidget, SrtlaStats, SrtlaStatsEvent, Status, WidgetType } from "./public/types";
 import { arg, argFail, flag, intArg } from "./src/args";
 import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
-import { isLanguage, type Language, translate } from "./src/i18n";
+import { i18nReady, isLanguage, type Language, translate } from "./src/i18n";
+import { initWidgetHub, syncWidgetHub, widgetConfigFields, widgetHubSnapshot } from "./modules/registry.backend";
 import { LOG_MAX, type LogEntry, type LogEvent, type LogLevel } from "./src/logMessages";
 import { parseJsonObject, textOf } from "./src/util";
 import { COLOR_RE, isRole, type Role } from "./src/validate";
@@ -64,6 +87,7 @@ const DEVICES_FILE = arg("--devices");
 const UI_USER      = arg("--ui-user", process.env.SRTLA_UI_USER ?? "admin");
 const UI_PASSWORD  = arg("--ui-password", process.env.SRTLA_UI_PASSWORD ?? "");
 const NO_AUTH      = flag("--no-auth");
+const DASHBOARDS_FILE = arg("--dashboards", "dashboards.json");
 
 const STALE_DEVICE_MS   = 5 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 30 * 1000;
@@ -72,7 +96,27 @@ const REQUEST_TIMEOUT_MS = 60_000;
 const ID_RE = /^[\w.-]{1,64}$/;
 // /d/<id>, /d/<id>/, /d/<id>/ws, /d/<id>/settings[/], /d/<id>/setup[/]
 const DEVICE_PATH_RE = /^\/d\/([^/]+)(?:(\/)(?:(ws)|(settings|setup)(\/)?)?)?$/;
+const WIDGET_TYPES: WidgetType[] = ["obs", "stats", "status", "relay", "encoder", "combined", "kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"];
+const DASH_PATH_RE = /^\/api\/dashboards(?:\/([\w.-]{1,64}))?$/;
 const viewersTopic = (id: string) => `viewers:${id}`;
+const dashboardsTopic = "dashboards:kick";
+const devicesTopic = "devices:list";
+const INDEPENDENT_WIDGETS: ReadonlySet<WidgetType> = new Set(["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"]);
+const DASH_COLUMNS = 12;
+/** Default `{w, h}` per widget type — seeds new widgets and migrates v1 rows. */
+const WIDGET_SIZE: Record<WidgetType, { w: number; h: number }> = {
+	obs: { w: 6, h: 6 },
+	status: { w: 4, h: 4 },
+	stats: { w: 4, h: 4 },
+	relay: { w: 4, h: 4 },
+	encoder: { w: 6, h: 5 },
+	combined: { w: 6, h: 10 },
+	"kick-stats": { w: 3, h: 3 },
+	"kick-chat": { w: 3, h: 8 },
+	"tiktok-chat": { w: 3, h: 8 },
+	"twitch-chat": { w: 3, h: 8 },
+	"youtube-chat": { w: 3, h: 8 },
+};
 
 // ----------------------------------------------------------------------
 // Auth
@@ -122,7 +166,7 @@ const unauthorized = () =>
 // ----------------------------------------------------------------------
 // Frontend (bundled once at startup so it can sit behind auth)
 // ----------------------------------------------------------------------
-const PAGES = ["devices", "index", "settings", "setup"] as const;
+const PAGES = ["devices", "index", "settings", "setup", "dashboards", "dashboardview", "dashboardadd"] as const;
 type PageName = (typeof PAGES)[number];
 const pages = {} as Record<PageName, string>;
 const assets = new Map<string, Blob>();
@@ -148,6 +192,10 @@ const assets = new Map<string, Blob>();
     }
 }
 
+// Log strings (t()/translate) are only served from request handlers, but make
+// sure the PO catalogs are loaded before the server accepts any request.
+await i18nReady;
+
 const htmlResponse = (page: PageName) =>
     new Response(pages[page], { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });
 
@@ -156,7 +204,8 @@ const htmlResponse = (page: PageName) =>
 // ----------------------------------------------------------------------
 type WsData =
     | { kind: "device"; id: string; address: string; role?: Role }
-    | { kind: "viewer"; id: string };
+    | { kind: "viewer"; id: string }
+    | { kind: "dashboards" };
 type Socket = ServerWebSocket<WsData>;
 
 interface Device {
@@ -166,6 +215,7 @@ interface Device {
     color?: string;           // the device's header color, from the device's hello
     language?: Language;      // UI language, from the device's hello
     role?: Role;              // device type, from the upgrade header / hello / status
+    version?: string;         // app build stamp, from the device's hello (absent on pre-version builds)
     ws: Socket | null;
     address?: string;
     connectedAt?: number;
@@ -205,6 +255,7 @@ const deviceInfo = (d: Device): DeviceInfo => ({
     color: d.color,
     language: d.language,
     role: d.role,
+    version: d.version,
     online: d.ws !== null,
     connectedAt: d.connectedAt,
     lastSeen: d.lastSeen,
@@ -262,7 +313,7 @@ function failPending(predicate: (p: Pending) => boolean, error: string, code: nu
 }
 
 /** Apply the device's self-reported parameters (hello / status); returns whether any changed. */
-function updateDevice(d: Device, fields: Partial<Pick<Device, "role" | "hostname" | "color" | "language">>): boolean {
+function updateDevice(d: Device, fields: Partial<Pick<Device, "role" | "hostname" | "color" | "language" | "version">>): boolean {
     let changed = false;
     for (const [key, value] of Object.entries(fields) as [keyof typeof fields, string | undefined][]) {
         if (value === undefined || d[key] === value) continue;
@@ -294,9 +345,11 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
             d.statusAt = Date.now();
             const role = d.status?.role;
             if (updateDevice(d, { role: isRole(role) ? role : undefined })) publish(d, deviceEvent(d));
+            publishDeviceList();
         } else if (msg.event === "srtla.stats") {
             d.statsMsg = text;
             d.stats = (msg.data as SrtlaStatsEvent | undefined)?.stats ?? null;
+            publishDeviceList();
         } else if (msg.event === "log") {
             const forward = updateDeviceLog(d, msg.data as LogEvent | undefined, text);
             if (forward) publish(d, forward);
@@ -315,8 +368,13 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
             hostname: typeof msg.hostname === "string" && msg.hostname !== "" ? msg.hostname : undefined,
             color: typeof msg.color === "string" && COLOR_RE.test(msg.color) ? msg.color : undefined,
             language: isLanguage(msg.language) ? msg.language : undefined,
+            // Absent on builds that predate version reporting — stays undefined, which the UI flags as "old app"
+            version: typeof msg.version === "string" && msg.version !== "" ? msg.version : undefined,
         });
-        if (changed) publish(d, deviceEvent(d));
+        if (changed) {
+            publish(d, deviceEvent(d));
+            publishDeviceList();
+        }
     }
 }
 
@@ -348,6 +406,236 @@ function onViewerMessage(ws: Socket, deviceId: string, raw: string | Buffer): vo
 }
 
 // ----------------------------------------------------------------------
+// Server dashboards: composed from the modules of connected devices, persisted
+// to DASHBOARDS_FILE (created on the first change)
+// ----------------------------------------------------------------------
+interface DashboardsFile {
+	dashboards: ServerDashboard[];
+}
+
+/** Read `{x, y, w, h}` from an inbound widget payload, tolerating a legacy
+ * v1 `width` (4/6/12) where the row position has no meaning. */
+function parseGrid(item: Record<string, unknown>, type: WidgetType): { x: number; y: number; w: number; h: number } {
+	const size = WIDGET_SIZE[type];
+	const toInt = (v: unknown, fallback: number, name: string) => {
+		const n = v === undefined ? fallback : Number(v);
+		if (!Number.isInteger(n)) throw new ApiError(`${name} must be an integer`);
+		return n;
+	};
+	const legacyWidth = Number(item.width);
+	const w = toInt(item.w, [4, 6, 12].includes(legacyWidth) ? legacyWidth : size.w, "w");
+	const x = toInt(item.x, 0, "x");
+	const y = toInt(item.y, 0, "y");
+	const h = toInt(item.h, size.h, "h");
+	if (x < 0 || y < 0 || w < 1 || h < 1) throw new ApiError("Widget position/size must be positive");
+	if (x + w > DASH_COLUMNS) throw new ApiError("Widget extends past the grid");
+	return { x, y, w, h };
+}
+
+function parseWidgets(raw: unknown): ServerDashboardWidget[] {
+	if (!Array.isArray(raw)) throw new ApiError("widgets is required");
+	return raw.map((w) => {
+		const item = (w && typeof w === "object" ? w : {}) as Record<string, unknown>;
+		const type = item.type;
+		if (typeof type !== "string" || !WIDGET_TYPES.includes(type as WidgetType)) {
+			throw new ApiError(`Unknown widget type: ${String(type)}`);
+		}
+		const independent = INDEPENDENT_WIDGETS.has(type as WidgetType);
+		const deviceId = item.deviceId;
+		if (deviceId !== undefined && typeof deviceId !== "string") {
+			throw new ApiError("Widget deviceId must be a string");
+		}
+		const grid = parseGrid(item, type as WidgetType);
+		const visible = item.visible === true;
+		const name = typeof item.name === "string" && item.name ? item.name : type;
+		// Preserve a client-assigned id so new widgets keep stable gridstack
+		// identity; assign one otherwise.
+		const id = typeof item.id === "string" && item.id ? item.id : randomUUID();
+		if (independent) {
+			// Channel widgets are device-independent: they carry their own data
+			// source parameters, declared by the widget module (the dashboard
+			// API owns their hub). Values may be missing/empty — a new widget
+			// is added first and its config filled in via the widget editor.
+			const cfg = (item.config && typeof item.config === "object" ? item.config : {}) as Record<string, unknown>;
+			const fields = widgetConfigFields(type);
+			const config: Record<string, string> = {};
+			for (const key of fields) {
+				const v = cfg[key];
+				if (v !== undefined) {
+					if (typeof v !== "string") throw new ApiError(`config.${key} must be a string`);
+					config[key] = v.trim();
+				} else config[key] = "";
+			}
+			for (const key of Object.keys(cfg)) {
+				if (!fields.includes(key)) throw new ApiError(`Unknown config field: ${key}`);
+			}
+			return { id, deviceId: typeof deviceId === "string" ? deviceId : "", type: type as WidgetType, name, ...grid, visible, config };
+		}
+		if (typeof deviceId !== "string" || deviceId === "") throw new ApiError("Widget needs a deviceId");
+		if (item.config !== undefined) throw new ApiError("Only kick widgets accept a config");
+		return { id, deviceId, type: type as WidgetType, name, ...grid, visible };
+	});
+}
+
+/** Coerce a raw stored dashboard (v1 `{width}` rows or v2 `{x,y,w,h}`) into the
+ * normalized v2 shape. `row` is the running baseline used to lay out v1 rows. */
+function normalizeDashboard(raw: Record<string, unknown>, index: number): ServerDashboard {
+	const id = typeof raw.id === "string" && raw.id ? raw.id : randomUUID();
+	const name = typeof raw.name === "string" && raw.name ? raw.name : `Dashboard ${index + 1}`;
+	const columns = Number.isFinite(Number(raw.columns)) && Number(raw.columns) > 0 ? Number(raw.columns) : DASH_COLUMNS;
+	const widgetsRaw = Array.isArray(raw.widgets) ? raw.widgets : [];
+	let row = 0;   // running baseline for stacking v1 rows
+	let migrated = false;
+	const widgets: ServerDashboardWidget[] = widgetsRaw.map((rr) => {
+		const item = (rr && typeof rr === "object" ? rr : {}) as Record<string, unknown>;
+		const type = String(item.type);
+		const size = WIDGET_SIZE[(type as WidgetType)] ?? { w: 4, h: 4 };
+		const isV1 = item.x === undefined && item.w === undefined && item.width !== undefined;
+		let x: number, y: number, w: number, h: number;
+		if (isV1) {
+			migrated = true;
+			const width = Number(item.width);
+			w = [4, 6, 12].includes(width) ? width : size.w;
+			h = Number.isFinite(Number(item.h)) ? Number(item.h) : size.h;
+			x = 0;
+			y = row;
+			row += h;
+		} else {
+			x = Number(item.x) || 0;
+			y = Number(item.y) || 0;
+			w = Number(item.w) || size.w;
+			h = Number(item.h) || size.h;
+			row = Math.max(row, y + h);
+		}
+		const independent = INDEPENDENT_WIDGETS.has(type as WidgetType);
+		const cfgRaw = (item.config && typeof item.config === "object" ? item.config : {}) as Record<string, unknown>;
+		// Only the widget module's declared parameters count; keep the config
+		// only when it carries at least one.
+		let config: Record<string, string> | undefined;
+		if (independent) {
+			const kept: Record<string, string> = {};
+			for (const key of widgetConfigFields(type)) {
+				if (typeof cfgRaw[key] === "string") kept[key] = cfgRaw[key];
+			}
+			if (Object.keys(kept).length > 0) config = kept;
+		}
+		return {
+			id: typeof item.id === "string" && item.id ? item.id : randomUUID(),
+			deviceId: typeof item.deviceId === "string" ? item.deviceId : "",
+			type: type as WidgetType,
+			name: typeof item.name === "string" && item.name ? item.name : type,
+			x, y, w, h,
+			visible: item.visible !== false,
+			...(config ? { config } : {}),
+		};
+	});
+	const storedVersion = Number(raw.version);
+	const version = migrated ? 2 : Number.isInteger(storedVersion) ? storedVersion : 1;
+	return { id, name, version, widgets, columns };
+}
+
+let dashboards: ServerDashboard[] = [];
+{
+	try {
+		const loaded = (await Bun.file(DASHBOARDS_FILE).json()) as DashboardsFile;
+		if (loaded && Array.isArray(loaded.dashboards)) {
+			dashboards = loaded.dashboards.map((d, i) => normalizeDashboard(d as unknown as Record<string, unknown>, i));
+		}
+	} catch {
+		// No file yet: start empty
+	}
+}
+
+function saveDashboards(): void {
+	const file = Bun.file(DASHBOARDS_FILE);
+	file.write(JSON.stringify({ dashboards }, null, 2)).catch((err: unknown) =>
+		console.error(`[dashboards] persist ${DASHBOARDS_FILE}:`, err),
+	);
+}
+
+/** Kick channel widgets needed by the persisted dashboards; fans out to dashboard viewers. */
+initWidgetHub((msg) => server.publish(dashboardsTopic, msg));
+const syncKick = (): void => syncWidgetHub(dashboards);
+syncKick();
+
+class ApiError extends Error {
+	constructor(message: string, readonly code = 400) {
+		super(message);
+	}
+}
+
+function dashError(code: number, message: string): Response {
+	return Response.json({ ok: false, error: message, code });
+}
+
+/** Push a dashboard change to every subscriber of the live dashboards topic, so
+ * open dashboards (view/edit pages) re-render without a refresh. */
+function broadcastDashboard(d: ServerDashboard): void {
+	server.publish(dashboardsTopic, event("dashboards.changed", d));
+}
+
+async function dashApi(req: Request, url: URL): Promise<Response> {
+	try {
+		const m = url.pathname.match(DASH_PATH_RE);
+		if (!m) return Response.json({ ok: false, error: "Not found", code: 404 });
+		const id = m[1];
+		if (!id) {
+			if (req.method === "GET") return Response.json({ ok: true, dashboards });
+			if (req.method === "POST") {
+				const body = (await req.json()) as { name?: unknown; widgets?: unknown };
+				const name = typeof body.name === "string" ? body.name.trim() : "";
+				if (!name) return dashError(400, "Dashboard needs a name");
+				const dashboard: ServerDashboard = {
+					id: randomUUID(), name, version: 1, columns: DASH_COLUMNS, widgets: parseWidgets(body.widgets),
+				};
+				dashboards.push(dashboard);
+				saveDashboards();
+				syncKick();
+				broadcastDashboard(dashboard);
+				return Response.json({ ok: true, dashboard, dashboards }, { status: 201 });
+			}
+			return Response.json({ ok: false, error: "Method not allowed", code: 405 });
+		}
+		// Mutations need a body (JSON); the device list is a separate GET
+		const dashboardsById = dashboards.find((d) => d.id === id);
+		if (req.method === "DELETE") {
+			if (!dashboardsById) return dashError(404, "Unknown dashboard");
+			dashboards = dashboards.filter((d) => d.id !== id);
+			saveDashboards();
+			syncKick();
+			server.publish(dashboardsTopic, event("dashboards.changed", { id, deleted: true }));
+			return Response.json({ ok: true, dashboards });
+		}
+		if (req.method === "PUT") {
+			if (!dashboardsById) return dashError(404, "Unknown dashboard");
+			const body = (await req.json()) as { name?: unknown; widgets?: unknown; version?: unknown };
+			const name = typeof body.name === "string" ? body.name.trim() : "";
+			if (!name) return dashError(400, "Dashboard needs a name");
+			// Optimistic concurrency: the client must echo the version it based
+			// the changes on, or we reject and let it rebase against `current`.
+			if (Number(body.version) !== dashboardsById.version) {
+				return Response.json({ ok: false, error: "version conflict", current: dashboardsById }, { status: 409 });
+			}
+			dashboardsById.name = name;
+			dashboardsById.widgets = parseWidgets(body.widgets);
+			dashboardsById.version += 1;
+			saveDashboards();
+			syncKick();
+			broadcastDashboard(dashboardsById);
+			return Response.json({ ok: true, dashboard: dashboardsById, dashboards });
+		}
+		if (req.method === "GET") {
+			if (!dashboardsById) return dashError(404, "Unknown dashboard");
+			return Response.json({ ok: true, dashboard: dashboardsById });
+		}
+		return Response.json({ ok: false, error: "Method not allowed", code: 405 });
+	} catch (err: unknown) {
+		const code = err instanceof ApiError ? err.code : 500;
+		return dashError(code, err instanceof Error ? err.message : "Internal error");
+	}
+}
+
+// ----------------------------------------------------------------------
 // HTTP / WebSocket server
 // ----------------------------------------------------------------------
 function summaries(): DeviceSummary[] {
@@ -357,6 +645,7 @@ function summaries(): DeviceSummary[] {
             statusAt: d.statusAt,
             srtla: d.status?.state?.srtla,
             encoder: d.status?.state?.encoder,
+            modules: d.status?.modules,
             maxBitrate: d.status?.state?.encoder?.config?.maxBitrate,
             ...(d.stats
                 ? {
@@ -367,6 +656,12 @@ function summaries(): DeviceSummary[] {
                 : {}),
         }))
         .sort((a, b) => Number(b.online) - Number(a.online) || a.id.localeCompare(b.id));
+}
+
+/** Re-broadcast the current list to the live-feed subscribers; the full list
+ * is small and identical to what the pages used to poll for. */
+function publishDeviceList(): void {
+    server.publish(devicesTopic, event("devices.changed", summaries()));
 }
 
 /** Device connection (`/device`): authenticate by uuid + token, then upgrade. */
@@ -416,6 +711,23 @@ const server = Bun.serve({
 
         if (path === "/") return htmlResponse("devices");
         if (path === "/api/devices") return Response.json(summaries());
+        if (path === "/dashboards/") return htmlResponse("dashboards");
+        if (path.startsWith("/api/dashboards")) return dashApi(req, url);
+        if (path === "/dashboards/ws") {
+            // The dashboard pages' live kick data channel (stats + chat)
+            if (!originAllowed(req)) return text("Origin not allowed", 403);
+            if (srv.upgrade(req, { data: { kind: "dashboards" } })) return undefined;
+            return upgradeRequired();
+        }
+        if (path.startsWith("/dashboards/view/") || path.startsWith("/dashboards/edit/")) {
+            // Both routes serve the merged inline grid editor; the page enables
+            // editing when the URL is /dashboards/edit/.
+            return htmlResponse("dashboardview");
+        }
+        if (path.startsWith("/dashboards/add/")) {
+            // The dedicated "add widget" page for a single dashboard.
+            return htmlResponse("dashboardadd");
+        }
         if (path.startsWith("/assets/")) {
             const asset = assets.get(path.slice("/assets/".length));
             return asset
@@ -432,6 +744,14 @@ const server = Bun.serve({
 
         open(ws) {
             const { data } = ws;
+            if (data.kind === "dashboards") {
+                ws.subscribe(dashboardsTopic);
+                ws.subscribe(devicesTopic);
+                ws.send(event("widget.snapshot", widgetHubSnapshot()));
+                ws.send(event("dashboards.snapshot", { dashboards }));
+                ws.send(event("devices.snapshot", summaries()));
+                return;
+            }
             if (data.kind === "device") {
                 const d = deviceFor(data.id);
                 if (d.ws) d.ws.close(4001, "replaced by a new connection");
@@ -442,6 +762,7 @@ const server = Bun.serve({
                 console.log(`[device ${d.id}] connected from ${data.address}`);
                 publish(d, deviceEvent(d));
                 addServerLog(d, "info", translate(d.language, "srv.online", data.address));
+                publishDeviceList();
                 return;
             }
             // Viewers of never-seen devices must not grow the registry
@@ -455,6 +776,7 @@ const server = Bun.serve({
 
         message(ws, raw) {
             const { data } = ws;
+            if (data.kind === "dashboards") return;   // the hub pushes only
             if (data.kind === "viewer") return onViewerMessage(ws, data.id, raw);
             const d = devices.get(data.id);
             if (d && d.ws === ws) onDeviceMessage(d, raw);
@@ -462,6 +784,7 @@ const server = Bun.serve({
 
         close(ws, code, reason) {
             const { data } = ws;
+            if (data.kind === "dashboards") return;
             if (data.kind === "viewer") {
                 failPending((p) => p.viewer === ws, "", 0, false);
                 return;
@@ -476,6 +799,7 @@ const server = Bun.serve({
             failPending((p) => p.deviceId === d.id, "device disconnected", 503);
             publish(d, deviceEvent(d));
             addServerLog(d, "warn", translate(d.language, "srv.offline", why));
+            publishDeviceList();
         },
     },
 });
@@ -491,6 +815,7 @@ setInterval(() => {
         devices.delete(d.id);
         failPending((p) => p.deviceId === d.id, "device disconnected", 503);
         publish(d, deviceEvent(d));
+        publishDeviceList();
         console.log(`[device ${d.id}] removed: no heartbeat for >${STALE_DEVICE_MS / 60000} minutes`);
     }
 }, PRUNE_INTERVAL_MS);

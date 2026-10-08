@@ -26,6 +26,7 @@ import { addStatusSink, logHistoryEvent, statsEvent, statusEvent } from "./push"
 import { latestSrtlaStats } from "./srtlaControl";
 import { state } from "./state";
 import { errorMessage, scrubUrl, textOf } from "./util";
+import { APP_VERSION } from "./version";
 
 const BACKOFF_MIN_MS = 1_000;
 const BACKOFF_MAX_MS = 30_000;
@@ -107,6 +108,7 @@ function connect(): void {
             hostname: state.settings.hostname ?? "",
             color: state.settings.color ?? "",
             language: asLanguage(state.settings.language),
+            version: APP_VERSION,
             ...(state.encoder.config?.maxBitrate !== undefined
                 ? { maxBitrate: state.encoder.config.maxBitrate }
                 : {}),

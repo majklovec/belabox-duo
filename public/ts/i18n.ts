@@ -1,9 +1,9 @@
 /* Browser i18n. Reuses the shared catalog and translation helper in src/i18n; this layer
  * adds the *current* UI language (remembered in localStorage), a header <select>, and redraw. */
 import m from "mithril";
-import { asLanguage, LANGUAGE_INFO, LANGUAGES, type Language, setCurrentLanguage, translate } from "../../src/i18n";
+import { asLanguage, i18nReady, LANGUAGE_INFO, LANGUAGES, type Language, setCurrentLanguage, translate } from "../../src/i18n";
 
-export { LANGUAGES };
+export { LANGUAGES, i18nReady };
 export type { Language };
 
 const STORAGE_KEY = "belabox-lang";

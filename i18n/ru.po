@@ -1,0 +1,1245 @@
+# ru — Belabox Duo UI translations (PO format)
+# msgid is the key; msgstr is the translation. Single-line entries,
+# quotes JSON-escaped; the empty msgid is the header and is ignored.
+
+msgid ""
+msgstr "Content-Type: text/plain; charset=utf-8\nMIME-Version: 1.0\nLanguage: ru\n"
+
+msgid "dash.add_widget"
+msgstr "Добавить виджет"
+
+msgid "dash.add"
+msgstr "Добавить"
+
+msgid "dash.back"
+msgstr "Назад к дашбордам"
+
+msgid "dash.create"
+msgstr "Создать"
+
+msgid "dash.create_new"
+msgstr "Создать новый дашборд"
+
+msgid "dash.delete"
+msgstr "Удалить"
+
+msgid "dash.devices"
+msgstr "Устройства"
+
+msgid "dash.edit"
+msgstr "Изменить"
+
+msgid "dash.empty"
+msgstr "Дашбордов пока нет"
+
+msgid "dash.grp_independent"
+msgstr "Независимый"
+
+msgid "dash.modules"
+msgstr "Модули"
+
+msgid "dash.move_down"
+msgstr "Переместить вниз"
+
+msgid "dash.move_up"
+msgstr "Переместить вверх"
+
+msgid "dash.name"
+msgstr "Название"
+
+msgid "dash.new_placeholder"
+msgstr "напр., стриминг"
+
+msgid "dash.no_widgets"
+msgstr "Виджетов нет — добавьте ниже"
+
+msgid "dash.not_found"
+msgstr "Дашборд не найден"
+
+msgid "dash.saving"
+msgstr "Сохранение…"
+
+msgid "dash.title"
+msgstr "Дашборды"
+
+msgid "dash.view"
+msgstr "Показать"
+
+msgid "dash.widget"
+msgstr "виджет"
+
+msgid "dash.widget.max"
+msgstr "Max"
+
+msgid "dash.widget.pipeline"
+msgstr "Пайплайн"
+
+msgid "dash.widget.recording"
+msgstr "Запись"
+
+msgid "dash.widget.scene"
+msgstr "Сцена"
+
+msgid "dash.widget.streaming"
+msgstr "Стриминг"
+
+msgid "dash.widget_missing"
+msgstr "Нет устройства"
+
+msgid "dash.version_stale"
+msgstr "старое приложение"
+
+msgid "dash.widget_module_off"
+msgstr "Модуль на устройстве отключён"
+
+msgid "dash.widget_type"
+msgstr "Тип"
+
+msgid "dash.widget_waiting"
+msgstr "Ожидание данных…"
+
+msgid "dash.widgets"
+msgstr "Виджеты"
+
+msgid "dash.width"
+msgstr "Ширина"
+
+msgid "dash.width_12"
+msgstr "полная"
+
+msgid "dash.width_4"
+msgstr "треть"
+
+msgid "dash.width_6"
+msgstr "половина"
+
+msgid "dev.all_devices_title"
+msgstr "Назад к списку устройств"
+
+msgid "dev.apply_bitrate"
+msgstr "Применить битрейт"
+
+msgid "dev.apply_cera"
+msgstr "Применить настройки"
+
+msgid "dev.audio_pipeline_default"
+msgstr "Pipeline по умолчанию"
+
+msgid "dev.autostart_title"
+msgstr "Автозапуск или ручной запуск"
+
+msgid "dev.badge.live"
+msgstr "в эфире"
+
+msgid "dev.badge.no_links"
+msgstr "нет каналов"
+
+msgid "dev.badge.offline"
+msgstr "офлайн"
+
+msgid "dev.badge.online"
+msgstr "онлайн"
+
+msgid "dev.badge.online_count"
+msgstr "{0}/{1} онлайн"
+
+msgid "dev.badge.restarting"
+msgstr "перезапуск"
+
+msgid "dev.badge.srtla_send_down"
+msgstr "srtla_send недоступен"
+
+msgid "dev.badge.stopped"
+msgstr "остановлено"
+
+msgid "dev.badge.streaming"
+msgstr "стриминг"
+
+msgid "dev.balancer.adaptive"
+msgstr "Адаптивно (RTT + буфер)"
+
+msgid "dev.balancer.aimd"
+msgstr "AIMD (как TCP)"
+
+msgid "dev.balancer.fixed"
+msgstr "Фиксированный битрейт"
+
+msgid "dev.card.encoder"
+msgstr "Энкодер"
+
+msgid "dev.card.interfaces"
+msgstr "Интерфейсы"
+
+msgid "dev.card.log"
+msgstr "Журнал"
+
+msgid "dev.card.modems"
+msgstr "Модемы"
+
+msgid "dev.card.srtla"
+msgstr "Ретранслятор"
+
+msgid "dev.cera_section"
+msgstr "Управление битрейтом"
+
+msgid "dev.connected"
+msgstr "подключено"
+
+msgid "dev.control"
+msgstr "Управление"
+
+msgid "dev.control_connecting"
+msgstr "подключение"
+
+msgid "dev.control_unavailable"
+msgstr "недоступно"
+
+msgid "dev.control_unavailable_title"
+msgstr "Нет подключенного управляющего websocket"
+
+msgid "dev.device_offline"
+msgstr "устройство офлайн"
+
+msgid "dev.disconnected"
+msgstr "отключено"
+
+msgid "dev.field.audio_codec"
+msgstr "Аудиокодек"
+
+msgid "dev.field.audio_delay"
+msgstr "Задержка аудио (ms)"
+
+msgid "dev.field.audio_source"
+msgstr "Источник аудио"
+
+msgid "dev.field.balancer"
+msgstr "Балансировщик битрейта"
+
+msgid "dev.field.bitrate_overlay"
+msgstr "Оверлей битрейта"
+
+msgid "dev.field.cera_decr_interval"
+msgstr "Интервал снижения (ms)"
+
+msgid "dev.field.cera_decr_mult"
+msgstr "Множитель перегрузки (0-1)"
+
+msgid "dev.field.cera_decr_step"
+msgstr "Шаг снижения (kbps)"
+
+msgid "dev.field.cera_incr_interval"
+msgstr "Интервал повышения (ms)"
+
+msgid "dev.field.cera_incr_step"
+msgstr "Шаг повышения (kbps)"
+
+msgid "dev.field.max_bitrate"
+msgstr "Макс. битрейт (kbps)"
+
+msgid "dev.field.min_bitrate"
+msgstr "Мин. битрейт (kbps)"
+
+msgid "dev.field.remote_host"
+msgstr "Удаленный хост SRTLA"
+
+msgid "dev.field.remote_port"
+msgstr "Удаленный порт SRTLA"
+
+msgid "dev.field.srt_latency"
+msgstr "Задержка SRT (ms)"
+
+msgid "dev.field.srt_listen_port"
+msgstr "Порт прослушивания SRT"
+
+msgid "dev.field.stream_host"
+msgstr "Хост стрима"
+
+msgid "dev.field.stream_id"
+msgstr "Stream ID"
+
+msgid "dev.field.stream_srt_port"
+msgstr "SRT-порт стрима"
+
+msgid "dev.group.audio"
+msgstr "Аудио"
+
+msgid "dev.group.bitrate"
+msgstr "Битрейт"
+
+msgid "dev.group.connection"
+msgstr "Подключение"
+
+msgid "dev.group.scheduling"
+msgstr "Планирование каналов"
+
+msgid "dev.group.srt"
+msgstr "Выход SRT"
+
+msgid "dev.group.video"
+msgstr "Видео"
+
+msgid "dev.iface_modem"
+msgstr "модем #{0}"
+
+msgid "dev.imei"
+msgstr "IMEI"
+
+msgid "dev.include_in_bond"
+msgstr "Включить в бондинг"
+
+msgid "dev.latency_audio"
+msgstr "{0} ms (задержка аудио {1} ms)"
+
+msgid "dev.link_min_rtt"
+msgstr "мин. {0} ms"
+
+msgid "dev.link_score"
+msgstr "оценка {0}"
+
+msgid "dev.link_share_title"
+msgstr "{0}% от общего (мин. RTT {1} ms)"
+
+msgid "dev.link_sole"
+msgstr "единственный канал"
+
+msgid "dev.link_stalled"
+msgstr "завис"
+
+msgid "dev.link_timed_out"
+msgstr "тайм-аут"
+
+msgid "dev.link_up"
+msgstr "активен"
+
+msgid "dev.link_weak"
+msgstr "слабый"
+
+msgid "dev.listen_port"
+msgstr "(слушает {0})"
+
+msgid "dev.lost_reconnecting"
+msgstr "Потеряно, переподключение…"
+
+msgid "dev.max_value"
+msgstr "макс. {0}"
+
+msgid "dev.minmax_kbps"
+msgstr "мин. {0} / макс. {1} kbps"
+
+msgid "dev.modem_fallback"
+msgstr "Модем"
+
+msgid "dev.monitor"
+msgstr "Мониторинг"
+
+msgid "dev.monitor_watching"
+msgstr "наблюдение"
+
+msgid "dev.no_interfaces"
+msgstr "Интерфейсы не обнаружены"
+
+msgid "dev.no_modems"
+msgstr "Модемы не найдены (ModemManager)."
+
+msgid "dev.no_pipelines"
+msgstr "Нет pipelines в {0}."
+
+msgid "dev.no_pipelines_hint"
+msgstr "Добавьте репозиторий pipeline в настройках."
+
+msgid "dev.operator"
+msgstr "Оператор"
+
+msgid "dev.power"
+msgstr "Питание"
+
+msgid "dev.quality_scoring"
+msgstr "Оценка качества"
+
+msgid "dev.quality_scoring_title"
+msgstr "Оценка SRTLA для выбора лучшего канала"
+
+msgid "dev.reconnected"
+msgstr "Переподключено"
+
+msgid "dev.registration"
+msgstr "Рег."
+
+msgid "dev.reloads"
+msgstr "Перезагрузки"
+
+msgid "dev.reloads_detail"
+msgstr "{0} (последняя {1}, режим {2})"
+
+msgid "dev.reset_confirm"
+msgstr "Сбросить модем #{0}?"
+
+msgid "dev.row.audio"
+msgstr "Аудио"
+
+msgid "dev.row.balancer"
+msgstr "Балансировщик"
+
+msgid "dev.row.bitrate"
+msgstr "Битрейт"
+
+msgid "dev.row.encoder"
+msgstr "Энкодер"
+
+msgid "dev.row.latency"
+msgstr "Задержка"
+
+msgid "dev.row.pipeline"
+msgstr "Pipeline"
+
+msgid "dev.row.restarts"
+msgstr "Рестарты"
+
+msgid "dev.row.started"
+msgstr "Запущено"
+
+msgid "dev.row.state"
+msgstr "Состояние"
+
+msgid "dev.row.target"
+msgstr "Цель"
+
+msgid "dev.row_state_running"
+msgstr "работает"
+
+msgid "dev.scheduler"
+msgstr "Планировщик"
+
+msgid "dev.scheduler_classic"
+msgstr "Классический"
+
+msgid "dev.scheduler_enhanced"
+msgstr "Улучшенный"
+
+msgid "dev.signal"
+msgstr "Сигнал"
+
+msgid "dev.stale"
+msgstr "устарело, {0}"
+
+msgid "dev.tech"
+msgstr "Технология"
+
+msgid "dev.th.bond"
+msgstr "Бонд"
+
+msgid "dev.th.in_flight"
+msgstr "В пути"
+
+msgid "dev.th.in_flight_title"
+msgstr "Количество буферов данных SRTLA в очереди SRTLA"
+
+msgid "dev.th.interface"
+msgstr "Интерфейс"
+
+msgid "dev.th.link"
+msgstr "Канал"
+
+msgid "dev.th.loss"
+msgstr "Потери %"
+
+msgid "dev.th.naks"
+msgstr "NAKs"
+
+msgid "dev.th.network"
+msgstr "Сеть"
+
+msgid "dev.th.quality"
+msgstr "Качество"
+
+msgid "dev.title"
+msgstr "Belabox Duo"
+
+msgid "dev.unit_gbs"
+msgstr "{0} Gb/s"
+
+msgid "dev.unit_kbps"
+msgstr "kbps"
+
+msgid "dev.unit_mbps"
+msgstr "Mbps"
+
+msgid "dev.unit_mbs"
+msgstr "{0} Mb/s"
+
+msgid "kickchat.card"
+msgstr "Kick-чат"
+
+msgid "kickchat.connected"
+msgstr "подключён"
+
+msgid "kickchat.disabled"
+msgstr "Модуль отключён"
+
+msgid "kickchat.disconnected"
+msgstr "отключён"
+
+msgid "kickchat.empty"
+msgstr "Сообщений пока нет"
+
+msgid "tiktokchat.empty"
+msgstr "Пока нет сообщений"
+
+msgid "twitchchat.empty"
+msgstr "Пока нет сообщений"
+
+msgid "youtubechat.empty"
+msgstr "Пока нет сообщений"
+
+msgid "kickstats.card"
+msgstr "Kick-статистика"
+
+msgid "kickstats.disabled"
+msgstr "Модуль отключён"
+
+msgid "kickstats.followers"
+msgstr "Подписчики"
+
+msgid "kickstats.live"
+msgstr "LIVE"
+
+msgid "kickstats.chart"
+msgstr "Зрители"
+
+msgid "kickstats.start"
+msgstr "Начало"
+
+msgid "kickstats.duration"
+msgstr "Длительность"
+
+msgid "kickstats.offline"
+msgstr "офлайн"
+
+msgid "kickstats.spark_pending"
+msgstr "сбор проб…"
+
+msgid "kickstats.title"
+msgstr "Название"
+
+msgid "kickstats.viewers"
+msgstr "зрителей"
+
+msgid "kickstats.waiting"
+msgstr "Ожидание первого опроса…"
+
+msgid "log.encoder_exited"
+msgstr "энкодер завершился с кодом {0}; перезапуск через {1}s"
+
+msgid "log.level.error"
+msgstr "ОШИБКА"
+
+msgid "log.level.info"
+msgstr "INFO"
+
+msgid "log.level.warning"
+msgstr "ПРЕДУПРЕЖДЕНИЕ"
+
+msgid "log.no_control_socket"
+msgstr "Нет управляющего сокета; настройка применится при следующем запуске"
+
+msgid "log.no_stream_settings"
+msgstr "Нет предыдущих настроек стрима для возобновления"
+
+msgid "log.reconfigure_failed"
+msgstr "Первичная перенастройка не удалась: {0}"
+
+msgid "log.restart_failed"
+msgstr "Перезапуск не удался: {0}"
+
+msgid "log.settings_saved_reconnect"
+msgstr "Настройки сохранены; переподключение к {0}"
+
+msgid "log.srtla_exited"
+msgstr "srtla_send завершился с кодом {0}; перезапуск через {1}s"
+
+msgid "log.started"
+msgstr "Служба запущена ({0})"
+
+msgid "log.stopped_signal"
+msgstr "Служба остановлена ({0})"
+
+msgid "log.stream_resumed"
+msgstr "Стрим возобновлен"
+
+msgid "log.stream_start_retry"
+msgstr "Запуск не удался, повтор через {0}s: {1}"
+
+msgid "mgmt.devices"
+msgstr "Устройства"
+
+msgid "mgmt.last_seen"
+msgstr "последний раз {0}"
+
+msgid "mgmt.loading"
+msgstr "Загрузка…"
+
+msgid "mgmt.none"
+msgstr "Устройства еще не подключались."
+
+msgid "mgmt.th.connected"
+msgstr "Подключено"
+
+msgid "mgmt.th.device"
+msgstr "Устройство"
+
+msgid "mgmt.th.links"
+msgstr "Каналы"
+
+msgid "mgmt.th.role"
+msgstr "Роль"
+
+msgid "mgmt.th.status"
+msgstr "Статус"
+
+msgid "mgmt.th.stream"
+msgstr "Стрим"
+
+msgid "mgmt.th_bitrate"
+msgstr "Битрейт / макс."
+
+msgid "mgmt.title"
+msgstr "Управление Belabox Duo"
+
+msgid "mlog.action.activate"
+msgstr "Активация"
+
+msgid "mlog.action.bitrate"
+msgstr "Изменение битрейта"
+
+msgid "mlog.action.bond_selection"
+msgstr "Выбор бондинга"
+
+msgid "mlog.action.bond_toggle"
+msgstr "Переключение бондинга"
+
+msgid "mlog.action.configuration"
+msgstr "Конфигурация"
+
+msgid "mlog.action.create"
+msgstr "Создание"
+
+msgid "mlog.action.delete"
+msgstr "Удаление"
+
+msgid "mlog.action.load"
+msgstr "Загрузка"
+
+msgid "mlog.action.options"
+msgstr "Обновление параметров"
+
+msgid "mlog.action.update"
+msgstr "Обновление"
+
+msgid "mlog.done.bitrate"
+msgstr "Битрейт: мин. {0} / макс. {1} kbps"
+
+msgid "mlog.done.bond_toggled"
+msgstr "{0} переключен в бондинге"
+
+msgid "mlog.done.bond_updated"
+msgstr "Выбор бондинга обновлен"
+
+msgid "mlog.done.cera_settings"
+msgstr "Настройки управления битрейтом применены"
+
+msgid "mlog.done.disabled"
+msgstr "Отключено"
+
+msgid "mlog.done.enabled"
+msgstr "Включено"
+
+msgid "mlog.done.generic"
+msgstr "{0} готово"
+
+msgid "mlog.done.loaded"
+msgstr "Загружено"
+
+msgid "mlog.done.mode"
+msgstr "Режим установлен: {0}"
+
+msgid "mlog.done.modem_connected"
+msgstr "Модем #{0} подключен"
+
+msgid "mlog.done.modem_disabled"
+msgstr "Модем #{0} отключен"
+
+msgid "mlog.done.modem_disconnected"
+msgstr "Модем #{0} отсоединен"
+
+msgid "mlog.done.modem_enabled"
+msgstr "Модем #{0} включен"
+
+msgid "mlog.done.modem_reset"
+msgstr "Модем #{0} сброшен"
+
+msgid "mlog.done.module_configured"
+msgstr "Модуль {0} настроен"
+
+msgid "mlog.done.module_disabled"
+msgstr "Модуль {0} отключён"
+
+msgid "mlog.done.module_enabled"
+msgstr "Модуль {0} включён"
+
+msgid "mlog.done.quality_off"
+msgstr "Качество: выкл."
+
+msgid "mlog.done.quality_on"
+msgstr "Качество: вкл."
+
+msgid "mlog.done.reconfigured"
+msgstr "Перенастроено"
+
+msgid "mlog.done.reloaded"
+msgstr "Перезагружено"
+
+msgid "mlog.done.remote_disabled"
+msgstr "Сервер удаленного управления отключен"
+
+msgid "mlog.done.settings_saved"
+msgstr "Настройки сохранены"
+
+msgid "mlog.done.started"
+msgstr "Запущено"
+
+msgid "mlog.done.stopped"
+msgstr "Остановлено"
+
+msgid "mlog.failed"
+msgstr "{0} не удалось: {1}"
+
+msgid "mlog.section.connection"
+msgstr "Подключение"
+
+msgid "mlog.section.encoder"
+msgstr "Энкодер"
+
+msgid "mlog.section.modules"
+msgstr "Модули"
+
+msgid "mlog.section.pipelines"
+msgstr "Pipelines"
+
+msgid "mlog.section.service"
+msgstr "Служба"
+
+msgid "mlog.section.settings"
+msgstr "Настройки"
+
+msgid "mlog.section.setup"
+msgstr "Настройка"
+
+msgid "mlog.section.unknown"
+msgstr "Неизвестно"
+
+msgid "mod.config"
+msgstr "Конфигурация"
+
+msgid "mod.enabled"
+msgstr "Статус"
+
+msgid "mod.encoder"
+msgstr "Энкодер"
+
+msgid "mod.kick_channel"
+msgstr "Канал Kick"
+
+msgid "mod.kick_chat"
+msgstr "Kick-чат"
+
+msgid "mod.kick_stats"
+msgstr "Kick-статистика"
+
+msgid "mod.kick_token"
+msgstr "Токен чата"
+
+msgid "mod.kick_token_placeholder"
+msgstr "оставьте пустым, чтобы сохранить"
+
+msgid "mod.name"
+msgstr "Модуль"
+
+msgid "mod.obs"
+msgstr "OBS Studio"
+
+msgid "mod.obs_password"
+msgstr "Пароль"
+
+msgid "mod.obs_password_placeholder"
+msgstr "оставьте пустым, чтобы сохранить"
+
+msgid "mod.obs_url"
+msgstr "URL WebSocket OBS"
+
+msgid "mod.relay"
+msgstr "Relay (SRTLA)"
+
+msgid "mod.scene_events"
+msgstr "Подписка на события сцен"
+
+msgid "obs.audio"
+msgstr "Уровень звука"
+
+msgid "obs.card"
+msgstr "OBS Studio"
+
+msgid "obs.connected"
+msgstr "подключён"
+
+msgid "obs.disabled"
+msgstr "Модуль отключён"
+
+msgid "obs.manual"
+msgstr "вручную"
+
+msgid "obs.mic_live"
+msgstr "Микрофон в эфире"
+
+msgid "obs.mic_muted"
+msgstr "Микрофон заглушён"
+
+msgid "obs.mute"
+msgstr "Заглушить микрофон"
+
+msgid "obs.next"
+msgstr "следующий через {0}с"
+
+msgid "obs.no_inputs"
+msgstr "Нет входов"
+
+msgid "obs.no_scenes"
+msgstr "Нет сцен"
+
+msgid "obs.offline"
+msgstr "офлайн"
+
+msgid "obs.output"
+msgstr "Выход"
+
+msgid "obs.pause"
+msgstr "Пауза"
+
+msgid "obs.paused"
+msgstr "пауза"
+
+msgid "obs.preview"
+msgstr "Предпросмотр"
+
+msgid "obs.preview_failed"
+msgstr "Не удалось обновить"
+
+msgid "obs.preview_now"
+msgstr "Обновить сейчас"
+
+msgid "obs.recording"
+msgstr "Запись"
+
+msgid "obs.refresh"
+msgstr "Обновить"
+
+msgid "obs.resume"
+msgstr "Продолжить"
+
+msgid "obs.scene"
+msgstr "Текущая сцена"
+
+msgid "obs.scenes"
+msgstr "Сцены"
+
+msgid "obs.screenshot"
+msgstr "Снимок экрана"
+
+msgid "obs.start_record"
+msgstr "Начать запись"
+
+msgid "obs.start_stream"
+msgstr "Начать трансляцию"
+
+msgid "obs.stop_record"
+msgstr "Остановить запись"
+
+msgid "obs.stop_stream"
+msgstr "Остановить трансляцию"
+
+msgid "obs.streaming"
+msgstr "Стриминг"
+
+msgid "obs.studio"
+msgstr "Студийный режим"
+
+msgid "obs.unmute"
+msgstr "Включить микрофон"
+
+msgid "obs.updated"
+msgstr "Обновлено {0}"
+
+msgid "obs.waiting"
+msgstr "Загрузка…"
+
+msgid "role.combined"
+msgstr "энкодер + ретранслятор"
+
+msgid "role.custom"
+msgstr "собственная"
+
+msgid "role.encoder"
+msgstr "энкодер"
+
+msgid "role.obs"
+msgstr "obs"
+
+msgid "role.relay"
+msgstr "ретранслятор"
+
+msgid "set.back"
+msgstr "Назад к устройству"
+
+msgid "set.color"
+msgstr "Акцентный цвет"
+
+msgid "set.description"
+msgstr "После сохранения настройки повторно применяются на сервере управления."
+
+msgid "set.hostname"
+msgstr "Имя хоста"
+
+msgid "set.no_repos"
+msgstr "Репозитории pipeline не настроены."
+
+msgid "set.remote_token"
+msgstr "Удаленный токен"
+
+msgid "set.remote_url"
+msgstr "URL сервера управления"
+
+msgid "set.repo_add"
+msgstr "Добавить репозиторий"
+
+msgid "set.repo_field"
+msgstr "Репозиторий GitHub"
+
+msgid "set.repo_imported"
+msgstr "Импортировано файлов: {0}."
+
+msgid "set.repo_importing"
+msgstr "Импорт {0}…"
+
+msgid "set.repo_removed"
+msgstr "{0} удален."
+
+msgid "set.repo_removing"
+msgstr "Удаление {0}…"
+
+msgid "set.repo_update_all"
+msgstr "Обновить все"
+
+msgid "set.repo_updated_all"
+msgstr "Обновлено репозиториев: {0} (файлов: {1})."
+
+msgid "set.repo_updating_all"
+msgstr "Обновление всех репозиториев pipeline…"
+
+msgid "set.repos"
+msgstr "Репозитории pipeline"
+
+msgid "set.repos_desc"
+msgstr "Pipelines рекурсивно импортируются из каталога pipelines/ каждого репозитория и повторно импортируются после каждого git pull."
+
+msgid "set.restart_required"
+msgstr "Новая роль вступит в силу после перезапуска службы устройства."
+
+msgid "set.role"
+msgstr "Роль устройства"
+
+msgid "set.role_keep"
+msgstr "Оставить текущую"
+
+msgid "set.save"
+msgstr "Сохранить настройки"
+
+msgid "set.saved"
+msgstr "Настройки сохранены."
+
+msgid "set.title"
+msgstr "Настройки устройства"
+
+msgid "set.token_ph_configured"
+msgstr "настроено (оставьте пустым, чтобы сохранить)"
+
+msgid "set.token_ph_missing"
+msgstr "не настроено"
+
+msgid "set.token_ph_unchanged"
+msgstr "без изменений"
+
+msgid "setup.autostart"
+msgstr "Автоматически запускать сохраненный стрим после перезапуска"
+
+msgid "setup.control_desc"
+msgstr "Подключите эту настройку к существующему серверу управления."
+
+msgid "setup.control_token"
+msgstr "Токен управления"
+
+msgid "setup.encoder_desc"
+msgstr "Поля энкодера для pipeline захвата."
+
+msgid "setup.hostname"
+msgstr "Имя устройства"
+
+msgid "setup.hostname_title"
+msgstr "Используйте строчные буквы, цифры, точки и дефисы (макс. 64 символа)."
+
+msgid "setup.identity"
+msgstr "Идентификатор и вид"
+
+msgid "setup.identity_desc"
+msgstr "Как устройство идентифицирует себя на сервере управления."
+
+msgid "setup.language_desc"
+msgstr "Выберите язык интерфейса."
+
+msgid "setup.loading"
+msgstr "Загрузка данных настройки…"
+
+msgid "setup.relay_desc"
+msgstr "Поля SRTLA relay (только роль ретранслятора)."
+
+msgid "setup.restart_required"
+msgstr "Новая роль вступит в силу после перезапуска службы устройства."
+
+msgid "setup.review_desc"
+msgstr "Проверьте выбор кнопкой Назад, затем сохраните конфигурацию."
+
+msgid "setup.role.combined"
+msgstr "Комбинированный"
+
+msgid "setup.role.combined_tag"
+msgstr "Кодирует и ретранслирует в одной службе"
+
+msgid "setup.role.encoder"
+msgstr "Энкодер"
+
+msgid "setup.role.encoder_tag"
+msgstr "Захватывает pipeline GStreamer и отправляет его по SRT"
+
+msgid "setup.role.relay_tag"
+msgstr "Принимает стримы и пересылает их через SRTLA"
+
+msgid "setup.save"
+msgstr "Сохранить конфигурацию"
+
+msgid "setup.saved"
+msgstr "Конфигурация сохранена. Перезапустите службу, чтобы применить выбранную роль, имя хоста и сервер управления."
+
+msgid "setup.step.control"
+msgstr "Сервер управления"
+
+msgid "setup.step.control_sub"
+msgstr "Необязательное подключение к центральному серверу."
+
+msgid "setup.step.encoder"
+msgstr "Энкодер"
+
+msgid "setup.step.encoder_sub"
+msgstr "Pipeline, битрейт и задержка аудио."
+
+msgid "setup.step.identity"
+msgstr "Идентификатор"
+
+msgid "setup.step.identity_sub"
+msgstr "Имя хоста и акцентный цвет устройства."
+
+msgid "setup.step.language_sub"
+msgstr "Выберите язык интерфейса."
+
+msgid "setup.step.relay"
+msgstr "Ретранслятор"
+
+msgid "setup.step.relay_sub"
+msgstr "Настройки SRTLA"
+
+msgid "setup.step.review"
+msgstr "Проверка"
+
+msgid "setup.step.role_sub"
+msgstr "Выберите, как этот Belabox подключится к сети."
+
+msgid "setup.title"
+msgstr "Настройка Belabox Duo"
+
+msgid "srv.offline"
+msgstr "Устройство офлайн ({0})"
+
+msgid "srv.online"
+msgstr "Устройство онлайн ({0})"
+
+msgid "status.card"
+msgstr "Статус"
+
+msgid "status.connection"
+msgstr "Подключение"
+
+msgid "status.role"
+msgstr "Роль"
+
+msgid "status.state"
+msgstr "Статус"
+
+msgid "time.h_ago"
+msgstr "{0} ч назад"
+
+msgid "time.m_ago"
+msgstr "{0} мин назад"
+
+msgid "time.s_ago"
+msgstr "{0} с назад"
+
+msgid "ui.autostart"
+msgstr "Автозапуск"
+
+msgid "ui.back"
+msgstr "Назад"
+
+msgid "ui.connect"
+msgstr "Подключить"
+
+msgid "ui.disable"
+msgstr "Отключить"
+
+msgid "ui.disconnect"
+msgstr "Отсоединить"
+
+msgid "ui.enable"
+msgstr "Включить"
+
+msgid "ui.error"
+msgstr "ошибка"
+
+msgid "ui.language_label"
+msgstr "Язык"
+
+msgid "ui.next"
+msgstr "Далее"
+
+msgid "ui.off"
+msgstr "выкл."
+
+msgid "ui.on"
+msgstr "вкл."
+
+msgid "ui.optional"
+msgstr "Необязательно"
+
+msgid "ui.reconfigure"
+msgstr "Перенастроить"
+
+msgid "ui.reload"
+msgstr "Перезагрузить"
+
+msgid "ui.remove"
+msgstr "Удалить"
+
+msgid "ui.reset"
+msgstr "Сбросить"
+
+msgid "ui.save"
+msgstr "Сохранить"
+
+msgid "ui.start"
+msgstr "Запустить"
+
+msgid "ui.stop"
+msgstr "Остановить"
+
+msgid "ui.title_suffix"
+msgstr "– Belabox Duo"
+
+msgid "wtype.combined"
+msgstr "Энкодер + ретранслятор"
+
+msgid "wtype.encoder"
+msgstr "Энкодер"
+
+msgid "wtype.kick_chat"
+msgstr "Kick-чат"
+
+msgid "wtype.tiktok_chat"
+msgstr "Чат TikTok"
+
+msgid "wtype.twitch_chat"
+msgstr "Чат Twitch"
+
+msgid "wtype.youtube_chat"
+msgstr "Chat YouTube"
+
+msgid "wtype.kick_stats"
+msgstr "Kick-статистика"
+
+msgid "wtype.obs"
+msgstr "OBS Studio"
+
+msgid "wtype.relay"
+msgstr "Relay"
+
+msgid "wtype.stats"
+msgstr "Статистика релая"
+
+msgid "wtype.status"
+msgstr "Статус"
+
+msgid "dash.widget_channel"
+msgstr "Канал"
+
+msgid "dash.widget_not_configured"
+msgstr "Не настроено – укажите канал"
+
+msgid "ui.cancel"
+msgstr "Отмена"
+
+msgid "dash.widget_settings"
+msgstr "Настройки канала"
+
+msgid "dash.new"
+msgstr "Nová"
+
+msgid "dash.rename"
+msgstr "Přejmenovat"
+
+msgid "dash.default_name"
+msgstr "Přehled"
+
+msgid "dash.delete_confirm"
+msgstr "Smazat přehled „{0}“?"
+
+msgid "dash.delete_fail"
+msgstr "Smazení se nezdařilo"
+
+msgid "dash.done"
+msgstr "Hotovo"
+
+msgid "dash.hide"
+msgstr "Skrýt"
+
+msgid "dash.remove"
+msgstr "Odebrat"
+
+msgid "dash.kick"
+msgstr "Kick (nezávislý)"
+
+msgid "dash.saved"
+msgstr "Uloženo"
+
+msgid "dash.save_error"
+msgstr "Uložení se nezdařilo"
+
+msgid "dash.conflict"
+msgstr "Změnil jiný uživatel — načteno poslední"
+
+msgid "dash.device"
+msgstr "Zařízení"

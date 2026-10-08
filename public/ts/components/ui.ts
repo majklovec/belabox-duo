@@ -8,32 +8,72 @@ import type { Child } from "../util";
 
 export type { Child };
 
-/** <header> + <main> page skeleton. The header always carries the language selector on
- * its right edge, followed by the page's own `headerRight` actions. */
-export const Page: m.Component<{ title: m.Children; headerRight?: m.Children }> = {
+/** <header> + <main> page skeleton. The header carries the optional main menu, then the
+ * language selector and the page's own `headerRight` actions on its right edge. */
+export const Page: m.Component<{ title: m.Children; nav?: m.Children; headerRight?: m.Children }> = {
 	view: (v) => [
-		m("header", m("h1", v.attrs.title), m("span.actions", m(LanguageSelect), v.attrs.headerRight)),
+		m(
+			"header",
+			m("h1", v.attrs.title),
+			[v.attrs.nav !== undefined ? m("nav.main-nav", v.attrs.nav) : null, m("span.actions", m(LanguageSelect), v.attrs.headerRight)],
+		),
 		m("main", v.children),
 	],
 };
+
+export const TitleWithBack: m.Component<{ href?: string; backLabel: string }> = {
+	view: ({ attrs: { href, backLabel }, children }) => [
+		href !== undefined
+			? m(
+					"a.icon-link.page-back",
+					{ href, title: backLabel, "aria-label": backLabel },
+					m("svg", {
+						width: 16,
+						height: 16,
+						viewBox: "0 0 16 16",
+						fill: "none",
+						stroke: "currentColor",
+						"stroke-width": 1.75,
+						"stroke-linecap": "round",
+						"stroke-linejoin": "round",
+						"aria-hidden": "true",
+					}, m("path", { d: "M10 12L6 8l4-4" })),
+				)
+			: null,
+		" ",
+		children,
+	],
+};
+
+/** Main menu of the control server: the device list and the dashboards page. */
+export const serverNav = (active: "devices" | "dashboards"): m.Vnode =>
+	m("span", [
+		m("a", { href: "/", class: active === "devices" ? "nav-link active" : "nav-link", "aria-current": active === "devices" ? "page" : undefined }, t("mgmt.devices")),
+		m("a", { href: "/dashboards/", class: active === "dashboards" ? "nav-link active" : "nav-link", "aria-current": active === "dashboards" ? "page" : undefined }, t("dash.title")),
+	]);
 
 export interface CardProps {
 	/** Bare <h2> title. Use `headActions` for the title-plus-actions row. */
 	title?: Child;
 	/** Actions on the right of the title row (.card-head). */
 	headActions?: m.Children;
+	/** Extra class(es) on the <section.card> root (module scoping, e.g. `mod-modems`). */
+	class?: string;
 }
 
 export const Card: m.Component<CardProps> = {
-	view: ({ attrs: { title, headActions }, children }) =>
+	view: ({ attrs: { title, headActions, class: extra }, children }) =>
 		m(
 			"section.card",
-			title === undefined
-				? null
-				: headActions === undefined
-					? m("h2", title)
-					: m("div.card-head", m("h2", title), m("div.actions", headActions)),
-			children,
+			extra === undefined ? {} : { class: extra },
+			[
+				title === undefined
+					? null
+					: headActions === undefined
+						? m("h2", title)
+						: m("div.card-head", m("h2", title), m("div.actions", headActions)),
+				children, // nested arrays are flattened by mithril
+			],
 		),
 };
 
@@ -56,6 +96,14 @@ export function encoderIssueBadge(role: Role | undefined, e: EncoderState, srtla
 /** <dl> of dt/dd rows; empty values render "—". */
 export function definitionList(rows: [string, Child][]): m.Vnode {
 	return m("dl", rows.flatMap(([k, v]) => [m("dt", k), m("dd", v ?? "—")]));
+}
+
+/** A <table> of th/td rows (dashboard widget bodies share this shape). */
+export function widgetTable(rows: [string, Child][]): m.Vnode {
+	return m(
+		"table.dash-table",
+		m("tbody", rows.map(([label, value], i) => m("tr", { key: i }, m("th", label), m("td", value)))),
+	);
 }
 
 /** A <label> with a caption above its control; extra attrs (`class`, `hidden`, …) pass through. */

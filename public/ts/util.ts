@@ -1,14 +1,17 @@
 /* Plain helpers shared by all pages (formatting, parsing, page bootstrap). Views are Mithril
  * vnodes built with components/ui; this is what doesn't need to be. */
 import m from "mithril";
-import { t } from "./i18n";
+import { i18nReady, t } from "./i18n";
 
 /** A renderable Mithril child: a vnode, text, a number, or nothing. */
 export type Child = m.Vnode | string | number | false | null | undefined;
 
 /** Mount a page component into #app, setting the document title first. */
-export function mountPage(title: string, component: m.Component): void {
-	document.title = title;
+/** Wait for the PO catalogs to load, then mount. Title is a thunk so it
+ * translates with the loaded catalogs (t() returns the raw key before ready). */
+export async function mountPage(title: () => string, component: m.Component): Promise<void> {
+	await i18nReady;
+	document.title = title();
 	m.mount(document.getElementById("app")!, component);
 }
 

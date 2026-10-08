@@ -21,7 +21,11 @@ const WS_PATH = "/ws";
 const STATUS_TOPIC = "status";
 
 // Web UI from public/ — Bun bundles the HTML's scripts and styles on the fly
-const routes = () => ({ "/": setupRequired ? setup : index, "/settings/": settings, "/setup/": setup });
+const routes = () => ({
+	"/": setupRequired ? setup : index,
+	"/settings/": settings,
+	"/setup/": setup,
+});
 
 async function fetch(req: Request | BunRequest, srv: Server<undefined>): Promise<Response | undefined> {
 	const path = new URL(req.url).pathname;

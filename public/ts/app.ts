@@ -1,16 +1,18 @@
 /* Device page — a Mithril view over the device store (device/store.ts): header, one card per
  * role-specific function, and the event log. The WebSocket client mutates state and redraws. */
 import m from "mithril";
-import { badge, Page } from "./components/ui";
-import { encoderCard } from "./device/encoder";
+import { badge, Page, TitleWithBack } from "./components/ui";
 import { interfacesCard } from "./device/interfaces";
 import { LogCard } from "./device/log";
-import { modemsCard } from "./device/modems";
-import { srtlaCard } from "./device/srtla";
-import { act, st } from "./device/store";
+import { moduleCard } from "../../modules/registry.frontend";
+import { act, connectDevice, st } from "./device/store";
 import { t } from "./i18n";
 import { gearIcon, roleTag } from "./icons";
 import { mountPage } from "./util";
+
+// The store's websocket is lazy (surfaces like the dashboard import the store
+// without a device to talk to): open it on the device page.
+connectDevice();
 
 function connBadge(): m.Vnode {
 	if (!st.socketOpen) return badge(t("dev.disconnected"), "off");
@@ -30,7 +32,7 @@ async function setAutostart(enabled: boolean): Promise<void> {
 	m.redraw();
 }
 
-function headerRight(): m.Children {
+function headerRight(): m.Children[] {
 	const status = st.status;
 	return [
 		m(
@@ -56,18 +58,28 @@ const App: m.Component = {
 		const role = status?.role;
 		const hasEncoder = !!status && role !== "relay";
 		const hasRelay = !!status && role !== "encoder";
+		// A dedicated OBS box (role "obs") is a preview/scene deck only — the
+		// SRT/streaming cards would be inactive there.
+		const obsOnly = !!status && role === "obs";
+		const obsOn = status?.modules["obs-controller"]?.enabled === true;
+		const children = [
+			!obsOnly && hasEncoder && moduleCard("encoder", status),
+			!obsOnly && hasRelay && [moduleCard("srtla", status), interfacesCard(status), moduleCard("modems", status)],
+			obsOn && moduleCard("obs-controller", status),
+		];
 		return m(
 			Page,
 			{
-				title: [
-					st.device && m("a", { href: "../../", title: t("dev.all_devices_title") }, "←"),
-					` ${t("dev.title")} `,
+				title: m(TitleWithBack, {
+					href: st.device ? "../../" : undefined,
+					backLabel: t("dev.all_devices_title"),
+				}, [
+					`${t("dev.title")} `,
 					st.device && m("span.muted", st.device.hostname || st.device.id),
-				],
+				]),
 				headerRight: headerRight(),
 			},
-			hasEncoder && encoderCard(status),
-			hasRelay && [srtlaCard(status), interfacesCard(status), modemsCard(status)],
+			children,
 			m(LogCard),
 		);
 	},
@@ -78,4 +90,4 @@ setInterval(() => {
 	if (st.status || st.stats) m.redraw();
 }, 5_000);
 
-mountPage(t("dev.title"), App);
+void mountPage(() => t("dev.title"), App);

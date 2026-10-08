@@ -1,0 +1,40 @@
+/* Chat Kick feed */
+.dash-widget-body .kick-chat-feed {
+  height: 100%;
+  overflow-y: auto;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.dash-widget-body .kick-chat-line .chat-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+
+  font-weight: 700;
+  background: var(--ring);
+  color: var(--accent-hover);
+  vertical-align: middle;
+}
+.dash-widget-body .kick-chat-line .chat-user {
+  font-weight: 600;
+  margin-right: 6px;
+}
+.dash-widget-body .kick-chat-line .chat-emote {
+  height: 1em;
+  width: auto;
+  vertical-align: -0.15em;
+  margin: 0 1px;
+}
+/* Emote image 404'd: show the name inline so the line still reads. */
+.dash-widget-body .kick-chat-line .chat-emote-name {
+  font-style: italic;
+  opacity: 0.7;
+  margin: 0 1px;
+}
+
+.dash-widget-body .kick-chat-line .chat-text {
+  word-break: break-word;
+}

@@ -18,7 +18,26 @@ const ROLE_SHAPES = {
 		["path", { d: "M8.5 5.5a5 5 0 0 0 0 7M15.5 5.5a5 5 0 0 1 0 7" }],
 		["path", { d: "M5.6 2.6a9 9 0 0 0 0 12.8M18.4 2.6a9 9 0 0 1 0 12.8" }],
 	],
+	obs: [
+		["rect", { x: "2", y: "3", width: "20", height: "14", rx: "2" }],
+		["path", { d: "m9 7 5 3.5L9 14z" }],
+		["path", { d: "M8 21h8M12 17v4" }],
+	],
+	custom: [
+		["rect", { x: "3", y: "3", width: "8", height: "8", rx: "1.5" }],
+		["rect", { x: "13", y: "3", width: "8", height: "8", rx: "1.5" }],
+		["rect", { x: "3", y: "13", width: "8", height: "8", rx: "1.5" }],
+		["path", { d: "M17 13v8M13 17h8" }],
+	],
 } as const satisfies Record<string, Shape>;
+
+// Four-tile pictogram that marks the dashboard editor page
+const DASHBOARD: Shape = [
+	["rect", { x: "3", y: "3", width: "8", height: "8", rx: "1.5" }],
+	["rect", { x: "13", y: "3", width: "8", height: "8", rx: "1.5" }],
+	["rect", { x: "3", y: "13", width: "8", height: "8", rx: "1.5" }],
+	["rect", { x: "13", y: "13", width: "8", height: "8", rx: "1.5" }],
+];
 
 // Log level markers, in the same 24×24 outline style
 const LEVEL_SHAPES = {
@@ -54,6 +73,17 @@ const ROLE_CARD_SHAPES = {
 		["path", { d: "m11.5 11 4-2v4l-4-2z" }],
 		["path", { d: "M17.5 12H23" }],
 		["path", { d: "m21 10 2 2-2 2" }],
+	],
+	obs: [
+		["rect", { x: "2", y: "3", width: "20", height: "14", rx: "2" }],
+		["path", { d: "m9 7 5 3.5L9 14z" }],
+		["path", { d: "M8 21h8M12 17v4" }],
+	],
+	custom: [
+		["rect", { x: "3", y: "3", width: "8", height: "8", rx: "1.5" }],
+		["rect", { x: "13", y: "3", width: "8", height: "8", rx: "1.5" }],
+		["rect", { x: "3", y: "13", width: "8", height: "8", rx: "1.5" }],
+		["path", { d: "M17 13v8M13 17h8" }],
 	],
 } as const satisfies Record<Role, Shape>;
 
@@ -96,6 +126,39 @@ export const roleCardIcon = (role: Role): m.Vnode =>
 
 export const gearIcon = (): m.Vnode =>
 	draw(GEAR, { width: "18", height: "18", fill: "none", stroke: "currentColor", "stroke-width": "2" });
+
+export const dashboardIcon = (): m.Vnode =>
+	draw(DASHBOARD, { width: "18", height: "18", fill: "none", stroke: "currentColor", "stroke-width": "2" });
+
+const ACTION_SHAPES = {
+	fullscreen: [
+		["path", { d: "M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5" }],
+	],
+	exitFullscreen: [
+		["path", { d: "M3 8h5V3M21 8h-5V3M16 21v-5h5M8 21v-5H3" }],
+	],
+	view: [
+		["path", { d: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" }],
+		["circle", { cx: "12", cy: "12", r: "3" }],
+	],
+	edit: [
+		["path", { d: "m16 3 5 5-12 12-6 1 1-6L16 3ZM13 6l5 5" }],
+	],
+	delete: [
+		["path", { d: "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" }],
+	],
+} as const satisfies Record<string, Shape>;
+
+export const actionIcon = (action: keyof typeof ACTION_SHAPES): m.Vnode =>
+	draw(ACTION_SHAPES[action], {
+		width: "18",
+		height: "18",
+		fill: "none",
+		stroke: "currentColor",
+		"stroke-width": "1.75",
+		"stroke-linecap": "round",
+		"stroke-linejoin": "round",
+	});
 
 /** Role icon(s) with the translated role as tooltip; combined devices get both icons. */
 export const roleTag = (role: Role): m.Vnode =>

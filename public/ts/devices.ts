@@ -1,18 +1,39 @@
-/* Control server device list — a Mithril view of a polling fetch every few seconds. */
+/* Control server device list — a Mithril view fed by the server's live device
+ * list (devices.snapshot / devices.changed over the shared feed websocket). */
 import m from "mithril";
 import type { DeviceSummary } from "../types";
-import { type BadgeKind, badge, Card, type Child, encoderIssueBadge, Page } from "./components/ui";
-import { t } from "./i18n";
+import { badge, Card, type Child, encoderIssueBadge, Page, serverNav } from "./components/ui";
+import { i18nReady, t } from "./i18n";
 import { icon, roleTag } from "./icons";
+import { serverLive } from "./services/serverws";
 import { formatBitrate, mountPage, since } from "./util";
 
-const REFRESH_MS = 3_000;
-
 const state = {
-	connText: t("mgmt.loading"),
-	connKind: "off" as BadgeKind,
-	devices: null as DeviceSummary[] | null, // null = before the first fetch landed
+	connected: false,
+	devices: null as DeviceSummary[] | null, // null = before the first snapshot landed
 };
+
+serverLive.on({
+	devices: (list) => {
+		state.devices = list;
+		m.redraw();
+	},
+	open: () => {
+		state.connected = true;
+		m.redraw();
+	},
+	close: () => {
+		state.connected = false;
+		m.redraw();
+	},
+});
+
+/** Header badge: the socket state, then the online count once connected. */
+function connBadge(): m.Vnode {
+	if (!state.connected) return badge(t("dev.disconnected"), "off");
+	const online = state.devices?.filter((d) => d.online).length ?? 0;
+	return badge(t("dev.badge.online_count", online, state.devices?.length ?? 0), online ? "on" : "warn");
+}
 
 const hasEncoder = (d: DeviceSummary) => d.role === "encoder" || d.role === "combined";
 
@@ -40,7 +61,8 @@ function bitrate(d: DeviceSummary): Child {
 
 function row(d: DeviceSummary): m.Vnode {
 	const { srtla: s, encoder: e } = d;
-	const stopped = badge(t("dev.badge.stopped"), "warn");
+	// A new vnode per cell: mithril cannot patch one vnode object into two slots
+	const stoppedBadge = () => badge(t("dev.badge.stopped"), "warn");
 	return m(
 		"tr",
 		{ key: d.id },
@@ -66,11 +88,11 @@ function row(d: DeviceSummary): m.Vnode {
 		m("td", d.online && d.totalLinks !== undefined ? `${d.activeLinks ?? 0}/${d.totalLinks}` : "—"),
 		m(
 			"td",
-			hasEncoder(d) && e ? (e.running ? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on") : stopped) : "—",
+			hasEncoder(d) && e ? (e.running ? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on") : stoppedBadge()) : "—",
 		),
 		m(
 			"td",
-			d.role !== "encoder" && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : stopped) : "—",
+			d.role !== "encoder" && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : stoppedBadge()) : "—",
 		),
 	);
 }
@@ -87,31 +109,15 @@ const columnHeaders = (): m.Children[] => [
 	[icon("relay"), ` ${t("setup.step.relay")}`],
 ];
 
-async function refresh(): Promise<void> {
-	try {
-		const res = await fetch("api/devices", { cache: "no-store" });
-		if (!res.ok) throw new Error(`HTTP ${res.status}`);
-		const list = (await res.json()) as DeviceSummary[];
-		const online = list.filter((d) => d.online).length;
-		state.devices = list;
-		state.connText = t("dev.badge.online_count", online, list.length);
-		state.connKind = online ? "on" : "warn";
-	} catch (err) {
-		state.connText = err instanceof Error ? err.message : t("ui.error");
-		state.connKind = "off";
-	}
-	m.redraw();
-}
-
 const App: m.Component = {
 	view: () => {
 		const headers = columnHeaders();
 		return m(
 			Page,
-			{ title: t("mgmt.title"), headerRight: badge(state.connText, state.connKind) },
+			{ title: t("mgmt.title"), nav: serverNav("devices"), headerRight: connBadge() },
 			m(
 				Card,
-				{ title: t("mgmt.devices") },
+				{  },
 				m(
 					"table",
 					m("thead", m("tr", headers.map((h) => m("th", h)))),
@@ -134,6 +140,6 @@ const App: m.Component = {
 	},
 };
 
-mountPage(t("mgmt.title"), App);
-void refresh();
-setInterval(refresh, REFRESH_MS);
+void mountPage(() => t("mgmt.title"), App);
+// Redraw once the catalogs land so the first paint is already translated
+void i18nReady.then(() => m.redraw());

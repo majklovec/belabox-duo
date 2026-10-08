@@ -1,3 +1,5 @@
+@import "../../node_modules/gridstack/dist/gridstack.min.css";
+
 :root {
   color-scheme: dark;
 
@@ -82,12 +84,60 @@ body {
 header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
   background: var(--header-bg-blur);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+}
+
+header > .actions {
+  margin-left: auto;
+}
+
+/* Main menu in the server header (device list / dashboards) */
+.main-nav {
+  display: flex;
+  min-width: 0;
+}
+.main-nav > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.nav-link {
+  padding: 0.5rem 0;
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+  color: var(--muted);
+  font-weight: 600;
+  transition:
+    color var(--t),
+    border-color var(--t);
+}
+
+.nav-link:hover {
+  color: var(--text);
+  border-bottom-color: var(--border-strong);
+}
+.nav-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.nav-link.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .main-nav {
+    order: 3;
+    flex-basis: 100%;
+  }
 }
 
 /* Language selector in the page header */
@@ -133,6 +183,25 @@ select option {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
+.dash-fullscreen {
+  padding: 0;
+  box-shadow: none;
+}
+.dash-fullscreen:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.page-back {
+  text-decoration: none;
+  vertical-align: middle;
+  margin-right: 0.35rem;
+}
+.page-back:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 h1 {
   font-size: 1.2rem;
   margin: 0;
@@ -147,8 +216,8 @@ h2 {
 main {
   display: grid;
   gap: 1rem;
-  padding: 1rem;
-  max-width: 1100px;
+  padding: 15px;
+  /* max-width: 1100px; */
   margin: 0 auto;
 }
 
@@ -222,7 +291,7 @@ form {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  align-items: end;
+  /* align-items: end; */
 }
 form.inline {
   align-items: center;
@@ -374,34 +443,6 @@ tr.selected td {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 0.75rem;
-}
-
-.modem {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.9rem 1rem;
-  background: var(--card-subtle);
-  transition:
-    border-color var(--t),
-    background var(--t);
-}
-.modem:hover {
-  border-color: var(--border-strong);
-}
-.modem h3 {
-  font-size: 0.95rem;
-  margin: 0 0 0.5rem;
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-.modem dl {
-  font-size: 0.85rem;
-  margin-bottom: 0.75rem;
-}
-.modem .actions button {
-  padding: 0.35rem 0.6rem;
-  font-size: 0.8rem;
 }
 
 meter {
@@ -831,5 +872,372 @@ td.num {
 @media (max-width: 640px) {
   .wiz-sub {
     display: none;
+  }
+}
+
+/* ---------------------------------------------------------------- dashboards */
+/* The grid is a GridStack container; the item + item-content are owned by
+ * GridStack (imported below) — this only skins the widget body inside it. */
+.dash-grid {
+  --dash-row-h: 60px;
+  margin: 16px 0;
+}
+/* NOTE on .grid-stack-item-content: GridStack sizes/insets it with `position:
+ * absolute` + `top/bottom/left/right: margin` and leaves `width/height: auto`
+ * so it shrinks to the inner box on BOTH axes (that is what produces the gap
+ * between widgets). Do NOT set `height: 100%` (it resolves to the full item
+ * height and overflows the 6px bottom margin, killing the vertical gap) or
+ * `.grid-stack-item { position: relative }` (breaks absolute placement). */
+.dash-grid .grid-stack-item-content {
+  padding: 0;
+}
+.dash-widget {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: color-mix(in srgb, var(--card-subtle) 92%, var(--base-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  min-width: 0;
+}
+.dash-widget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--header-color) 8%, var(--base-2));
+}
+.dash-grip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dash-grip-icon {
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
+.dash-widget-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-widget-version {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-family: var(--mono, ui-monospace, monospace);
+  opacity: 0.55;
+}
+.dash-widget-version.stale {
+  opacity: 1;
+  font-weight: 600;
+  color: #d97706;
+}
+.dash-widget-badge {
+  flex-shrink: 0;
+}
+.is-editing .dash-grip {
+  cursor: grab;
+  user-select: none;
+}
+.is-editing .dash-grip:active {
+  cursor: grab;
+}
+.dash-widget-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+.dash-widget-actions .icon-btn {
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+}
+.dash-widget-actions .icon-btn:hover {
+  background: var(--border);
+  color: #fff;
+  transform: none;
+}
+.dash-widget-actions .dash-widget-remove:hover {
+  color: var(--danger, #ef4444);
+}
+.dash-widget-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.5rem 0.6rem;
+}
+/* GridStack's resize handle, reskinned to match the dark UI. */
+.dash-grid .grid-stack-item .grid-stack-resize-handle {
+  border-color: var(--muted);
+}
+.dash-grid:not(.grid-stack-resizable) .grid-stack-resize-handle {
+  display: none;
+}
+
+/* Inline editor toolbar (name / add / edit-toggle live in the page header). */
+.dash-back {
+  color: var(--muted);
+  text-decoration: none;
+  margin-right: 0.5rem;
+  white-space: nowrap;
+}
+.dash-back:hover {
+  color: #fff;
+}
+.dash-name-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.dash-name,
+.dash-add {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dash-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 200px;
+  max-width: 320px;
+  background: var(--base-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.dash-name-menu button {
+  text-align: left;
+}
+.dash-name-menu button.danger {
+  color: var(--danger, #ef4444);
+}
+/* "Add widget" bar — above the grid, edit mode only */
+.dash-add-bar {
+  margin: 1rem 0 0 10px;
+}
+/* Dedicated "add widget" page (/dashboards/add/<id>/) */
+.dash-add-page {
+  max-width: 420px;
+  margin: 2.5rem auto;
+  padding: 1rem 1.25rem;
+  background: var(--base-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.dash-add-heading {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+.dash-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.dash-add-form optgroup {
+  color: var(--muted);
+}
+.dash-add-actions {
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+.dash-edittoggle {
+  font-weight: 600;
+}
+.dash-save {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.dash-save-saving {
+  color: var(--accent);
+}
+.dash-save-saved {
+  color: var(--success, #10b981);
+}
+.dash-save-error {
+  color: var(--danger, #ef4444);
+}
+.dash-online {
+  white-space: nowrap;
+}
+.dash-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 90;
+  background: var(--base-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.9rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  max-width: 80vw;
+}
+.dash-empty {
+  padding: 1.5rem 0;
+  text-align: center;
+}
+.dash-config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+.dash-config-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.dash-config-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.dash-config-actions button {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.75rem;
+}
+@media (max-width: 900px) {
+  .dashboard-grid > .dash-w-4,
+  .dashboard-grid > .dash-w-6 {
+    grid-column: span 12;
+  }
+}
+
+/* Editor tabs */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.tab {
+  background: var(--card-subtle);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: var(--t);
+}
+.tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Editor tables + toolbars */
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+.dash-table th,
+.dash-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.dash-table tr.active td {
+  background: var(--ring);
+}
+.dash-table .actions-cell {
+  white-space: nowrap;
+  text-align: right;
+}
+.dash-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.dash-row-actions .icon-link {
+  padding: 0;
+  text-decoration: none;
+  box-shadow: none;
+}
+.dash-row-actions .icon-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.dash-row-actions .dash-delete:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+.dash-toolbar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.dash-empty {
+  padding: 12px 0;
+}
+.dash-empty .dash-toolbar {
+  gap: 10px;
+}
+.dash-empty-text {
+  font-weight: 600;
+}
+.dash-row-link {
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.dash-row-link:hover {
+  text-decoration: underline;
+}
+.dash-name {
+  font-weight: 600;
+}
+.dash-name-input {
+  font-size: 1.05em;
+  font-weight: 600;
+  width: min(320px, 60vw);
+}
+.config-cell {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+p.message {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .dash-grid {
+    --dash-row-h: 48px;
+  }
+  .dash-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .dash-name,
+  .dash-add {
+    font-size: 0.95rem;
   }
 }

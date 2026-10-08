@@ -8,10 +8,10 @@
  *   combined  srtla_send + belacoder with the last stream.start target / config
  */
 import { ROLE } from "./config";
-import { type EncoderConfig, encoder } from "./encoder";
+import type { EncoderConfig } from "../modules/types";
+import { encoderServices, srtlaServices } from "../modules/registry.backend";
 import { logEvent } from "./eventlog";
 import { t } from "./i18n";
-import { srtlaStatus, startSrtla, stopSrtla } from "./srtla";
 import { saveState, type StreamTarget, state } from "./state";
 import { errorMessage } from "./util";
 
@@ -19,7 +19,7 @@ const AUTOSTART_RETRY_MS = 5_000;
 
 /** Bring up srtla_send (reusing it if already aimed at the same target), then belacoder into it. */
 export async function startCombined(target: StreamTarget, cfg: EncoderConfig): Promise<void> {
-    if (encoder().status().running) throw new Error("already streaming");
+    if (encoderServices.encoder().status().running) throw new Error("already streaming");
     // Persist both halves of the requested stream before validation/startup.
     // srtlaTarget is the canonical target the config file is projected from;
     // stream mirrors it for the UI and for autostart.
@@ -27,26 +27,26 @@ export async function startCombined(target: StreamTarget, cfg: EncoderConfig): P
     state.stream = target;
     state.encoder = { running: false, config: cfg };
     await saveState();
-    await encoder().validate(cfg);   // fail before touching srtla_send
+    await encoderServices.encoder().validate(cfg);   // fail before touching srtla_send
 
     const { listenPort, remoteHost, remotePort } = target;
-    const s = srtlaStatus();
+    const s = srtlaServices.srtlaStatus();
     if (s.running && (s.listenPort !== listenPort || s.remoteHost !== remoteHost || s.remotePort !== remotePort)) {
-        await stopSrtla();
+        await srtlaServices.stopSrtla();
     }
-    if (!srtlaStatus().running) await startSrtla(listenPort, remoteHost, remotePort);
+    if (!srtlaServices.srtlaStatus().running) await srtlaServices.startSrtla(listenPort, remoteHost, remotePort);
 
     try {
-        await encoder().start({ ...cfg, host: "127.0.0.1", port: listenPort });
+        await encoderServices.encoder().start({ ...cfg, host: "127.0.0.1", port: listenPort });
     } catch (e: unknown) {
-        await stopSrtla();
+        await srtlaServices.stopSrtla();
         throw e;
     }
 }
 
 export async function stopCombined(): Promise<void> {
-    await encoder().stop();
-    await stopSrtla();
+    await encoderServices.encoder().stop();
+    await srtlaServices.stopSrtla();
 }
 
 // ----------------------------------------------------------------------
@@ -73,17 +73,20 @@ async function startSaved(): Promise<boolean> {
         case "relay": {
             const t = state.srtlaTarget;
             if (!t) return false;
-            if (!srtlaStatus().running) await startSrtla(t.listenPort, t.remoteHost, t.remotePort);
+            if (!srtlaServices.srtlaStatus().running) await srtlaServices.startSrtla(t.listenPort, t.remoteHost, t.remotePort);
             return true;
         }
         case "encoder":
             if (!cfg) return false;
-            if (!encoder().status().running) await encoder().start(cfg);
+            if (!encoderServices.encoder().status().running) await encoderServices.encoder().start(cfg);
             return true;
         case "combined":
             if (!cfg || !state.stream) return false;
-            if (!encoder().status().running) await startCombined(state.stream, cfg);
+            if (!encoderServices.encoder().status().running) await startCombined(state.stream, cfg);
             return true;
+        default:
+            // obs/custom roles have no stream of their own
+            return false;
     }
 }
 

@@ -372,4 +372,4 @@ const App: m.Component = {
 		),
 };
 
-mountPage(t("setup.title"), App);
+void mountPage(() => t("setup.title"), App);
