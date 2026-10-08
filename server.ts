@@ -26,10 +26,15 @@
  *   DEL  /api/dashboards/<id>   remove a dashboard
  *   WS   /device           device connections (Authorization: Bearer <token>, x-device-id: <id>,
  *                          x-device-role: relay|encoder|combined)
- *   WS   /dashboards/ws    live widget data (kick.stats / kick.chat /
- *                          tiktok.chat / twitch.chat / youtube.chat events,
- *                          widget.snapshot on connect) for the channel chat
- *                          widgets; the server follows each widget channel
+ *   WS   /dashboards/ws    the shared live feed: widget data (kick.stats /
+ *                          kick.chat / tiktok.chat / twitch.chat / youtube.chat
+ *                          events, widget.snapshot on connect) for the channel
+ *                          chat widgets (the server follows each widget
+ *                          channel), plus the live device list (devices.snapshot
+ *                          on connect, devices.changed whenever any device's
+ *                          state/telemetry/parameters change) and the dashboard
+ *                          list (dashboards.snapshot on connect; the
+ *                          dashboards.changed broadcasts above)
  *   GET  /healthz          liveness (no auth)
  *
  * Devices are keyed by a stable UUID (hostnames change); the per-device
@@ -95,6 +100,7 @@ const WIDGET_TYPES: WidgetType[] = ["obs", "stats", "status", "relay", "encoder"
 const DASH_PATH_RE = /^\/api\/dashboards(?:\/([\w.-]{1,64}))?$/;
 const viewersTopic = (id: string) => `viewers:${id}`;
 const dashboardsTopic = "dashboards:kick";
+const devicesTopic = "devices:list";
 const INDEPENDENT_WIDGETS: ReadonlySet<WidgetType> = new Set(["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"]);
 const DASH_COLUMNS = 12;
 /** Default `{w, h}` per widget type — seeds new widgets and migrates v1 rows. */
@@ -339,9 +345,11 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
             d.statusAt = Date.now();
             const role = d.status?.role;
             if (updateDevice(d, { role: isRole(role) ? role : undefined })) publish(d, deviceEvent(d));
+            publishDeviceList();
         } else if (msg.event === "srtla.stats") {
             d.statsMsg = text;
             d.stats = (msg.data as SrtlaStatsEvent | undefined)?.stats ?? null;
+            publishDeviceList();
         } else if (msg.event === "log") {
             const forward = updateDeviceLog(d, msg.data as LogEvent | undefined, text);
             if (forward) publish(d, forward);
@@ -363,7 +371,10 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
             // Absent on builds that predate version reporting — stays undefined, which the UI flags as "old app"
             version: typeof msg.version === "string" && msg.version !== "" ? msg.version : undefined,
         });
-        if (changed) publish(d, deviceEvent(d));
+        if (changed) {
+            publish(d, deviceEvent(d));
+            publishDeviceList();
+        }
     }
 }
 
@@ -647,6 +658,12 @@ function summaries(): DeviceSummary[] {
         .sort((a, b) => Number(b.online) - Number(a.online) || a.id.localeCompare(b.id));
 }
 
+/** Re-broadcast the current list to the live-feed subscribers; the full list
+ * is small and identical to what the pages used to poll for. */
+function publishDeviceList(): void {
+    server.publish(devicesTopic, event("devices.changed", summaries()));
+}
+
 /** Device connection (`/device`): authenticate by uuid + token, then upgrade. */
 function deviceUpgrade(req: Request, url: URL, srv: Bun.Server<WsData>): Response | undefined {
     const id = req.headers.get("x-device-id") ?? url.searchParams.get("id") ?? "";
@@ -729,7 +746,10 @@ const server = Bun.serve({
             const { data } = ws;
             if (data.kind === "dashboards") {
                 ws.subscribe(dashboardsTopic);
+                ws.subscribe(devicesTopic);
                 ws.send(event("widget.snapshot", widgetHubSnapshot()));
+                ws.send(event("dashboards.snapshot", { dashboards }));
+                ws.send(event("devices.snapshot", summaries()));
                 return;
             }
             if (data.kind === "device") {
@@ -742,6 +762,7 @@ const server = Bun.serve({
                 console.log(`[device ${d.id}] connected from ${data.address}`);
                 publish(d, deviceEvent(d));
                 addServerLog(d, "info", translate(d.language, "srv.online", data.address));
+                publishDeviceList();
                 return;
             }
             // Viewers of never-seen devices must not grow the registry
@@ -778,6 +799,7 @@ const server = Bun.serve({
             failPending((p) => p.deviceId === d.id, "device disconnected", 503);
             publish(d, deviceEvent(d));
             addServerLog(d, "warn", translate(d.language, "srv.offline", why));
+            publishDeviceList();
         },
     },
 });
@@ -793,6 +815,7 @@ setInterval(() => {
         devices.delete(d.id);
         failPending((p) => p.deviceId === d.id, "device disconnected", 503);
         publish(d, deviceEvent(d));
+        publishDeviceList();
         console.log(`[device ${d.id}] removed: no heartbeat for >${STALE_DEVICE_MS / 60000} minutes`);
     }
 }, PRUNE_INTERVAL_MS);

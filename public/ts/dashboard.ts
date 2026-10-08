@@ -1,7 +1,7 @@
 /* Shared dashboard parts: the live widget preview is used both by the dashboards
- * management page and by the read-only dashboard view page. Devices are polled for
- * config; live widget data flows over the control server's per-device viewer
- * websocket (d/<id>/ws). */
+ * management page and by the read-only dashboard view page. The device list is
+ * pushed live over the shared feed websocket, and live widget data flows over the
+ * control server's per-device viewer websockets (d/<id>/ws). */
 import m from "mithril";
 import type {
 	DeviceInfo,
@@ -27,6 +27,7 @@ import { WIDGET_MODULE_IDS } from "../../modules/widgets";
 import { t } from "./i18n";
 import { roleTag } from "./icons";
 import { RpcClient, socketUrl } from "./services/rpc";
+import { serverLive } from "./services/serverws";
 import { formatBitrate } from "./util";
 
 export const KICK_CHAT_CAP = 20;
@@ -86,7 +87,7 @@ function ensureKickConn(): void {
 		}
 		return l;
 	};
-	kickConn = new RpcClient(() => socketUrl("/dashboards/ws"));
+	kickConn = serverLive.rpc;
 	kickConn.on("widget.snapshot", (data) => {
 		const snap = data as {
 			stats?: Record<string, KickStats | null>;
@@ -127,6 +128,9 @@ function ensureKickConn(): void {
 	// Cross-client sync: the control server broadcasts `dashboards.changed` here
 	// whenever any client saves a dashboard; the owning page rebases against it.
 	kickConn.on("dashboards.changed", (data) => onDashboardsChanged(data));
+	// Live device list: feeds widget titles / badges without HTTP polling
+	kickConn.on("devices.snapshot", (data) => applyDeviceList(data as DeviceSummary[]));
+	kickConn.on("devices.changed", (data) => applyDeviceList(data as DeviceSummary[]));
 }
 
 /** Warm-start one chat platform's live map from the snapshot fragment. */
@@ -179,14 +183,21 @@ const chatLiveFor = (type: WidgetType): Map<string, ChannelChatLive> =>
 
 export const devices: { list: DeviceSummary[] | null } = { list: null };
 
+// One fetch per navigation; afterwards the feed's devices.changed pushes
+// keep the list (and the widgets' titles / badges) live.
 export async function refreshDevices(): Promise<void> {
 	try {
 		const res = await fetch("/api/devices", { cache: "no-store" });
 		if (!res.ok) throw new Error(`HTTP ${res.status}`);
-		devices.list = (await res.json()) as DeviceSummary[];
+		applyDeviceList((await res.json()) as DeviceSummary[]);
 	} catch {
 		// keep the last known list; connectivity is also visible in the live widgets
 	}
+}
+
+/** Apply a devices.snapshot / devices.changed push to the shared list. */
+function applyDeviceList(list: DeviceSummary[]): void {
+	devices.list = list;
 	m.redraw();
 }
 

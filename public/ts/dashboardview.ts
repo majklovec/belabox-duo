@@ -23,7 +23,6 @@ import { t } from "./i18n";
 import { actionIcon } from "./icons";
 import { mountPage } from "./util";
 
-const REFRESH_MS = 3_000;
 const SAVE_DEBOUNCE_MS = 500;
 const PATH_RE = /\/dashboards\/(view|edit)\/([^/]+)\/?$/;
 
@@ -283,15 +282,10 @@ void (async () => {
 	setDashboardChangedSink(onDashboardsChanged);
 	await refreshDevices();
 	syncConnectionsFor(state.dash);
+	// One-time startup sync: devices.changed then keeps the devices and the
+	// widget connections in step, so no polling timer is needed.
 	ensureDashboardsWs();
 	m.redraw();
-	setInterval(() => {
-		void (async () => {
-			await refreshDevices();
-			syncConnectionsFor(state.dash);
-			m.redraw();
-		})();
-	}, REFRESH_MS);
 })();
 
 document.addEventListener("fullscreenchange", () => m.redraw());

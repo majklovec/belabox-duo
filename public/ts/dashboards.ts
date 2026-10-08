@@ -1,18 +1,27 @@
-/* Dashboards list page: create, view, edit, delete dashboards. */
+/* Dashboards list page: create, view, edit, delete dashboards. The list stays
+ * in sync over the shared feed websocket (dashboards.snapshot /
+ * dashboards.changed); the initial fetch only loads the page before the socket
+ * opens. */
 import m from "mithril";
 import type { ServerDashboard } from "../types";
 import { button, Card, Page, input, serverNav } from "./components/ui";
 import { t } from "./i18n";
 import { actionIcon } from "./icons";
+import { serverLive } from "./services/serverws";
 import { mountPage } from "./util";
-
-const REFRESH_MS = 3_000;
 
 const state = {
 	dashboards: [] as ServerDashboard[],
 	newName: "",
 	saving: false,
 };
+
+serverLive.on({
+	dashboards: (list) => {
+		state.dashboards = list;
+		m.redraw();
+	},
+});
 
 async function refresh(): Promise<void> {
 	const res = await fetch("/api/dashboards", { cache: "no-store" }).catch(() => null);
@@ -112,6 +121,3 @@ const App: m.Component = {
 
 void refresh();
 void mountPage(() => t("dash.title"), App);
-setInterval(() => {
-	void refresh();
-}, REFRESH_MS);
