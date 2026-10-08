@@ -1,5 +1,5 @@
-// i18n core. Translations live in i18n/*.json (English is the source of
-// truth); missing keys fall back to English, then to the raw key.
+// i18n core. Translations live in i18n/*.po (PO format, English is the source
+// of truth); missing keys fall back to English, then to the raw key.
 // Positional placeholders: t("x.y", 1, "two") replaces {0}, {1}, ...
 //
 // t() resolves the language from the module-level current language (see
@@ -7,18 +7,22 @@
 // current one (e.g. the control server logging for a specific device) use
 // translate() directly.
 
-import cs from "../i18n/cs.json";
-import de from "../i18n/de.json";
-import en from "../i18n/en.json";
-import es from "../i18n/es.json";
-import fr from "../i18n/fr.json";
-import it from "../i18n/it.json";
-import ja from "../i18n/ja.json";
-import pl from "../i18n/pl.json";
-import pt from "../i18n/pt.json";
-import ru from "../i18n/ru.json";
-import sk from "../i18n/sk.json";
-import zh from "../i18n/zh.json";
+// PO files are imported as plain modules: a file path under the Bun runtime,
+// an asset URL in the bundled browser pages — i18nReady below loads the text
+// from the right source. Entry points (client.ts, server.ts, public/ts/i18n.ts)
+// `await ready` before anything calls t().
+import cs from "../i18n/cs.po";
+import de from "../i18n/de.po";
+import en from "../i18n/en.po";
+import es from "../i18n/es.po";
+import fr from "../i18n/fr.po";
+import it from "../i18n/it.po";
+import ja from "../i18n/ja.po";
+import pl from "../i18n/pl.po";
+import pt from "../i18n/pt.po";
+import ru from "../i18n/ru.po";
+import sk from "../i18n/sk.po";
+import zh from "../i18n/zh.po";
 
 /** Supported languages in menu order, each with its native name and flag. */
 export const LANGUAGE_INFO = [
@@ -43,7 +47,38 @@ export const DEFAULT_LANGUAGE: Language = "en";
 export const isLanguage = (value: unknown): value is Language => (LANGUAGES as readonly unknown[]).includes(value);
 export const asLanguage = (value: unknown): Language => (isLanguage(value) ? value : DEFAULT_LANGUAGE);
 
-const MESSAGES: Record<Language, Record<string, string>> = { cs, sk, pl, en, de, es, fr, it, pt, ru, zh, ja };
+/** Parsed catalogs: key → translation per language; set by i18nReady. */
+let MESSAGES: Record<Language, Record<string, string>> | undefined = undefined;
+
+/**
+ * Reads PO text from a module binding — a file path under the Bun runtime,
+ * an asset URL once bundled.
+ */
+async function loadPO(ref: string): Promise<string> {
+	if (typeof Bun !== "undefined") return Bun.file(ref).text();
+	return (await fetch(ref)).text();
+}
+
+/**
+ * Loads and parses all catalogs. Entry points (client.ts, server.ts,
+ * public/ts/i18n.ts) await this before anything calls t().
+ */
+export const i18nReady: Promise<void> = (async () => {
+	MESSAGES = {
+		cs: parsePO(await loadPO(cs)),
+		sk: parsePO(await loadPO(sk)),
+		pl: parsePO(await loadPO(pl)),
+		en: parsePO(await loadPO(en)),
+		de: parsePO(await loadPO(de)),
+		es: parsePO(await loadPO(es)),
+		fr: parsePO(await loadPO(fr)),
+		it: parsePO(await loadPO(it)),
+		pt: parsePO(await loadPO(pt)),
+		ru: parsePO(await loadPO(ru)),
+		zh: parsePO(await loadPO(zh)),
+		ja: parsePO(await loadPO(ja)),
+	};
+})();
 
 /** The language t()/label() currently resolve to; set at startup and on change. */
 let current: Language = DEFAULT_LANGUAGE;
@@ -58,7 +93,10 @@ export function setCurrentLanguage(lang: unknown): void {
  * `{0}`, `{1}`, ... are replaced by the corresponding arguments.
  */
 export function translate(lang: unknown, key: string, ...args: unknown[]): string {
-  let msg = MESSAGES[asLanguage(lang)][key] ?? MESSAGES.en[key];
+  const messages = MESSAGES;
+  if (!messages) return key; // catalogs not loaded yet — entry points await i18nReady
+  const language = asLanguage(lang);
+  let msg = messages[language][key] ?? messages.en[key];
   if (msg === undefined) return key;
   args.forEach((arg, i) => (msg = msg.replace(`{${i}}`, String(arg ?? ""))));
   return msg;

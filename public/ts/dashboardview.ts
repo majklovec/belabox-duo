@@ -295,4 +295,4 @@ void (async () => {
 })();
 
 document.addEventListener("fullscreenchange", () => m.redraw());
-mountPage(t("dash.title"), App);
+void mountPage(() => t("dash.title"), App);

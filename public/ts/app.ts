@@ -90,4 +90,4 @@ setInterval(() => {
 	if (st.status || st.stats) m.redraw();
 }, 5_000);
 
-mountPage(t("dev.title"), App);
+void mountPage(() => t("dev.title"), App);

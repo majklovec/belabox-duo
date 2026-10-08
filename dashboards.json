@@ -3,17 +3,17 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 114,
+      "version": 124,
       "widgets": [
         {
           "id": "x1",
           "deviceId": "",
           "type": "kick-chat",
           "name": "chat",
-          "x": 0,
-          "y": 0,
-          "w": 4,
-          "h": 11,
+          "x": 4,
+          "y": 4,
+          "w": 3,
+          "h": 14,
           "visible": true,
           "config": {
             "channel": "cicero_mt"
@@ -24,10 +24,10 @@
           "deviceId": "afaa0714-b79a-4e57-b52e-50cd99a625af",
           "type": "obs",
           "name": "OBS Studio",
-          "x": 4,
-          "y": 8,
-          "w": 6,
-          "h": 16,
+          "x": 7,
+          "y": 0,
+          "w": 4,
+          "h": 18,
           "visible": true
         },
         {
@@ -37,8 +37,8 @@
           "name": "Stats Kick",
           "x": 4,
           "y": 0,
-          "w": 6,
-          "h": 8,
+          "w": 3,
+          "h": 4,
           "visible": true,
           "config": {
             "channel": "cicero_mt"
@@ -86,7 +86,7 @@
           "type": "combined",
           "name": "Enkodér + relay",
           "x": 0,
-          "y": 11,
+          "y": 0,
           "w": 4,
           "h": 27,
           "visible": true

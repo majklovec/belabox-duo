@@ -224,4 +224,4 @@ const App: m.Component = {
 		),
 };
 
-mountPage(t("set.title"), App);
+void mountPage(() => t("set.title"), App);

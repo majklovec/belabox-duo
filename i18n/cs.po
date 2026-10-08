@@ -1,0 +1,1245 @@
+# cs — Belabox Duo UI translations (PO format)
+# msgid is the key; msgstr is the translation. Single-line entries,
+# quotes JSON-escaped; the empty msgid is the header and is ignored.
+
+msgid ""
+msgstr "Content-Type: text/plain; charset=utf-8\nMIME-Version: 1.0\nLanguage: cs\n"
+
+msgid "dash.add_widget"
+msgstr "Přidat widget"
+
+msgid "dash.add"
+msgstr "Přidat"
+
+msgid "dash.back"
+msgstr "Zpět na dashboardy"
+
+msgid "dash.create"
+msgstr "Vytvořit"
+
+msgid "dash.create_new"
+msgstr "Vytvořit nový dashboard"
+
+msgid "dash.delete"
+msgstr "Smažit"
+
+msgid "dash.devices"
+msgstr "Zařízení"
+
+msgid "dash.edit"
+msgstr "Upravit"
+
+msgid "dash.empty"
+msgstr "Zatím žádné dashboardy"
+
+msgid "dash.grp_independent"
+msgstr "Nzávislý"
+
+msgid "dash.modules"
+msgstr "Moduly"
+
+msgid "dash.move_down"
+msgstr "Přesunout dolů"
+
+msgid "dash.move_up"
+msgstr "Přesunout nahoru"
+
+msgid "dash.name"
+msgstr "Název"
+
+msgid "dash.new_placeholder"
+msgstr "např. Stream"
+
+msgid "dash.no_widgets"
+msgstr "Žádné widgety — přidejte níže"
+
+msgid "dash.not_found"
+msgstr "Dashboard nenalezen"
+
+msgid "dash.saving"
+msgstr "Ukládám…"
+
+msgid "dash.title"
+msgstr "Dashboardy"
+
+msgid "dash.view"
+msgstr "Zobrazit"
+
+msgid "dash.widget"
+msgstr "widget"
+
+msgid "dash.widget.max"
+msgstr "Max"
+
+msgid "dash.widget.pipeline"
+msgstr "Pipeline"
+
+msgid "dash.widget.recording"
+msgstr "Nahrání"
+
+msgid "dash.widget.scene"
+msgstr "Scéna"
+
+msgid "dash.widget.streaming"
+msgstr "Stream"
+
+msgid "dash.widget_missing"
+msgstr "Žádné zařízení"
+
+msgid "dash.version_stale"
+msgstr "stará aplikace"
+
+msgid "dash.widget_module_off"
+msgstr "Modul na zařízení vypnutý"
+
+msgid "dash.widget_type"
+msgstr "Typ"
+
+msgid "dash.widget_waiting"
+msgstr "Čeká na data…"
+
+msgid "dash.widgets"
+msgstr "Widgety"
+
+msgid "dash.width"
+msgstr "Šířka"
+
+msgid "dash.width_12"
+msgstr "plná"
+
+msgid "dash.width_4"
+msgstr "třetina"
+
+msgid "dash.width_6"
+msgstr "polovina"
+
+msgid "dev.all_devices_title"
+msgstr "Zpět na seznam zařízení"
+
+msgid "dev.apply_bitrate"
+msgstr "Použít bitrate"
+
+msgid "dev.apply_cera"
+msgstr "Použít nastavení"
+
+msgid "dev.audio_pipeline_default"
+msgstr "Výchozí potrubí"
+
+msgid "dev.autostart_title"
+msgstr "Nastaví spuštění na automatické nebo ruční"
+
+msgid "dev.badge.live"
+msgstr "živě"
+
+msgid "dev.badge.no_links"
+msgstr "bez spojení"
+
+msgid "dev.badge.offline"
+msgstr "offline"
+
+msgid "dev.badge.online"
+msgstr "online"
+
+msgid "dev.badge.online_count"
+msgstr "{0}/{1} online"
+
+msgid "dev.badge.restarting"
+msgstr "obnovuje se"
+
+msgid "dev.badge.srtla_send_down"
+msgstr "srtla_send dolů"
+
+msgid "dev.badge.stopped"
+msgstr "zastaveno"
+
+msgid "dev.badge.streaming"
+msgstr "enkoduje"
+
+msgid "dev.balancer.adaptive"
+msgstr "Adaptivní (RTT + buffer)"
+
+msgid "dev.balancer.aimd"
+msgstr "AIMD (v duchu TCP)"
+
+msgid "dev.balancer.fixed"
+msgstr "Fixní bitrate"
+
+msgid "dev.card.encoder"
+msgstr "Enkodér"
+
+msgid "dev.card.interfaces"
+msgstr "Rozhraní"
+
+msgid "dev.card.log"
+msgstr "Log"
+
+msgid "dev.card.modems"
+msgstr "Modemy"
+
+msgid "dev.card.srtla"
+msgstr "Brána"
+
+msgid "dev.cera_section"
+msgstr "Ceracoder řízení bitrate"
+
+msgid "dev.connected"
+msgstr "připojeno"
+
+msgid "dev.control"
+msgstr "Ovládání"
+
+msgid "dev.control_connecting"
+msgstr "připojuje se"
+
+msgid "dev.control_unavailable"
+msgstr "nedostupné"
+
+msgid "dev.control_unavailable_title"
+msgstr "Nejsou připojeny žádné řídicí websockety"
+
+msgid "dev.device_offline"
+msgstr "zařízení offline"
+
+msgid "dev.disconnected"
+msgstr "nepřipojeno"
+
+msgid "dev.field.audio_codec"
+msgstr "Audio kodek"
+
+msgid "dev.field.audio_delay"
+msgstr "Zpoždění audio (ms)"
+
+msgid "dev.field.audio_source"
+msgstr "Zdroj audio"
+
+msgid "dev.field.balancer"
+msgstr "Bitrate balancer"
+
+msgid "dev.field.bitrate_overlay"
+msgstr "Bitrate overlay"
+
+msgid "dev.field.cera_decr_interval"
+msgstr "Interval snížení (ms)"
+
+msgid "dev.field.cera_decr_mult"
+msgstr "Koeficient kongestace (0-1)"
+
+msgid "dev.field.cera_decr_step"
+msgstr "Krok snížení (kbps)"
+
+msgid "dev.field.cera_incr_interval"
+msgstr "Interval zvýšení (ms)"
+
+msgid "dev.field.cera_incr_step"
+msgstr "Krok zvýšení (kbps)"
+
+msgid "dev.field.max_bitrate"
+msgstr "Maximální bitrate (kbps)"
+
+msgid "dev.field.min_bitrate"
+msgstr "Minimální bitrate (kbps)"
+
+msgid "dev.field.remote_host"
+msgstr "SRTLA server"
+
+msgid "dev.field.remote_port"
+msgstr "SRTLA port serveru"
+
+msgid "dev.field.srt_latency"
+msgstr "SRT latency (ms)"
+
+msgid "dev.field.srt_listen_port"
+msgstr "SRT port"
+
+msgid "dev.field.stream_host"
+msgstr "Stream server"
+
+msgid "dev.field.stream_id"
+msgstr "Stream ID"
+
+msgid "dev.field.stream_srt_port"
+msgstr "Stream SRT port"
+
+msgid "dev.group.audio"
+msgstr "Zvuk"
+
+msgid "dev.group.bitrate"
+msgstr "Bitrate"
+
+msgid "dev.group.connection"
+msgstr "Připojení"
+
+msgid "dev.group.scheduling"
+msgstr "Plánování linek"
+
+msgid "dev.group.srt"
+msgstr "SRT výstup"
+
+msgid "dev.group.video"
+msgstr "Video"
+
+msgid "dev.iface_modem"
+msgstr "modem #{0}"
+
+msgid "dev.imei"
+msgstr "IMEI"
+
+msgid "dev.include_in_bond"
+msgstr "Zahrnout do bondu"
+
+msgid "dev.latency_audio"
+msgstr "{0} ms (zvukové zpoždění {1} ms)"
+
+msgid "dev.link_min_rtt"
+msgstr "min {0} ms"
+
+msgid "dev.link_score"
+msgstr "skóre {0}"
+
+msgid "dev.link_share_title"
+msgstr "{0}% celku (min RTT {1} ms)"
+
+msgid "dev.link_sole"
+msgstr "jediné spojení"
+
+msgid "dev.link_stalled"
+msgstr "stagnuje"
+
+msgid "dev.link_timed_out"
+msgstr "čas vypršel"
+
+msgid "dev.link_up"
+msgstr "aktivní"
+
+msgid "dev.link_weak"
+msgstr "slabé"
+
+msgid "dev.listen_port"
+msgstr "(naslouchá {0})"
+
+msgid "dev.lost_reconnecting"
+msgstr "Spojení ztraceno, znovu se připojuji…"
+
+msgid "dev.max_value"
+msgstr "max {0}"
+
+msgid "dev.minmax_kbps"
+msgstr "min. {0} / max. {1} kbps"
+
+msgid "dev.modem_fallback"
+msgstr "Modem"
+
+msgid "dev.monitor"
+msgstr "Sledování"
+
+msgid "dev.monitor_watching"
+msgstr "sleduje"
+
+msgid "dev.no_interfaces"
+msgstr "Nebyly detekována žádná rozhraní"
+
+msgid "dev.no_modems"
+msgstr "Nenalezeny žádné modemy (ModemManager)."
+
+msgid "dev.no_pipelines"
+msgstr "Žádné pipelines ve {0}."
+
+msgid "dev.no_pipelines_hint"
+msgstr "Přidejte repozitář potrubí v nastavení."
+
+msgid "dev.operator"
+msgstr "Operátor"
+
+msgid "dev.power"
+msgstr "Napájení"
+
+msgid "dev.quality_scoring"
+msgstr "Hodnocení kvality"
+
+msgid "dev.quality_scoring_title"
+msgstr "Hodnocení SRTLA pro výběr nejlepšího spojení"
+
+msgid "dev.reconnected"
+msgstr "Znovu připojeno"
+
+msgid "dev.registration"
+msgstr "Registr."
+
+msgid "dev.reloads"
+msgstr "Obnovení"
+
+msgid "dev.reloads_detail"
+msgstr "{0} (poslední {1}, režim {2})"
+
+msgid "dev.reset_confirm"
+msgstr "Resetovat modem #{0}?"
+
+msgid "dev.row.audio"
+msgstr "Zvuk"
+
+msgid "dev.row.balancer"
+msgstr "Balancer"
+
+msgid "dev.row.bitrate"
+msgstr "Bitrate"
+
+msgid "dev.row.encoder"
+msgstr "Kódér"
+
+msgid "dev.row.latency"
+msgstr "Zpoždění"
+
+msgid "dev.row.pipeline"
+msgstr "Pipeline"
+
+msgid "dev.row.restarts"
+msgstr "Restarty"
+
+msgid "dev.row.started"
+msgstr "Spuštěno"
+
+msgid "dev.row.state"
+msgstr "Stav"
+
+msgid "dev.row.target"
+msgstr "Cíl"
+
+msgid "dev.row_state_running"
+msgstr "běží"
+
+msgid "dev.scheduler"
+msgstr "Plánovač"
+
+msgid "dev.scheduler_classic"
+msgstr "Klasický"
+
+msgid "dev.scheduler_enhanced"
+msgstr "Rozšířený"
+
+msgid "dev.signal"
+msgstr "Signál"
+
+msgid "dev.stale"
+msgstr "zastaralá, {0}"
+
+msgid "dev.tech"
+msgstr "Technologie"
+
+msgid "dev.th.bond"
+msgstr "Bond"
+
+msgid "dev.th.in_flight"
+msgstr "Ve zpracování"
+
+msgid "dev.th.in_flight_title"
+msgstr "Počet datových bufferů SRTLA ve frontě"
+
+msgid "dev.th.interface"
+msgstr "Rozhraní"
+
+msgid "dev.th.link"
+msgstr "Linka"
+
+msgid "dev.th.loss"
+msgstr "Ztráta %"
+
+msgid "dev.th.naks"
+msgstr "NAKs"
+
+msgid "dev.th.network"
+msgstr "Síť"
+
+msgid "dev.th.quality"
+msgstr "Kvalita"
+
+msgid "dev.title"
+msgstr "Belabox Duo"
+
+msgid "dev.unit_gbs"
+msgstr "{0} Gb/s"
+
+msgid "dev.unit_kbps"
+msgstr "kbps"
+
+msgid "dev.unit_mbps"
+msgstr "Mbps"
+
+msgid "dev.unit_mbs"
+msgstr "{0} Mb/s"
+
+msgid "kickchat.card"
+msgstr "Chat Kick"
+
+msgid "kickchat.connected"
+msgstr "připojeno"
+
+msgid "kickchat.disabled"
+msgstr "Modul vypnutý"
+
+msgid "kickchat.disconnected"
+msgstr "odpojeno"
+
+msgid "kickchat.empty"
+msgstr "Zatím žádné zprávy"
+
+msgid "tiktokchat.empty"
+msgstr "Zatím žádné zprávy"
+
+msgid "twitchchat.empty"
+msgstr "Zatím žádné zprávy"
+
+msgid "youtubechat.empty"
+msgstr "Zatím žádné zprávy"
+
+msgid "kickstats.card"
+msgstr "Stats Kick"
+
+msgid "kickstats.disabled"
+msgstr "Modul vypnutý"
+
+msgid "kickstats.followers"
+msgstr "Následovníci"
+
+msgid "kickstats.live"
+msgstr "LIVE"
+
+msgid "kickstats.chart"
+msgstr "Diváci"
+
+msgid "kickstats.start"
+msgstr "Začátek"
+
+msgid "kickstats.duration"
+msgstr "Délka"
+
+msgid "kickstats.offline"
+msgstr "offline"
+
+msgid "kickstats.spark_pending"
+msgstr "Sběr vzorků…"
+
+msgid "kickstats.title"
+msgstr "Název"
+
+msgid "kickstats.viewers"
+msgstr "diváci"
+
+msgid "kickstats.waiting"
+msgstr "Čeká na první dotaz…"
+
+msgid "log.encoder_exited"
+msgstr "kódování bylo ukončeno s kódem {0}; bude restartováno za {1}s"
+
+msgid "log.level.error"
+msgstr "CHYBA"
+
+msgid "log.level.info"
+msgstr "INFO"
+
+msgid "log.level.warning"
+msgstr "VAROVÁNÍ"
+
+msgid "log.no_control_socket"
+msgstr "Žádný řídicí socket; nastavení se projeví při dalším spuštění"
+
+msgid "log.no_stream_settings"
+msgstr "Žádná předchozí nastavení pro obnovení streamu"
+
+msgid "log.reconfigure_failed"
+msgstr "Počáteční nastavení rozhraní selhalo: {0}"
+
+msgid "log.restart_failed"
+msgstr "Restart selhal: {0}"
+
+msgid "log.settings_saved_reconnect"
+msgstr "Nastavení uloženo; připojuji se k {0}"
+
+msgid "log.srtla_exited"
+msgstr "srtla_send byl ukončen s kódem {0}; bude restartován za {1}s"
+
+msgid "log.started"
+msgstr "Služba spuštěna ({0})"
+
+msgid "log.stopped_signal"
+msgstr "Služba zastavena ({0})"
+
+msgid "log.stream_resumed"
+msgstr "Proud obnoven"
+
+msgid "log.stream_start_retry"
+msgstr "Spuštění selhalo, nový pokus za {0} s: {1}"
+
+msgid "mgmt.devices"
+msgstr "Zařízení"
+
+msgid "mgmt.last_seen"
+msgstr "naposledy viděno {0}"
+
+msgid "mgmt.loading"
+msgstr "Načítání…"
+
+msgid "mgmt.none"
+msgstr "Zatím se nepřipojilo žádné zařízení."
+
+msgid "mgmt.th.connected"
+msgstr "Připojeno"
+
+msgid "mgmt.th.device"
+msgstr "Zařízení"
+
+msgid "mgmt.th.links"
+msgstr "Linky"
+
+msgid "mgmt.th.role"
+msgstr "Role"
+
+msgid "mgmt.th.status"
+msgstr "Stav"
+
+msgid "mgmt.th.stream"
+msgstr "Stream"
+
+msgid "mgmt.th_bitrate"
+msgstr "Bitrate / max"
+
+msgid "mgmt.title"
+msgstr "Belabox Duo server"
+
+msgid "mlog.action.activate"
+msgstr "Aktivovat"
+
+msgid "mlog.action.bitrate"
+msgstr "Změna rychlosti"
+
+msgid "mlog.action.bond_selection"
+msgstr "Volba bundlu"
+
+msgid "mlog.action.bond_toggle"
+msgstr "Přepnutí bundlu"
+
+msgid "mlog.action.configuration"
+msgstr "Nastavení"
+
+msgid "mlog.action.create"
+msgstr "Vytvořit"
+
+msgid "mlog.action.delete"
+msgstr "Smažit"
+
+msgid "mlog.action.load"
+msgstr "Načíst"
+
+msgid "mlog.action.options"
+msgstr "Aktualizace voleb"
+
+msgid "mlog.action.update"
+msgstr "Aktualizace"
+
+msgid "mlog.done.bitrate"
+msgstr "Rychlost nastavena na min. {0} / max. {1} kbps"
+
+msgid "mlog.done.bond_toggled"
+msgstr "{0} přepnuto v bundlu"
+
+msgid "mlog.done.bond_updated"
+msgstr "Volba bundlu aktualizována"
+
+msgid "mlog.done.cera_settings"
+msgstr "Nastavení řízení bitrate použita"
+
+msgid "mlog.done.disabled"
+msgstr "Zakázán"
+
+msgid "mlog.done.enabled"
+msgstr "Povolen"
+
+msgid "mlog.done.generic"
+msgstr "{0} hotovo"
+
+msgid "mlog.done.loaded"
+msgstr "Načteno"
+
+msgid "mlog.done.mode"
+msgstr "Režim nastaven na {0}"
+
+msgid "mlog.done.modem_connected"
+msgstr "Modem #{0} připojen"
+
+msgid "mlog.done.modem_disabled"
+msgstr "Modem #{0} zakázán"
+
+msgid "mlog.done.modem_disconnected"
+msgstr "Modem #{0} odpojen"
+
+msgid "mlog.done.modem_enabled"
+msgstr "Modem #{0} povolen"
+
+msgid "mlog.done.modem_reset"
+msgstr "Modem #{0} resetován"
+
+msgid "mlog.done.module_configured"
+msgstr "Modul {0} nastaven"
+
+msgid "mlog.done.module_disabled"
+msgstr "Modul {0} vypnut"
+
+msgid "mlog.done.module_enabled"
+msgstr "Modul {0} zapnut"
+
+msgid "mlog.done.quality_off"
+msgstr "Kvalita: vypnuta"
+
+msgid "mlog.done.quality_on"
+msgstr "Kvalita: zapnuta"
+
+msgid "mlog.done.reconfigured"
+msgstr "Překonfigurováno"
+
+msgid "mlog.done.reloaded"
+msgstr "Obnoveno"
+
+msgid "mlog.done.remote_disabled"
+msgstr "Server vzdálené správy byl vypnut"
+
+msgid "mlog.done.settings_saved"
+msgstr "Nastavení uloženo"
+
+msgid "mlog.done.started"
+msgstr "Spuštěno"
+
+msgid "mlog.done.stopped"
+msgstr "Zastaveno"
+
+msgid "mlog.failed"
+msgstr "{0} selhalo: {1}"
+
+msgid "mlog.section.connection"
+msgstr "Připojení"
+
+msgid "mlog.section.encoder"
+msgstr "Enkodér"
+
+msgid "mlog.section.modules"
+msgstr "Moduly"
+
+msgid "mlog.section.pipelines"
+msgstr "Pipeline"
+
+msgid "mlog.section.service"
+msgstr "Služba"
+
+msgid "mlog.section.settings"
+msgstr "Nastavení"
+
+msgid "mlog.section.setup"
+msgstr "Instalace"
+
+msgid "mlog.section.unknown"
+msgstr "Neznámé"
+
+msgid "mod.config"
+msgstr "Nastavení"
+
+msgid "mod.enabled"
+msgstr "Stav"
+
+msgid "mod.encoder"
+msgstr "Enkodér"
+
+msgid "mod.kick_channel"
+msgstr "Kanál Kick"
+
+msgid "mod.kick_chat"
+msgstr "Chat Kick"
+
+msgid "mod.kick_stats"
+msgstr "Stats Kick"
+
+msgid "mod.kick_token"
+msgstr "Token chatu"
+
+msgid "mod.kick_token_placeholder"
+msgstr "ponechte prázdné pro zachování"
+
+msgid "mod.name"
+msgstr "Modul"
+
+msgid "mod.obs"
+msgstr "OBS Studio"
+
+msgid "mod.obs_password"
+msgstr "Heslo"
+
+msgid "mod.obs_password_placeholder"
+msgstr "ponechte prázdné pro zachování"
+
+msgid "mod.obs_url"
+msgstr "Adresa OBS WebSocket"
+
+msgid "mod.relay"
+msgstr "Relay (SRTLA)"
+
+msgid "mod.scene_events"
+msgstr "Přihlásit k událostem scén"
+
+msgid "obs.audio"
+msgstr "Hladina zvuku"
+
+msgid "obs.card"
+msgstr "OBS Studio"
+
+msgid "obs.connected"
+msgstr "připojeno"
+
+msgid "obs.disabled"
+msgstr "Modul vypnutý"
+
+msgid "obs.manual"
+msgstr "manuálně"
+
+msgid "obs.mic_live"
+msgstr "Mikrofon živě"
+
+msgid "obs.mic_muted"
+msgstr "Mikrofon ztlumen"
+
+msgid "obs.mute"
+msgstr "Ztlumit mikrofon"
+
+msgid "obs.next"
+msgstr "další za {0}s"
+
+msgid "obs.no_inputs"
+msgstr "Žádné vstupy"
+
+msgid "obs.no_scenes"
+msgstr "Žádné scény"
+
+msgid "obs.offline"
+msgstr "offline"
+
+msgid "obs.output"
+msgstr "Výstup"
+
+msgid "obs.pause"
+msgstr "Pozastavit"
+
+msgid "obs.paused"
+msgstr "pauza"
+
+msgid "obs.preview"
+msgstr "Náhled"
+
+msgid "obs.preview_failed"
+msgstr "Aktualizace selhala"
+
+msgid "obs.preview_now"
+msgstr "Aktualizovat"
+
+msgid "obs.recording"
+msgstr "Nahrává"
+
+msgid "obs.refresh"
+msgstr "Aktualizovat"
+
+msgid "obs.resume"
+msgstr "Obnovit"
+
+msgid "obs.scene"
+msgstr "Aktuální scéna"
+
+msgid "obs.scenes"
+msgstr "Scény"
+
+msgid "obs.screenshot"
+msgstr "Snímek obrazovky"
+
+msgid "obs.start_record"
+msgstr "Spustit nahrávání"
+
+msgid "obs.start_stream"
+msgstr "Spustit stream"
+
+msgid "obs.stop_record"
+msgstr "Zastavit nahrávání"
+
+msgid "obs.stop_stream"
+msgstr "Zastavit stream"
+
+msgid "obs.streaming"
+msgstr "Streamuje"
+
+msgid "obs.studio"
+msgstr "Režim studia"
+
+msgid "obs.unmute"
+msgstr "Odtlumit mikrofon"
+
+msgid "obs.updated"
+msgstr "Aktualizováno {0}"
+
+msgid "obs.waiting"
+msgstr "Načítám…"
+
+msgid "role.combined"
+msgstr "enkodér + relay"
+
+msgid "role.custom"
+msgstr "vlastní"
+
+msgid "role.encoder"
+msgstr "enkodér"
+
+msgid "role.obs"
+msgstr "obs"
+
+msgid "role.relay"
+msgstr "relay"
+
+msgid "set.back"
+msgstr "Zpět na zařízení"
+
+msgid "set.color"
+msgstr "Barva"
+
+msgid "set.description"
+msgstr "Nastavení se po uložení znovu použijí na řídicím serveru."
+
+msgid "set.hostname"
+msgstr "Název hostitele"
+
+msgid "set.no_repos"
+msgstr "Není nakonfigurován žádný repozitář potrubí."
+
+msgid "set.remote_token"
+msgstr "Remote token"
+
+msgid "set.remote_url"
+msgstr "URL řídicího serveru"
+
+msgid "set.repo_add"
+msgstr "Přidat repozitář"
+
+msgid "set.repo_field"
+msgstr "GitHub repozitář"
+
+msgid "set.repo_imported"
+msgstr "Importováno {0} souboru(souborů)."
+
+msgid "set.repo_importing"
+msgstr "Importuji {0}…"
+
+msgid "set.repo_removed"
+msgstr "{0} odebráno."
+
+msgid "set.repo_removing"
+msgstr "Odebírám {0}…"
+
+msgid "set.repo_update_all"
+msgstr "Aktualizovat vše"
+
+msgid "set.repo_updated_all"
+msgstr "Aktualizováno {0} repozitářů ({1} souborů)."
+
+msgid "set.repo_updating_all"
+msgstr "Aktualizuji všechny repozitáře potrubí…"
+
+msgid "set.repos"
+msgstr "Úložiště pipelines"
+
+msgid "set.repos_desc"
+msgstr "Pipelines se importují rekurzivně z adresáře pipelines/ všech repozitářů a znovu se importují po každém git pull."
+
+msgid "set.restart_required"
+msgstr "Nová role se projeví po restartu služby zařízení."
+
+msgid "set.role"
+msgstr "Role zařízení"
+
+msgid "set.role_keep"
+msgstr "Ponechat aktuální"
+
+msgid "set.save"
+msgstr "Uložit nastavení"
+
+msgid "set.saved"
+msgstr "Nastavení uloženo."
+
+msgid "set.title"
+msgstr "Nastavení zařízení"
+
+msgid "set.token_ph_configured"
+msgstr "konfigurováno (ponechte prázdné pro zachování)"
+
+msgid "set.token_ph_missing"
+msgstr "nokonfigurováno"
+
+msgid "set.token_ph_unchanged"
+msgstr "bez změny"
+
+msgid "setup.autostart"
+msgstr "Automaticky spustit uložený stream po restartu"
+
+msgid "setup.control_desc"
+msgstr "Připojte toto nastavení k existujícímu řídicímu serveru."
+
+msgid "setup.control_token"
+msgstr "Token řídicího serveru"
+
+msgid "setup.encoder_desc"
+msgstr "Pole specifická pro enkoder zachycovacího potrubí."
+
+msgid "setup.hostname"
+msgstr "Název zařízení"
+
+msgid "setup.hostname_title"
+msgstr "Používá se malá písmena, čísla, tečky a pomlčky (max 64 znaků)."
+
+msgid "setup.identity"
+msgstr "Identita a vzhled"
+
+msgid "setup.identity_desc"
+msgstr "Jak se zařízení identifikuje vůči řídicímu serveru."
+
+msgid "setup.language_desc"
+msgstr "Vyberte jazyk používaný po celé rozhraní."
+
+msgid "setup.loading"
+msgstr "Načítání dat nastavení…"
+
+msgid "setup.relay_desc"
+msgstr "SRTLA relay pole (pouze role relay)."
+
+msgid "setup.restart_required"
+msgstr "Nová role se projeví po restartu služby zařízení."
+
+msgid "setup.review_desc"
+msgstr "Zvolením Zpět si zkontrolujte své volby, poté konfiguraci uložte."
+
+msgid "setup.role.combined"
+msgstr "Kombinované"
+
+msgid "setup.role.combined_tag"
+msgstr "Koduje a přeposílá v jedné službě"
+
+msgid "setup.role.encoder"
+msgstr "Enkodér"
+
+msgid "setup.role.encoder_tag"
+msgstr "Zachycuje GStreamer potrubí a posílá ho přes SRT"
+
+msgid "setup.role.relay_tag"
+msgstr "Přijímá streamy a přeposílá je pomocí SRTLA"
+
+msgid "setup.save"
+msgstr "Uložit konfiguraci"
+
+msgid "setup.saved"
+msgstr "Konfigurace uložena. Pro aplikaci vybrané role, názvu hostitele a řídicího serveru službu restartujte."
+
+msgid "setup.step.control"
+msgstr "Řídicí server"
+
+msgid "setup.step.control_sub"
+msgstr "Volitelné připojení k centrálnímu serveru."
+
+msgid "setup.step.encoder"
+msgstr "Enkodér"
+
+msgid "setup.step.encoder_sub"
+msgstr "Pipeline, rychlost přenosu a zvukové zpoždění."
+
+msgid "setup.step.identity"
+msgstr "Identita"
+
+msgid "setup.step.identity_sub"
+msgstr "Název hostitele a barva zařízení."
+
+msgid "setup.step.language_sub"
+msgstr "Vyberte jazyk rozhraní."
+
+msgid "setup.step.relay"
+msgstr "Relay"
+
+msgid "setup.step.relay_sub"
+msgstr "SRTLA nastavení"
+
+msgid "setup.step.review"
+msgstr "Přehled"
+
+msgid "setup.step.role_sub"
+msgstr "Vyberte, jak se toto Belabox připojí k síti."
+
+msgid "setup.title"
+msgstr "Nastavení Belabox Duo"
+
+msgid "srv.offline"
+msgstr "Zařízení offline ({0})"
+
+msgid "srv.online"
+msgstr "Zařízení online ({0})"
+
+msgid "status.card"
+msgstr "Stav"
+
+msgid "status.connection"
+msgstr "Připojení"
+
+msgid "status.role"
+msgstr "Role"
+
+msgid "status.state"
+msgstr "Stav"
+
+msgid "time.h_ago"
+msgstr "před {0} h"
+
+msgid "time.m_ago"
+msgstr "před {0} min"
+
+msgid "time.s_ago"
+msgstr "před {0} s"
+
+msgid "ui.autostart"
+msgstr "Autostart"
+
+msgid "ui.back"
+msgstr "Zpět"
+
+msgid "ui.connect"
+msgstr "Připojit"
+
+msgid "ui.disable"
+msgstr "Zakázat"
+
+msgid "ui.disconnect"
+msgstr "Odpojit"
+
+msgid "ui.enable"
+msgstr "Povolit"
+
+msgid "ui.error"
+msgstr "chyba"
+
+msgid "ui.language_label"
+msgstr "Jazyk"
+
+msgid "ui.next"
+msgstr "Další"
+
+msgid "ui.off"
+msgstr "vypnuto"
+
+msgid "ui.on"
+msgstr "zapnuto"
+
+msgid "ui.optional"
+msgstr "Volitelné"
+
+msgid "ui.reconfigure"
+msgstr "Překonfigurovat"
+
+msgid "ui.reload"
+msgstr "Obnovit"
+
+msgid "ui.remove"
+msgstr "Odebrat"
+
+msgid "ui.reset"
+msgstr "Resetovat"
+
+msgid "ui.save"
+msgstr "Uložit"
+
+msgid "ui.start"
+msgstr "Spustit"
+
+msgid "ui.stop"
+msgstr "Zastavit"
+
+msgid "ui.title_suffix"
+msgstr "– Belabox Duo"
+
+msgid "wtype.combined"
+msgstr "Enkodér + relay"
+
+msgid "wtype.encoder"
+msgstr "Enkodér"
+
+msgid "wtype.kick_chat"
+msgstr "Chat Kick"
+
+msgid "wtype.tiktok_chat"
+msgstr "Chat TikTok"
+
+msgid "wtype.twitch_chat"
+msgstr "Chat Twitch"
+
+msgid "wtype.youtube_chat"
+msgstr "Chat YouTube"
+
+msgid "wtype.kick_stats"
+msgstr "Stats Kick"
+
+msgid "wtype.obs"
+msgstr "OBS Studio"
+
+msgid "wtype.relay"
+msgstr "Relay"
+
+msgid "wtype.stats"
+msgstr "Stav relaye"
+
+msgid "wtype.status"
+msgstr "Stav"
+
+msgid "dash.widget_channel"
+msgstr "Kanál"
+
+msgid "dash.widget_not_configured"
+msgstr "Není nastaveno – zadejte název kanálu"
+
+msgid "ui.cancel"
+msgstr "Zrušit"
+
+msgid "dash.widget_settings"
+msgstr "Nastavení kanálu"
+
+msgid "dash.new"
+msgstr "Nová"
+
+msgid "dash.rename"
+msgstr "Přejmenovat"
+
+msgid "dash.default_name"
+msgstr "Přehled"
+
+msgid "dash.delete_confirm"
+msgstr "Smazat přehled „{0}“?"
+
+msgid "dash.delete_fail"
+msgstr "Smazení se nezdařilo"
+
+msgid "dash.done"
+msgstr "Hotovo"
+
+msgid "dash.hide"
+msgstr "Skrýt"
+
+msgid "dash.remove"
+msgstr "Odebrat"
+
+msgid "dash.kick"
+msgstr "Kick (nezávislý)"
+
+msgid "dash.saved"
+msgstr "Uloženo"
+
+msgid "dash.save_error"
+msgstr "Uložení se nezdařilo"
+
+msgid "dash.conflict"
+msgstr "Změnil jiný uživatel — načteno poslední"
+
+msgid "dash.device"
+msgstr "Zařízení"

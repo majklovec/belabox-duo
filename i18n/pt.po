@@ -1,0 +1,1245 @@
+# pt — Belabox Duo UI translations (PO format)
+# msgid is the key; msgstr is the translation. Single-line entries,
+# quotes JSON-escaped; the empty msgid is the header and is ignored.
+
+msgid ""
+msgstr "Content-Type: text/plain; charset=utf-8\nMIME-Version: 1.0\nLanguage: pt\n"
+
+msgid "dash.add_widget"
+msgstr "Adicionar widget"
+
+msgid "dash.add"
+msgstr "Adicionar"
+
+msgid "dash.back"
+msgstr "Voltar aos dashboards"
+
+msgid "dash.create"
+msgstr "Criar"
+
+msgid "dash.create_new"
+msgstr "Criar um novo dashboard"
+
+msgid "dash.delete"
+msgstr "Eliminar"
+
+msgid "dash.devices"
+msgstr "Dispositivos"
+
+msgid "dash.edit"
+msgstr "Editar"
+
+msgid "dash.empty"
+msgstr "Ainda não há dashboards"
+
+msgid "dash.grp_independent"
+msgstr "Independente"
+
+msgid "dash.modules"
+msgstr "Módulos"
+
+msgid "dash.move_down"
+msgstr "Mover para baixo"
+
+msgid "dash.move_up"
+msgstr "Mover para cima"
+
+msgid "dash.name"
+msgstr "Nome"
+
+msgid "dash.new_placeholder"
+msgstr "ex. Streaming"
+
+msgid "dash.no_widgets"
+msgstr "Sem widgets — adicione um abaixo"
+
+msgid "dash.not_found"
+msgstr "Dashboard não encontrado"
+
+msgid "dash.saving"
+msgstr "A guardar…"
+
+msgid "dash.title"
+msgstr "Dashboards"
+
+msgid "dash.view"
+msgstr "Ver"
+
+msgid "dash.widget"
+msgstr "widget"
+
+msgid "dash.widget.max"
+msgstr "Máx"
+
+msgid "dash.widget.pipeline"
+msgstr "Pipeline"
+
+msgid "dash.widget.recording"
+msgstr "Gravação"
+
+msgid "dash.widget.scene"
+msgstr "Cena"
+
+msgid "dash.widget.streaming"
+msgstr "Streaming"
+
+msgid "dash.widget_missing"
+msgstr "Sem dispositivo"
+
+msgid "dash.version_stale"
+msgstr "app antiga"
+
+msgid "dash.widget_module_off"
+msgstr "Módulo desativado no dispositivo"
+
+msgid "dash.widget_type"
+msgstr "Tipo"
+
+msgid "dash.widget_waiting"
+msgstr "À espera de dados…"
+
+msgid "dash.widgets"
+msgstr "Widgets"
+
+msgid "dash.width"
+msgstr "Largura"
+
+msgid "dash.width_12"
+msgstr "completa"
+
+msgid "dash.width_4"
+msgstr "um terço"
+
+msgid "dash.width_6"
+msgstr "metade"
+
+msgid "dev.all_devices_title"
+msgstr "Voltar à lista de dispositivos"
+
+msgid "dev.apply_bitrate"
+msgstr "Aplicar bitrate"
+
+msgid "dev.apply_cera"
+msgstr "Aplicar definições"
+
+msgid "dev.audio_pipeline_default"
+msgstr "Pipeline predefinida"
+
+msgid "dev.autostart_title"
+msgstr "Definir arranque automático ou manual"
+
+msgid "dev.badge.live"
+msgstr "em direto"
+
+msgid "dev.badge.no_links"
+msgstr "sem ligações"
+
+msgid "dev.badge.offline"
+msgstr "offline"
+
+msgid "dev.badge.online"
+msgstr "online"
+
+msgid "dev.badge.online_count"
+msgstr "{0}/{1} online"
+
+msgid "dev.badge.restarting"
+msgstr "a reiniciar"
+
+msgid "dev.badge.srtla_send_down"
+msgstr "srtla_send em baixo"
+
+msgid "dev.badge.stopped"
+msgstr "parado"
+
+msgid "dev.badge.streaming"
+msgstr "a transmitir"
+
+msgid "dev.balancer.adaptive"
+msgstr "Adaptativo (RTT + buffer)"
+
+msgid "dev.balancer.aimd"
+msgstr "AIMD (estilo TCP)"
+
+msgid "dev.balancer.fixed"
+msgstr "Bitrate fixo"
+
+msgid "dev.card.encoder"
+msgstr "Codificador"
+
+msgid "dev.card.interfaces"
+msgstr "Interfaces"
+
+msgid "dev.card.log"
+msgstr "Registo"
+
+msgid "dev.card.modems"
+msgstr "Modems"
+
+msgid "dev.card.srtla"
+msgstr "Relay"
+
+msgid "dev.cera_section"
+msgstr "Controlo de bitrate"
+
+msgid "dev.connected"
+msgstr "ligado"
+
+msgid "dev.control"
+msgstr "Controlo"
+
+msgid "dev.control_connecting"
+msgstr "a ligar"
+
+msgid "dev.control_unavailable"
+msgstr "indisponível"
+
+msgid "dev.control_unavailable_title"
+msgstr "Nenhum websocket de controlo ligado"
+
+msgid "dev.device_offline"
+msgstr "dispositivo offline"
+
+msgid "dev.disconnected"
+msgstr "desligado"
+
+msgid "dev.field.audio_codec"
+msgstr "Codec de áudio"
+
+msgid "dev.field.audio_delay"
+msgstr "Atraso de áudio (ms)"
+
+msgid "dev.field.audio_source"
+msgstr "Fonte de áudio"
+
+msgid "dev.field.balancer"
+msgstr "Balanceador de bitrate"
+
+msgid "dev.field.bitrate_overlay"
+msgstr "Overlay de bitrate"
+
+msgid "dev.field.cera_decr_interval"
+msgstr "Intervalo de redução (ms)"
+
+msgid "dev.field.cera_decr_mult"
+msgstr "Multiplicador de congestionamento (0-1)"
+
+msgid "dev.field.cera_decr_step"
+msgstr "Passo de redução (kbps)"
+
+msgid "dev.field.cera_incr_interval"
+msgstr "Intervalo de aumento (ms)"
+
+msgid "dev.field.cera_incr_step"
+msgstr "Passo de aumento (kbps)"
+
+msgid "dev.field.max_bitrate"
+msgstr "Bitrate máx. (kbps)"
+
+msgid "dev.field.min_bitrate"
+msgstr "Bitrate mín. (kbps)"
+
+msgid "dev.field.remote_host"
+msgstr "Host remoto SRTLA"
+
+msgid "dev.field.remote_port"
+msgstr "Porta remota SRTLA"
+
+msgid "dev.field.srt_latency"
+msgstr "Latência SRT (ms)"
+
+msgid "dev.field.srt_listen_port"
+msgstr "Porta de escuta SRT"
+
+msgid "dev.field.stream_host"
+msgstr "Host de stream"
+
+msgid "dev.field.stream_id"
+msgstr "Stream ID"
+
+msgid "dev.field.stream_srt_port"
+msgstr "Porta SRT do stream"
+
+msgid "dev.group.audio"
+msgstr "Áudio"
+
+msgid "dev.group.bitrate"
+msgstr "Bitrate"
+
+msgid "dev.group.connection"
+msgstr "Ligação"
+
+msgid "dev.group.scheduling"
+msgstr "Agendamento de ligações"
+
+msgid "dev.group.srt"
+msgstr "Saída SRT"
+
+msgid "dev.group.video"
+msgstr "Vídeo"
+
+msgid "dev.iface_modem"
+msgstr "modem #{0}"
+
+msgid "dev.imei"
+msgstr "IMEI"
+
+msgid "dev.include_in_bond"
+msgstr "Incluir no bond"
+
+msgid "dev.latency_audio"
+msgstr "{0} ms (atraso de áudio {1} ms)"
+
+msgid "dev.link_min_rtt"
+msgstr "mín. {0} ms"
+
+msgid "dev.link_score"
+msgstr "pontuação {0}"
+
+msgid "dev.link_share_title"
+msgstr "{0}% do total (RTT mín. {1} ms)"
+
+msgid "dev.link_sole"
+msgstr "única ligação"
+
+msgid "dev.link_stalled"
+msgstr "parado"
+
+msgid "dev.link_timed_out"
+msgstr "tempo esgotado"
+
+msgid "dev.link_up"
+msgstr "ativo"
+
+msgid "dev.link_weak"
+msgstr "fraca"
+
+msgid "dev.listen_port"
+msgstr "(escuta {0})"
+
+msgid "dev.lost_reconnecting"
+msgstr "Perdido, a religar…"
+
+msgid "dev.max_value"
+msgstr "máx. {0}"
+
+msgid "dev.minmax_kbps"
+msgstr "mín. {0} / máx. {1} kbps"
+
+msgid "dev.modem_fallback"
+msgstr "Modem"
+
+msgid "dev.monitor"
+msgstr "Monitor"
+
+msgid "dev.monitor_watching"
+msgstr "a monitorizar"
+
+msgid "dev.no_interfaces"
+msgstr "Nenhuma interface detetada"
+
+msgid "dev.no_modems"
+msgstr "Nenhum modem encontrado (ModemManager)."
+
+msgid "dev.no_pipelines"
+msgstr "Nenhuma pipeline em {0}."
+
+msgid "dev.no_pipelines_hint"
+msgstr "Adicione um repositório de pipelines nas Definições."
+
+msgid "dev.operator"
+msgstr "Operador"
+
+msgid "dev.power"
+msgstr "Energia"
+
+msgid "dev.quality_scoring"
+msgstr "Pontuação de qualidade"
+
+msgid "dev.quality_scoring_title"
+msgstr "Pontuação SRTLA para selecionar a melhor ligação"
+
+msgid "dev.reconnected"
+msgstr "Religado"
+
+msgid "dev.registration"
+msgstr "Reg."
+
+msgid "dev.reloads"
+msgstr "Recarregamentos"
+
+msgid "dev.reloads_detail"
+msgstr "{0} (último {1}, modo {2})"
+
+msgid "dev.reset_confirm"
+msgstr "Reiniciar modem #{0}?"
+
+msgid "dev.row.audio"
+msgstr "Áudio"
+
+msgid "dev.row.balancer"
+msgstr "Balanceador"
+
+msgid "dev.row.bitrate"
+msgstr "Bitrate"
+
+msgid "dev.row.encoder"
+msgstr "Codificador"
+
+msgid "dev.row.latency"
+msgstr "Latência"
+
+msgid "dev.row.pipeline"
+msgstr "Pipeline"
+
+msgid "dev.row.restarts"
+msgstr "Reinícios"
+
+msgid "dev.row.started"
+msgstr "Iniciado"
+
+msgid "dev.row.state"
+msgstr "Estado"
+
+msgid "dev.row.target"
+msgstr "Destino"
+
+msgid "dev.row_state_running"
+msgstr "em execução"
+
+msgid "dev.scheduler"
+msgstr "Agendador"
+
+msgid "dev.scheduler_classic"
+msgstr "Clássico"
+
+msgid "dev.scheduler_enhanced"
+msgstr "Melhorado"
+
+msgid "dev.signal"
+msgstr "Sinal"
+
+msgid "dev.stale"
+msgstr "desatualizado, {0}"
+
+msgid "dev.tech"
+msgstr "Tecnologia"
+
+msgid "dev.th.bond"
+msgstr "Bond"
+
+msgid "dev.th.in_flight"
+msgstr "Em trânsito"
+
+msgid "dev.th.in_flight_title"
+msgstr "Número de buffers de dados SRTLA em fila para SRTLA"
+
+msgid "dev.th.interface"
+msgstr "Interface"
+
+msgid "dev.th.link"
+msgstr "Ligação"
+
+msgid "dev.th.loss"
+msgstr "Perda %"
+
+msgid "dev.th.naks"
+msgstr "NAKs"
+
+msgid "dev.th.network"
+msgstr "Rede"
+
+msgid "dev.th.quality"
+msgstr "Qualidade"
+
+msgid "dev.title"
+msgstr "Belabox Duo"
+
+msgid "dev.unit_gbs"
+msgstr "{0} Gb/s"
+
+msgid "dev.unit_kbps"
+msgstr "kbps"
+
+msgid "dev.unit_mbps"
+msgstr "Mbps"
+
+msgid "dev.unit_mbs"
+msgstr "{0} Mb/s"
+
+msgid "kickchat.card"
+msgstr "Chat Kick"
+
+msgid "kickchat.connected"
+msgstr "ligado"
+
+msgid "kickchat.disabled"
+msgstr "Módulo desativado"
+
+msgid "kickchat.disconnected"
+msgstr "desligado"
+
+msgid "kickchat.empty"
+msgstr "Ainda não há mensagens"
+
+msgid "tiktokchat.empty"
+msgstr "Ainda não há mensagens"
+
+msgid "twitchchat.empty"
+msgstr "Ainda não há mensagens"
+
+msgid "youtubechat.empty"
+msgstr "Ainda não há mensagens"
+
+msgid "kickstats.card"
+msgstr "Stats Kick"
+
+msgid "kickstats.disabled"
+msgstr "Módulo desativado"
+
+msgid "kickstats.followers"
+msgstr "Seguidores"
+
+msgid "kickstats.live"
+msgstr "LIVE"
+
+msgid "kickstats.chart"
+msgstr "Espectadores"
+
+msgid "kickstats.start"
+msgstr "Início"
+
+msgid "kickstats.duration"
+msgstr "Duração"
+
+msgid "kickstats.offline"
+msgstr "offline"
+
+msgid "kickstats.spark_pending"
+msgstr "a recolher amostras…"
+
+msgid "kickstats.title"
+msgstr "Título"
+
+msgid "kickstats.viewers"
+msgstr "espectadores"
+
+msgid "kickstats.waiting"
+msgstr "À espera da primeira consulta…"
+
+msgid "log.encoder_exited"
+msgstr "o codificador saiu com código {0}; a reiniciar em {1}s"
+
+msgid "log.level.error"
+msgstr "ERROR"
+
+msgid "log.level.info"
+msgstr "INFO"
+
+msgid "log.level.warning"
+msgstr "WARNING"
+
+msgid "log.no_control_socket"
+msgstr "Sem socket de controlo; a definição aplica-se no próximo arranque"
+
+msgid "log.no_stream_settings"
+msgstr "Sem definições de stream anteriores para retomar"
+
+msgid "log.reconfigure_failed"
+msgstr "Falha na reconfiguração inicial: {0}"
+
+msgid "log.restart_failed"
+msgstr "Falha ao reiniciar: {0}"
+
+msgid "log.settings_saved_reconnect"
+msgstr "Definições guardadas; a religar a {0}"
+
+msgid "log.srtla_exited"
+msgstr "srtla_send saiu com código {0}; a reiniciar em {1}s"
+
+msgid "log.started"
+msgstr "Serviço iniciado ({0})"
+
+msgid "log.stopped_signal"
+msgstr "Serviço parado ({0})"
+
+msgid "log.stream_resumed"
+msgstr "Stream retomado"
+
+msgid "log.stream_start_retry"
+msgstr "Arranque falhou, nova tentativa em {0}s: {1}"
+
+msgid "mgmt.devices"
+msgstr "Dispositivos"
+
+msgid "mgmt.last_seen"
+msgstr "visto pela última vez {0}"
+
+msgid "mgmt.loading"
+msgstr "A carregar…"
+
+msgid "mgmt.none"
+msgstr "Ainda não foi ligado nenhum dispositivo."
+
+msgid "mgmt.th.connected"
+msgstr "Ligado"
+
+msgid "mgmt.th.device"
+msgstr "Dispositivo"
+
+msgid "mgmt.th.links"
+msgstr "Ligações"
+
+msgid "mgmt.th.role"
+msgstr "Função"
+
+msgid "mgmt.th.status"
+msgstr "Estado"
+
+msgid "mgmt.th.stream"
+msgstr "Stream"
+
+msgid "mgmt.th_bitrate"
+msgstr "Bitrate / máx."
+
+msgid "mgmt.title"
+msgstr "Controlo Belabox Duo"
+
+msgid "mlog.action.activate"
+msgstr "Ativado"
+
+msgid "mlog.action.bitrate"
+msgstr "Alteração de bitrate"
+
+msgid "mlog.action.bond_selection"
+msgstr "Seleção do bond"
+
+msgid "mlog.action.bond_toggle"
+msgstr "Alternar bond"
+
+msgid "mlog.action.configuration"
+msgstr "Configuração"
+
+msgid "mlog.action.create"
+msgstr "Criação"
+
+msgid "mlog.action.delete"
+msgstr "Eliminação"
+
+msgid "mlog.action.load"
+msgstr "Carregar"
+
+msgid "mlog.action.options"
+msgstr "Atualização de opções"
+
+msgid "mlog.action.update"
+msgstr "Atualização"
+
+msgid "mlog.done.bitrate"
+msgstr "Bitrate definido para mín. {0} / máx. {1} kbps"
+
+msgid "mlog.done.bond_toggled"
+msgstr "{0} alternado no bond"
+
+msgid "mlog.done.bond_updated"
+msgstr "Seleção do bond atualizada"
+
+msgid "mlog.done.cera_settings"
+msgstr "Definições de controlo de bitrate aplicadas"
+
+msgid "mlog.done.disabled"
+msgstr "Desativado"
+
+msgid "mlog.done.enabled"
+msgstr "Ativado"
+
+msgid "mlog.done.generic"
+msgstr "{0} concluído"
+
+msgid "mlog.done.loaded"
+msgstr "Carregado"
+
+msgid "mlog.done.mode"
+msgstr "Modo definido para {0}"
+
+msgid "mlog.done.modem_connected"
+msgstr "Modem #{0} ligado"
+
+msgid "mlog.done.modem_disabled"
+msgstr "Modem #{0} desativado"
+
+msgid "mlog.done.modem_disconnected"
+msgstr "Modem #{0} desligado"
+
+msgid "mlog.done.modem_enabled"
+msgstr "Modem #{0} ativado"
+
+msgid "mlog.done.modem_reset"
+msgstr "Modem #{0} reiniciado"
+
+msgid "mlog.done.module_configured"
+msgstr "Módulo {0} configurado"
+
+msgid "mlog.done.module_disabled"
+msgstr "Módulo {0} desativado"
+
+msgid "mlog.done.module_enabled"
+msgstr "Módulo {0} ativado"
+
+msgid "mlog.done.quality_off"
+msgstr "Qualidade: off"
+
+msgid "mlog.done.quality_on"
+msgstr "Qualidade: on"
+
+msgid "mlog.done.reconfigured"
+msgstr "Reconfigurado"
+
+msgid "mlog.done.reloaded"
+msgstr "Recarregado"
+
+msgid "mlog.done.remote_disabled"
+msgstr "Servidor de controlo remoto desativado"
+
+msgid "mlog.done.settings_saved"
+msgstr "Definições guardadas"
+
+msgid "mlog.done.started"
+msgstr "Iniciado"
+
+msgid "mlog.done.stopped"
+msgstr "Parado"
+
+msgid "mlog.failed"
+msgstr "{0} falhou: {1}"
+
+msgid "mlog.section.connection"
+msgstr "Ligação"
+
+msgid "mlog.section.encoder"
+msgstr "Codificador"
+
+msgid "mlog.section.modules"
+msgstr "Módulos"
+
+msgid "mlog.section.pipelines"
+msgstr "Pipelines"
+
+msgid "mlog.section.service"
+msgstr "Serviço"
+
+msgid "mlog.section.settings"
+msgstr "Definições"
+
+msgid "mlog.section.setup"
+msgstr "Configuração"
+
+msgid "mlog.section.unknown"
+msgstr "Desconhecido"
+
+msgid "mod.config"
+msgstr "Configuração"
+
+msgid "mod.enabled"
+msgstr "Estado"
+
+msgid "mod.encoder"
+msgstr "Codificador"
+
+msgid "mod.kick_channel"
+msgstr "Canal do Kick"
+
+msgid "mod.kick_chat"
+msgstr "Chat Kick"
+
+msgid "mod.kick_stats"
+msgstr "Stats Kick"
+
+msgid "mod.kick_token"
+msgstr "Token do chat"
+
+msgid "mod.kick_token_placeholder"
+msgstr "deixar em branco para manter"
+
+msgid "mod.name"
+msgstr "Módulo"
+
+msgid "mod.obs"
+msgstr "OBS Studio"
+
+msgid "mod.obs_password"
+msgstr "Palavra-passe"
+
+msgid "mod.obs_password_placeholder"
+msgstr "deixar em branco para manter"
+
+msgid "mod.obs_url"
+msgstr "URL do WebSocket OBS"
+
+msgid "mod.relay"
+msgstr "Relay (SRTLA)"
+
+msgid "mod.scene_events"
+msgstr "Subscrever eventos de cena"
+
+msgid "obs.audio"
+msgstr "Nível de áudio"
+
+msgid "obs.card"
+msgstr "OBS Studio"
+
+msgid "obs.connected"
+msgstr "ligado"
+
+msgid "obs.disabled"
+msgstr "Módulo desativado"
+
+msgid "obs.manual"
+msgstr "manual"
+
+msgid "obs.mic_live"
+msgstr "Micro em direto"
+
+msgid "obs.mic_muted"
+msgstr "Micro silenciado"
+
+msgid "obs.mute"
+msgstr "Silenciar micro"
+
+msgid "obs.next"
+msgstr "próximo em {0}s"
+
+msgid "obs.no_inputs"
+msgstr "Sem entradas"
+
+msgid "obs.no_scenes"
+msgstr "Sem cenas"
+
+msgid "obs.offline"
+msgstr "offline"
+
+msgid "obs.output"
+msgstr "Saída"
+
+msgid "obs.pause"
+msgstr "Pausar"
+
+msgid "obs.paused"
+msgstr "em pausa"
+
+msgid "obs.preview"
+msgstr "Pré-visualização"
+
+msgid "obs.preview_failed"
+msgstr "Atualização falhada"
+
+msgid "obs.preview_now"
+msgstr "Atualizar agora"
+
+msgid "obs.recording"
+msgstr "Gravação"
+
+msgid "obs.refresh"
+msgstr "Atualizar"
+
+msgid "obs.resume"
+msgstr "Retomar"
+
+msgid "obs.scene"
+msgstr "Cena atual"
+
+msgid "obs.scenes"
+msgstr "Cenas"
+
+msgid "obs.screenshot"
+msgstr "Captura de ecrã"
+
+msgid "obs.start_record"
+msgstr "Iniciar gravação"
+
+msgid "obs.start_stream"
+msgstr "Iniciar streaming"
+
+msgid "obs.stop_record"
+msgstr "Parar gravação"
+
+msgid "obs.stop_stream"
+msgstr "Parar streaming"
+
+msgid "obs.streaming"
+msgstr "A transmitir"
+
+msgid "obs.studio"
+msgstr "Modo estúdio"
+
+msgid "obs.unmute"
+msgstr "Ativar micro"
+
+msgid "obs.updated"
+msgstr "Atualizado {0}"
+
+msgid "obs.waiting"
+msgstr "A carregar…"
+
+msgid "role.combined"
+msgstr "codificador + relay"
+
+msgid "role.custom"
+msgstr "personalizado"
+
+msgid "role.encoder"
+msgstr "codificador"
+
+msgid "role.obs"
+msgstr "obs"
+
+msgid "role.relay"
+msgstr "relay"
+
+msgid "set.back"
+msgstr "Voltar ao dispositivo"
+
+msgid "set.color"
+msgstr "Cor de destaque"
+
+msgid "set.description"
+msgstr "As definições são reaplicadas no servidor de controlo após guardar."
+
+msgid "set.hostname"
+msgstr "Nome do host"
+
+msgid "set.no_repos"
+msgstr "Nenhum repositório de pipelines configurado."
+
+msgid "set.remote_token"
+msgstr "Token remoto"
+
+msgid "set.remote_url"
+msgstr "URL do servidor de controlo"
+
+msgid "set.repo_add"
+msgstr "Adicionar repositório"
+
+msgid "set.repo_field"
+msgstr "Repositório GitHub"
+
+msgid "set.repo_imported"
+msgstr "Importado(s) {0} ficheiro(s)."
+
+msgid "set.repo_importing"
+msgstr "A importar {0}…"
+
+msgid "set.repo_removed"
+msgstr "{0} removido."
+
+msgid "set.repo_removing"
+msgstr "A remover {0}…"
+
+msgid "set.repo_update_all"
+msgstr "Atualizar tudo"
+
+msgid "set.repo_updated_all"
+msgstr "Atualizado(s) {0} repositório(s) ({1} ficheiros)."
+
+msgid "set.repo_updating_all"
+msgstr "A atualizar todos os repositórios de pipelines…"
+
+msgid "set.repos"
+msgstr "Repositórios de pipelines"
+
+msgid "set.repos_desc"
+msgstr "As pipelines são importadas recursivamente do diretório pipelines/ de cada repositório e reimportadas após cada git pull."
+
+msgid "set.restart_required"
+msgstr "A nova função entra em vigor após reiniciar o serviço do dispositivo."
+
+msgid "set.role"
+msgstr "Função do dispositivo"
+
+msgid "set.role_keep"
+msgstr "Manter atual"
+
+msgid "set.save"
+msgstr "Guardar definições"
+
+msgid "set.saved"
+msgstr "Definições guardadas."
+
+msgid "set.title"
+msgstr "Definições do dispositivo"
+
+msgid "set.token_ph_configured"
+msgstr "configurado (deixe em branco para manter)"
+
+msgid "set.token_ph_missing"
+msgstr "não configurado"
+
+msgid "set.token_ph_unchanged"
+msgstr "inalterado"
+
+msgid "setup.autostart"
+msgstr "Iniciar automaticamente o stream guardado após reiniciar"
+
+msgid "setup.control_desc"
+msgstr "Ligue esta configuração a um servidor de controlo existente."
+
+msgid "setup.control_token"
+msgstr "Token de controlo"
+
+msgid "setup.encoder_desc"
+msgstr "Campos específicos do codificador para a pipeline de captura."
+
+msgid "setup.hostname"
+msgstr "Nome do dispositivo"
+
+msgid "setup.hostname_title"
+msgstr "Use letras minúsculas, números, pontos e hífenes (máx. 64 caracteres)."
+
+msgid "setup.identity"
+msgstr "Identidade e aspeto"
+
+msgid "setup.identity_desc"
+msgstr "Como o dispositivo se identifica perante o servidor de controlo."
+
+msgid "setup.language_desc"
+msgstr "Escolha o idioma usado em toda a interface."
+
+msgid "setup.loading"
+msgstr "A carregar dados de configuração…"
+
+msgid "setup.relay_desc"
+msgstr "Campos do relay SRTLA (apenas função relay)."
+
+msgid "setup.restart_required"
+msgstr "A nova função entra em vigor após reiniciar o serviço do dispositivo."
+
+msgid "setup.review_desc"
+msgstr "Reveja as escolhas com Voltar e depois guarde a configuração."
+
+msgid "setup.role.combined"
+msgstr "Combinado"
+
+msgid "setup.role.combined_tag"
+msgstr "Codifica e reencaminha num único serviço"
+
+msgid "setup.role.encoder"
+msgstr "Codificador"
+
+msgid "setup.role.encoder_tag"
+msgstr "Captura uma pipeline GStreamer e envia-a por SRT"
+
+msgid "setup.role.relay_tag"
+msgstr "Recebe streams e reencaminha-os com SRTLA"
+
+msgid "setup.save"
+msgstr "Guardar configuração"
+
+msgid "setup.saved"
+msgstr "Configuração guardada. Reinicie o serviço para aplicar a função, hostname e servidor de controlo selecionados."
+
+msgid "setup.step.control"
+msgstr "Servidor de controlo"
+
+msgid "setup.step.control_sub"
+msgstr "Ligação opcional a um servidor central."
+
+msgid "setup.step.encoder"
+msgstr "Codificador"
+
+msgid "setup.step.encoder_sub"
+msgstr "Pipeline, bitrate e atraso de áudio."
+
+msgid "setup.step.identity"
+msgstr "Identidade"
+
+msgid "setup.step.identity_sub"
+msgstr "Nome do host e cor de destaque do dispositivo."
+
+msgid "setup.step.language_sub"
+msgstr "Escolha o idioma da interface."
+
+msgid "setup.step.relay"
+msgstr "Relay"
+
+msgid "setup.step.relay_sub"
+msgstr "Definições SRTLA"
+
+msgid "setup.step.review"
+msgstr "Revisão"
+
+msgid "setup.step.role_sub"
+msgstr "Escolha como este Belabox se juntará à rede."
+
+msgid "setup.title"
+msgstr "Configuração do Belabox Duo"
+
+msgid "srv.offline"
+msgstr "Dispositivo offline ({0})"
+
+msgid "srv.online"
+msgstr "Dispositivo online ({0})"
+
+msgid "status.card"
+msgstr "Estado"
+
+msgid "status.connection"
+msgstr "Ligação"
+
+msgid "status.role"
+msgstr "Função"
+
+msgid "status.state"
+msgstr "Estado"
+
+msgid "time.h_ago"
+msgstr "há {0} h"
+
+msgid "time.m_ago"
+msgstr "há {0} min"
+
+msgid "time.s_ago"
+msgstr "há {0} s"
+
+msgid "ui.autostart"
+msgstr "Arranque automático"
+
+msgid "ui.back"
+msgstr "Voltar"
+
+msgid "ui.connect"
+msgstr "Ligar"
+
+msgid "ui.disable"
+msgstr "Desativar"
+
+msgid "ui.disconnect"
+msgstr "Desligar"
+
+msgid "ui.enable"
+msgstr "Ativar"
+
+msgid "ui.error"
+msgstr "erro"
+
+msgid "ui.language_label"
+msgstr "Idioma"
+
+msgid "ui.next"
+msgstr "Seguinte"
+
+msgid "ui.off"
+msgstr "off"
+
+msgid "ui.on"
+msgstr "ligado"
+
+msgid "ui.optional"
+msgstr "Opcional"
+
+msgid "ui.reconfigure"
+msgstr "Reconfigurar"
+
+msgid "ui.reload"
+msgstr "Recarregar"
+
+msgid "ui.remove"
+msgstr "Remover"
+
+msgid "ui.reset"
+msgstr "Reiniciar"
+
+msgid "ui.save"
+msgstr "Guardar"
+
+msgid "ui.start"
+msgstr "Iniciar"
+
+msgid "ui.stop"
+msgstr "Parar"
+
+msgid "ui.title_suffix"
+msgstr "– Belabox Duo"
+
+msgid "wtype.combined"
+msgstr "Codificador + relay"
+
+msgid "wtype.encoder"
+msgstr "Codificador"
+
+msgid "wtype.kick_chat"
+msgstr "Chat Kick"
+
+msgid "wtype.tiktok_chat"
+msgstr "Chat TikTok"
+
+msgid "wtype.twitch_chat"
+msgstr "Chat Twitch"
+
+msgid "wtype.youtube_chat"
+msgstr "Chat YouTube"
+
+msgid "wtype.kick_stats"
+msgstr "Stats Kick"
+
+msgid "wtype.obs"
+msgstr "OBS Studio"
+
+msgid "wtype.relay"
+msgstr "Relay"
+
+msgid "wtype.stats"
+msgstr "Estatísticas do relay"
+
+msgid "wtype.status"
+msgstr "Estado"
+
+msgid "dash.widget_channel"
+msgstr "Canal"
+
+msgid "dash.widget_not_configured"
+msgstr "Não configurado – defina um canal"
+
+msgid "ui.cancel"
+msgstr "Cancelar"
+
+msgid "dash.widget_settings"
+msgstr "Configurações do canal"
+
+msgid "dash.new"
+msgstr "Nová"
+
+msgid "dash.rename"
+msgstr "Přejmenovat"
+
+msgid "dash.default_name"
+msgstr "Přehled"
+
+msgid "dash.delete_confirm"
+msgstr "Smazat přehled „{0}“?"
+
+msgid "dash.delete_fail"
+msgstr "Smazení se nezdařilo"
+
+msgid "dash.done"
+msgstr "Hotovo"
+
+msgid "dash.hide"
+msgstr "Skrýt"
+
+msgid "dash.remove"
+msgstr "Odebrat"
+
+msgid "dash.kick"
+msgstr "Kick (nezávislý)"
+
+msgid "dash.saved"
+msgstr "Uloženo"
+
+msgid "dash.save_error"
+msgstr "Uložení se nezdařilo"
+
+msgid "dash.conflict"
+msgstr "Změnil jiný uživatel — načteno poslední"
+
+msgid "dash.device"
+msgstr "Zařízení"

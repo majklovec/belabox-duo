@@ -1,0 +1,1245 @@
+# ja — Belabox Duo UI translations (PO format)
+# msgid is the key; msgstr is the translation. Single-line entries,
+# quotes JSON-escaped; the empty msgid is the header and is ignored.
+
+msgid ""
+msgstr "Content-Type: text/plain; charset=utf-8\nMIME-Version: 1.0\nLanguage: ja\n"
+
+msgid "dash.add_widget"
+msgstr "ウィジェットを追加"
+
+msgid "dash.add"
+msgstr "追加"
+
+msgid "dash.back"
+msgstr "ダッシュボードに戻る"
+
+msgid "dash.create"
+msgstr "作成"
+
+msgid "dash.create_new"
+msgstr "新しいダッシュボードを作成"
+
+msgid "dash.delete"
+msgstr "削除"
+
+msgid "dash.devices"
+msgstr "デバイス"
+
+msgid "dash.edit"
+msgstr "編集"
+
+msgid "dash.empty"
+msgstr "ダッシュボードはまだありません"
+
+msgid "dash.grp_independent"
+msgstr "独立"
+
+msgid "dash.modules"
+msgstr "モジュール"
+
+msgid "dash.move_down"
+msgstr "下へ移動"
+
+msgid "dash.move_up"
+msgstr "上へ移動"
+
+msgid "dash.name"
+msgstr "名前"
+
+msgid "dash.new_placeholder"
+msgstr "例：ストリーミング"
+
+msgid "dash.no_widgets"
+msgstr "ウィジェットはありません — 下のから追加"
+
+msgid "dash.not_found"
+msgstr "ダッシュボードが見つかりません"
+
+msgid "dash.saving"
+msgstr "保存中…"
+
+msgid "dash.title"
+msgstr "ダッシュボード"
+
+msgid "dash.view"
+msgstr "表示"
+
+msgid "dash.widget"
+msgstr "ウィジェット"
+
+msgid "dash.widget.max"
+msgstr "Max"
+
+msgid "dash.widget.pipeline"
+msgstr "パイプライン"
+
+msgid "dash.widget.recording"
+msgstr "録画"
+
+msgid "dash.widget.scene"
+msgstr "シーン"
+
+msgid "dash.widget.streaming"
+msgstr "配信"
+
+msgid "dash.widget_missing"
+msgstr "デバイスなし"
+
+msgid "dash.version_stale"
+msgstr "古いアプリ"
+
+msgid "dash.widget_module_off"
+msgstr "デバイスのモジュールが無効です"
+
+msgid "dash.widget_type"
+msgstr "タイプ"
+
+msgid "dash.widget_waiting"
+msgstr "データを待っています…"
+
+msgid "dash.widgets"
+msgstr "ウィジェット"
+
+msgid "dash.width"
+msgstr "幅"
+
+msgid "dash.width_12"
+msgstr "全幅"
+
+msgid "dash.width_4"
+msgstr "1/3"
+
+msgid "dash.width_6"
+msgstr "1/2"
+
+msgid "dev.all_devices_title"
+msgstr "デバイス一覧に戻る"
+
+msgid "dev.apply_bitrate"
+msgstr "ビットレートを適用"
+
+msgid "dev.apply_cera"
+msgstr "設定を適用"
+
+msgid "dev.audio_pipeline_default"
+msgstr "デフォルトパイプライン"
+
+msgid "dev.autostart_title"
+msgstr "起動時の自動開始または手動を設定"
+
+msgid "dev.badge.live"
+msgstr "ライブ"
+
+msgid "dev.badge.no_links"
+msgstr "リンクなし"
+
+msgid "dev.badge.offline"
+msgstr "オフライン"
+
+msgid "dev.badge.online"
+msgstr "オンライン"
+
+msgid "dev.badge.online_count"
+msgstr "{0}/{1} オンライン"
+
+msgid "dev.badge.restarting"
+msgstr "再起動中"
+
+msgid "dev.badge.srtla_send_down"
+msgstr "srtla_send ダウン"
+
+msgid "dev.badge.stopped"
+msgstr "停止中"
+
+msgid "dev.badge.streaming"
+msgstr "配信中"
+
+msgid "dev.balancer.adaptive"
+msgstr "適応型 (RTT + バッファ)"
+
+msgid "dev.balancer.aimd"
+msgstr "AIMD (TCP 風)"
+
+msgid "dev.balancer.fixed"
+msgstr "固定ビットレート"
+
+msgid "dev.card.encoder"
+msgstr "エンコーダー"
+
+msgid "dev.card.interfaces"
+msgstr "インターフェース"
+
+msgid "dev.card.log"
+msgstr "ログ"
+
+msgid "dev.card.modems"
+msgstr "モデム"
+
+msgid "dev.card.srtla"
+msgstr "リレー"
+
+msgid "dev.cera_section"
+msgstr "ビットレート制御"
+
+msgid "dev.connected"
+msgstr "接続済み"
+
+msgid "dev.control"
+msgstr "制御"
+
+msgid "dev.control_connecting"
+msgstr "接続中"
+
+msgid "dev.control_unavailable"
+msgstr "利用不可"
+
+msgid "dev.control_unavailable_title"
+msgstr "制御 websocket が接続されていません"
+
+msgid "dev.device_offline"
+msgstr "デバイスはオフライン"
+
+msgid "dev.disconnected"
+msgstr "切断済み"
+
+msgid "dev.field.audio_codec"
+msgstr "音声コーデック"
+
+msgid "dev.field.audio_delay"
+msgstr "音声遅延 (ms)"
+
+msgid "dev.field.audio_source"
+msgstr "音声ソース"
+
+msgid "dev.field.balancer"
+msgstr "ビットレートバランサー"
+
+msgid "dev.field.bitrate_overlay"
+msgstr "ビットレートオーバーレイ"
+
+msgid "dev.field.cera_decr_interval"
+msgstr "低下間隔 (ms)"
+
+msgid "dev.field.cera_decr_mult"
+msgstr "輻輳倍率 (0-1)"
+
+msgid "dev.field.cera_decr_step"
+msgstr "低下ステップ (kbps)"
+
+msgid "dev.field.cera_incr_interval"
+msgstr "上昇間隔 (ms)"
+
+msgid "dev.field.cera_incr_step"
+msgstr "上昇ステップ (kbps)"
+
+msgid "dev.field.max_bitrate"
+msgstr "最大ビットレート (kbps)"
+
+msgid "dev.field.min_bitrate"
+msgstr "最小ビットレート (kbps)"
+
+msgid "dev.field.remote_host"
+msgstr "SRTLA リモートホスト"
+
+msgid "dev.field.remote_port"
+msgstr "SRTLA リモートポート"
+
+msgid "dev.field.srt_latency"
+msgstr "SRT 遅延 (ms)"
+
+msgid "dev.field.srt_listen_port"
+msgstr "SRT 待ち受けポート"
+
+msgid "dev.field.stream_host"
+msgstr "ストリームホスト"
+
+msgid "dev.field.stream_id"
+msgstr "Stream ID"
+
+msgid "dev.field.stream_srt_port"
+msgstr "ストリーム SRT ポート"
+
+msgid "dev.group.audio"
+msgstr "音声"
+
+msgid "dev.group.bitrate"
+msgstr "ビットレート"
+
+msgid "dev.group.connection"
+msgstr "接続"
+
+msgid "dev.group.scheduling"
+msgstr "リンクのスケジューリング"
+
+msgid "dev.group.srt"
+msgstr "SRT 出力"
+
+msgid "dev.group.video"
+msgstr "映像"
+
+msgid "dev.iface_modem"
+msgstr "モデム #{0}"
+
+msgid "dev.imei"
+msgstr "IMEI"
+
+msgid "dev.include_in_bond"
+msgstr "ボンドに含める"
+
+msgid "dev.latency_audio"
+msgstr "{0} ms（音声遅延 {1} ms）"
+
+msgid "dev.link_min_rtt"
+msgstr "最小 {0} ms"
+
+msgid "dev.link_score"
+msgstr "スコア {0}"
+
+msgid "dev.link_share_title"
+msgstr "全体の {0}%（最小 RTT {1} ms）"
+
+msgid "dev.link_sole"
+msgstr "唯一の回線"
+
+msgid "dev.link_stalled"
+msgstr "停滞"
+
+msgid "dev.link_timed_out"
+msgstr "タイムアウト"
+
+msgid "dev.link_up"
+msgstr "稼働中"
+
+msgid "dev.link_weak"
+msgstr "弱い"
+
+msgid "dev.listen_port"
+msgstr "（待ち受け {0}）"
+
+msgid "dev.lost_reconnecting"
+msgstr "切断、再接続中…"
+
+msgid "dev.max_value"
+msgstr "最大 {0}"
+
+msgid "dev.minmax_kbps"
+msgstr "最小 {0} / 最大 {1} kbps"
+
+msgid "dev.modem_fallback"
+msgstr "モデム"
+
+msgid "dev.monitor"
+msgstr "モニター"
+
+msgid "dev.monitor_watching"
+msgstr "監視中"
+
+msgid "dev.no_interfaces"
+msgstr "インターフェースが検出されていません"
+
+msgid "dev.no_modems"
+msgstr "モデムが見つかりません (ModemManager)。"
+
+msgid "dev.no_pipelines"
+msgstr "{0} にパイプラインがありません。"
+
+msgid "dev.no_pipelines_hint"
+msgstr "設定でパイプラインリポジトリを追加してください。"
+
+msgid "dev.operator"
+msgstr "オペレーター"
+
+msgid "dev.power"
+msgstr "電源"
+
+msgid "dev.quality_scoring"
+msgstr "品質スコアリング"
+
+msgid "dev.quality_scoring_title"
+msgstr "最適リンク選択用の SRTLA スコアリング"
+
+msgid "dev.reconnected"
+msgstr "再接続済み"
+
+msgid "dev.registration"
+msgstr "登録"
+
+msgid "dev.reloads"
+msgstr "リロード"
+
+msgid "dev.reloads_detail"
+msgstr "{0}（前回 {1}、モード {2}）"
+
+msgid "dev.reset_confirm"
+msgstr "モデム #{0} をリセットしますか？"
+
+msgid "dev.row.audio"
+msgstr "音声"
+
+msgid "dev.row.balancer"
+msgstr "バランサー"
+
+msgid "dev.row.bitrate"
+msgstr "ビットレート"
+
+msgid "dev.row.encoder"
+msgstr "エンコーダー"
+
+msgid "dev.row.latency"
+msgstr "遅延"
+
+msgid "dev.row.pipeline"
+msgstr "パイプライン"
+
+msgid "dev.row.restarts"
+msgstr "再起動"
+
+msgid "dev.row.started"
+msgstr "開始済み"
+
+msgid "dev.row.state"
+msgstr "状態"
+
+msgid "dev.row.target"
+msgstr "ターゲット"
+
+msgid "dev.row_state_running"
+msgstr "実行中"
+
+msgid "dev.scheduler"
+msgstr "スケジューラー"
+
+msgid "dev.scheduler_classic"
+msgstr "クラシック"
+
+msgid "dev.scheduler_enhanced"
+msgstr "拡張"
+
+msgid "dev.signal"
+msgstr "信号"
+
+msgid "dev.stale"
+msgstr "古い、{0}"
+
+msgid "dev.tech"
+msgstr "技術"
+
+msgid "dev.th.bond"
+msgstr "ボンド"
+
+msgid "dev.th.in_flight"
+msgstr "送信中"
+
+msgid "dev.th.in_flight_title"
+msgstr "SRTLA にキューされた SRTLA データバッファ数"
+
+msgid "dev.th.interface"
+msgstr "インターフェース"
+
+msgid "dev.th.link"
+msgstr "リンク"
+
+msgid "dev.th.loss"
+msgstr "損失 %"
+
+msgid "dev.th.naks"
+msgstr "NAKs"
+
+msgid "dev.th.network"
+msgstr "ネットワーク"
+
+msgid "dev.th.quality"
+msgstr "品質"
+
+msgid "dev.title"
+msgstr "Belabox Duo"
+
+msgid "dev.unit_gbs"
+msgstr "{0} Gb/s"
+
+msgid "dev.unit_kbps"
+msgstr "kbps"
+
+msgid "dev.unit_mbps"
+msgstr "Mbps"
+
+msgid "dev.unit_mbs"
+msgstr "{0} Mb/s"
+
+msgid "kickchat.card"
+msgstr "Kick チャット"
+
+msgid "kickchat.connected"
+msgstr "接続中"
+
+msgid "kickchat.disabled"
+msgstr "モジュール無効"
+
+msgid "kickchat.disconnected"
+msgstr "切断中"
+
+msgid "kickchat.empty"
+msgstr "メッセージはまだありません"
+
+msgid "tiktokchat.empty"
+msgstr "まだメッセージはありません"
+
+msgid "twitchchat.empty"
+msgstr "まだメッセージはありません"
+
+msgid "youtubechat.empty"
+msgstr "まだメッセージはありません"
+
+msgid "kickstats.card"
+msgstr "Kick 統計"
+
+msgid "kickstats.disabled"
+msgstr "モジュール無効"
+
+msgid "kickstats.followers"
+msgstr "フォロワー"
+
+msgid "kickstats.live"
+msgstr "LIVE"
+
+msgid "kickstats.chart"
+msgstr "視聴者数"
+
+msgid "kickstats.start"
+msgstr "開始"
+
+msgid "kickstats.duration"
+msgstr "再生時間"
+
+msgid "kickstats.offline"
+msgstr "オフライン"
+
+msgid "kickstats.spark_pending"
+msgstr "サンプル集計中…"
+
+msgid "kickstats.title"
+msgstr "タイトル"
+
+msgid "kickstats.viewers"
+msgstr "視聴者"
+
+msgid "kickstats.waiting"
+msgstr "最初のポーリングを待っています…"
+
+msgid "log.encoder_exited"
+msgstr "エンコーダーがコード {0} で終了しました; {1}s 後に再起動します"
+
+msgid "log.level.error"
+msgstr "エラー"
+
+msgid "log.level.info"
+msgstr "INFO"
+
+msgid "log.level.warning"
+msgstr "警告"
+
+msgid "log.no_control_socket"
+msgstr "制御 socket なし; 設定は次回起動時に適用されます"
+
+msgid "log.no_stream_settings"
+msgstr "再開する前回のストリーム設定がありません"
+
+msgid "log.reconfigure_failed"
+msgstr "初期再設定に失敗しました: {0}"
+
+msgid "log.restart_failed"
+msgstr "再起動に失敗しました: {0}"
+
+msgid "log.settings_saved_reconnect"
+msgstr "設定を保存しました; {0} に再接続中"
+
+msgid "log.srtla_exited"
+msgstr "srtla_send がコード {0} で終了しました; {1}s 後に再起動します"
+
+msgid "log.started"
+msgstr "サービスを開始しました ({0})"
+
+msgid "log.stopped_signal"
+msgstr "サービスを停止しました ({0})"
+
+msgid "log.stream_resumed"
+msgstr "ストリームを再開しました"
+
+msgid "log.stream_start_retry"
+msgstr "開始に失敗、{0}s 後に再試行: {1}"
+
+msgid "mgmt.devices"
+msgstr "デバイス"
+
+msgid "mgmt.last_seen"
+msgstr "最終確認 {0}"
+
+msgid "mgmt.loading"
+msgstr "読み込み中…"
+
+msgid "mgmt.none"
+msgstr "まだ接続したデバイスはありません。"
+
+msgid "mgmt.th.connected"
+msgstr "接続済み"
+
+msgid "mgmt.th.device"
+msgstr "デバイス"
+
+msgid "mgmt.th.links"
+msgstr "リンク"
+
+msgid "mgmt.th.role"
+msgstr "ロール"
+
+msgid "mgmt.th.status"
+msgstr "ステータス"
+
+msgid "mgmt.th.stream"
+msgstr "ストリーム"
+
+msgid "mgmt.th_bitrate"
+msgstr "ビットレート / 最大"
+
+msgid "mgmt.title"
+msgstr "Belabox Duo 制御"
+
+msgid "mlog.action.activate"
+msgstr "有効化"
+
+msgid "mlog.action.bitrate"
+msgstr "ビットレート変更"
+
+msgid "mlog.action.bond_selection"
+msgstr "ボンド選択"
+
+msgid "mlog.action.bond_toggle"
+msgstr "ボンド切替"
+
+msgid "mlog.action.configuration"
+msgstr "設定"
+
+msgid "mlog.action.create"
+msgstr "作成"
+
+msgid "mlog.action.delete"
+msgstr "削除"
+
+msgid "mlog.action.load"
+msgstr "読み込み"
+
+msgid "mlog.action.options"
+msgstr "オプション更新"
+
+msgid "mlog.action.update"
+msgstr "更新"
+
+msgid "mlog.done.bitrate"
+msgstr "ビットレートを最小 {0} / 最大 {1} kbps に設定しました"
+
+msgid "mlog.done.bond_toggled"
+msgstr "{0} をボンドで切り替えました"
+
+msgid "mlog.done.bond_updated"
+msgstr "ボンド選択を更新しました"
+
+msgid "mlog.done.cera_settings"
+msgstr "ビットレート制御設定を適用しました"
+
+msgid "mlog.done.disabled"
+msgstr "無効化しました"
+
+msgid "mlog.done.enabled"
+msgstr "有効化しました"
+
+msgid "mlog.done.generic"
+msgstr "{0} 完了"
+
+msgid "mlog.done.loaded"
+msgstr "読み込み済み"
+
+msgid "mlog.done.mode"
+msgstr "モードを {0} に設定しました"
+
+msgid "mlog.done.modem_connected"
+msgstr "モデム #{0} を接続しました"
+
+msgid "mlog.done.modem_disabled"
+msgstr "モデム #{0} を無効化しました"
+
+msgid "mlog.done.modem_disconnected"
+msgstr "モデム #{0} を切断しました"
+
+msgid "mlog.done.modem_enabled"
+msgstr "モデム #{0} を有効化しました"
+
+msgid "mlog.done.modem_reset"
+msgstr "モデム #{0} をリセットしました"
+
+msgid "mlog.done.module_configured"
+msgstr "モジュール {0} を設定しました"
+
+msgid "mlog.done.module_disabled"
+msgstr "モジュール {0} を無効にしました"
+
+msgid "mlog.done.module_enabled"
+msgstr "モジュール {0} を有効にしました"
+
+msgid "mlog.done.quality_off"
+msgstr "品質: オフ"
+
+msgid "mlog.done.quality_on"
+msgstr "品質: オン"
+
+msgid "mlog.done.reconfigured"
+msgstr "再設定済み"
+
+msgid "mlog.done.reloaded"
+msgstr "リロード済み"
+
+msgid "mlog.done.remote_disabled"
+msgstr "リモート制御サーバーを無効化しました"
+
+msgid "mlog.done.settings_saved"
+msgstr "設定を保存しました"
+
+msgid "mlog.done.started"
+msgstr "開始済み"
+
+msgid "mlog.done.stopped"
+msgstr "停止済み"
+
+msgid "mlog.failed"
+msgstr "{0} に失敗しました: {1}"
+
+msgid "mlog.section.connection"
+msgstr "接続"
+
+msgid "mlog.section.encoder"
+msgstr "エンコーダー"
+
+msgid "mlog.section.modules"
+msgstr "モジュール"
+
+msgid "mlog.section.pipelines"
+msgstr "パイプライン"
+
+msgid "mlog.section.service"
+msgstr "サービス"
+
+msgid "mlog.section.settings"
+msgstr "設定"
+
+msgid "mlog.section.setup"
+msgstr "セットアップ"
+
+msgid "mlog.section.unknown"
+msgstr "不明"
+
+msgid "mod.config"
+msgstr "設定"
+
+msgid "mod.enabled"
+msgstr "ステータス"
+
+msgid "mod.encoder"
+msgstr "エンコーダー"
+
+msgid "mod.kick_channel"
+msgstr "Kick チャンネル"
+
+msgid "mod.kick_chat"
+msgstr "Kick チャット"
+
+msgid "mod.kick_stats"
+msgstr "Kick 統計"
+
+msgid "mod.kick_token"
+msgstr "チャットトークン"
+
+msgid "mod.kick_token_placeholder"
+msgstr "空白で維持します"
+
+msgid "mod.name"
+msgstr "モジュール"
+
+msgid "mod.obs"
+msgstr "OBS Studio"
+
+msgid "mod.obs_password"
+msgstr "パスワード"
+
+msgid "mod.obs_password_placeholder"
+msgstr "空白で維持します"
+
+msgid "mod.obs_url"
+msgstr "OBS WebSocket URL"
+
+msgid "mod.relay"
+msgstr "Relay (SRTLA)"
+
+msgid "mod.scene_events"
+msgstr "シーンイベントの購読"
+
+msgid "obs.audio"
+msgstr "オーディオレベル"
+
+msgid "obs.card"
+msgstr "OBS Studio"
+
+msgid "obs.connected"
+msgstr "接続中"
+
+msgid "obs.disabled"
+msgstr "モジュール無効"
+
+msgid "obs.manual"
+msgstr "手動"
+
+msgid "obs.mic_live"
+msgstr "マイクオン"
+
+msgid "obs.mic_muted"
+msgstr "マイクミュート"
+
+msgid "obs.mute"
+msgstr "マイクをミュート"
+
+msgid "obs.next"
+msgstr "{0}秒後に次へ"
+
+msgid "obs.no_inputs"
+msgstr "入力なし"
+
+msgid "obs.no_scenes"
+msgstr "シーンなし"
+
+msgid "obs.offline"
+msgstr "オフライン"
+
+msgid "obs.output"
+msgstr "出力"
+
+msgid "obs.pause"
+msgstr "一時停止"
+
+msgid "obs.paused"
+msgstr "一時停止中"
+
+msgid "obs.preview"
+msgstr "プレビュー"
+
+msgid "obs.preview_failed"
+msgstr "更新に失敗しました"
+
+msgid "obs.preview_now"
+msgstr "今すぐ更新"
+
+msgid "obs.recording"
+msgstr "録画"
+
+msgid "obs.refresh"
+msgstr "更新"
+
+msgid "obs.resume"
+msgstr "再開"
+
+msgid "obs.scene"
+msgstr "現在のシーン"
+
+msgid "obs.scenes"
+msgstr "シーン"
+
+msgid "obs.screenshot"
+msgstr "スクリーンショット"
+
+msgid "obs.start_record"
+msgstr "録画を開始"
+
+msgid "obs.start_stream"
+msgstr "配信を開始"
+
+msgid "obs.stop_record"
+msgstr "録画を停止"
+
+msgid "obs.stop_stream"
+msgstr "配信を停止"
+
+msgid "obs.streaming"
+msgstr "配信中"
+
+msgid "obs.studio"
+msgstr "スタジオモード"
+
+msgid "obs.unmute"
+msgstr "ミュートを解除"
+
+msgid "obs.updated"
+msgstr "更新済み {0}"
+
+msgid "obs.waiting"
+msgstr "読み込み中…"
+
+msgid "role.combined"
+msgstr "エンコーダー + リレー"
+
+msgid "role.custom"
+msgstr "カスタム"
+
+msgid "role.encoder"
+msgstr "エンコーダー"
+
+msgid "role.obs"
+msgstr "obs"
+
+msgid "role.relay"
+msgstr "リレー"
+
+msgid "set.back"
+msgstr "デバイスに戻る"
+
+msgid "set.color"
+msgstr "アクセント色"
+
+msgid "set.description"
+msgstr "保存後、設定は制御サーバーで再適用されます。"
+
+msgid "set.hostname"
+msgstr "ホスト名"
+
+msgid "set.no_repos"
+msgstr "パイプラインリポジトリが設定されていません。"
+
+msgid "set.remote_token"
+msgstr "リモートトークン"
+
+msgid "set.remote_url"
+msgstr "制御サーバー URL"
+
+msgid "set.repo_add"
+msgstr "リポジトリを追加"
+
+msgid "set.repo_field"
+msgstr "GitHub リポジトリ"
+
+msgid "set.repo_imported"
+msgstr "{0} 個のファイルをインポートしました。"
+
+msgid "set.repo_importing"
+msgstr "{0} をインポート中…"
+
+msgid "set.repo_removed"
+msgstr "{0} を削除しました。"
+
+msgid "set.repo_removing"
+msgstr "{0} を削除中…"
+
+msgid "set.repo_update_all"
+msgstr "すべて更新"
+
+msgid "set.repo_updated_all"
+msgstr "{0} 個のリポジトリを更新しました（{1} ファイル）。"
+
+msgid "set.repo_updating_all"
+msgstr "すべてのパイプラインリポジトリを更新中…"
+
+msgid "set.repos"
+msgstr "パイプラインリポジトリ"
+
+msgid "set.repos_desc"
+msgstr "パイプラインは各リポジトリの pipelines/ ディレクトリから再帰的にインポートされ、git pull のたびに再インポートされます。"
+
+msgid "set.restart_required"
+msgstr "新しいロールはデバイスサービスの再起動後に有効になります。"
+
+msgid "set.role"
+msgstr "デバイスロール"
+
+msgid "set.role_keep"
+msgstr "現在のまま"
+
+msgid "set.save"
+msgstr "設定を保存"
+
+msgid "set.saved"
+msgstr "設定を保存しました。"
+
+msgid "set.title"
+msgstr "デバイス設定"
+
+msgid "set.token_ph_configured"
+msgstr "設定済み（保持するには空欄）"
+
+msgid "set.token_ph_missing"
+msgstr "未設定"
+
+msgid "set.token_ph_unchanged"
+msgstr "変更なし"
+
+msgid "setup.autostart"
+msgstr "再起動後に保存済みストリームを自動開始"
+
+msgid "setup.control_desc"
+msgstr "このセットアップを既存の制御サーバーに接続します。"
+
+msgid "setup.control_token"
+msgstr "制御トークン"
+
+msgid "setup.encoder_desc"
+msgstr "キャプチャパイプライン用のエンコーダー固有フィールド。"
+
+msgid "setup.hostname"
+msgstr "デバイス名"
+
+msgid "setup.hostname_title"
+msgstr "小文字、数字、ドット、ハイフンを使用（最大 64 文字）。"
+
+msgid "setup.identity"
+msgstr "識別情報と外観"
+
+msgid "setup.identity_desc"
+msgstr "デバイスが制御サーバーに自身を識別する方法。"
+
+msgid "setup.language_desc"
+msgstr "インターフェース全体で使う言語を選択します。"
+
+msgid "setup.loading"
+msgstr "セットアップデータを読み込み中…"
+
+msgid "setup.relay_desc"
+msgstr "SRTLA リレーフィールド（リレーロールのみ）。"
+
+msgid "setup.restart_required"
+msgstr "新しいロールはデバイスサービスの再起動後に有効になります。"
+
+msgid "setup.review_desc"
+msgstr "戻るで選択内容を確認し、設定を保存してください。"
+
+msgid "setup.role.combined"
+msgstr "複合"
+
+msgid "setup.role.combined_tag"
+msgstr "単一サービスでエンコードとリレーを行います"
+
+msgid "setup.role.encoder"
+msgstr "エンコーダー"
+
+msgid "setup.role.encoder_tag"
+msgstr "GStreamer パイプラインをキャプチャし、SRT で送信します"
+
+msgid "setup.role.relay_tag"
+msgstr "ストリームを受信し、SRTLA で転送します"
+
+msgid "setup.save"
+msgstr "設定を保存"
+
+msgid "setup.saved"
+msgstr "設定を保存しました。選択したロール、ホスト名、制御サーバーを適用するにはサービスを再起動してください。"
+
+msgid "setup.step.control"
+msgstr "制御サーバー"
+
+msgid "setup.step.control_sub"
+msgstr "中央サーバーへの任意接続。"
+
+msgid "setup.step.encoder"
+msgstr "エンコーダー"
+
+msgid "setup.step.encoder_sub"
+msgstr "パイプライン、ビットレート、音声遅延。"
+
+msgid "setup.step.identity"
+msgstr "識別情報"
+
+msgid "setup.step.identity_sub"
+msgstr "デバイスのホスト名とアクセント色。"
+
+msgid "setup.step.language_sub"
+msgstr "インターフェース言語を選択します。"
+
+msgid "setup.step.relay"
+msgstr "リレー"
+
+msgid "setup.step.relay_sub"
+msgstr "SRTLA 設定"
+
+msgid "setup.step.review"
+msgstr "確認"
+
+msgid "setup.step.role_sub"
+msgstr "この Belabox がネットワークに参加する方法を選択します。"
+
+msgid "setup.title"
+msgstr "Belabox Duo セットアップ"
+
+msgid "srv.offline"
+msgstr "デバイスはオフライン ({0})"
+
+msgid "srv.online"
+msgstr "デバイスはオンライン ({0})"
+
+msgid "status.card"
+msgstr "ステータス"
+
+msgid "status.connection"
+msgstr "接続"
+
+msgid "status.role"
+msgstr "ロール"
+
+msgid "status.state"
+msgstr "状態"
+
+msgid "time.h_ago"
+msgstr "{0}時間前"
+
+msgid "time.m_ago"
+msgstr "{0}分前"
+
+msgid "time.s_ago"
+msgstr "{0}秒前"
+
+msgid "ui.autostart"
+msgstr "自動開始"
+
+msgid "ui.back"
+msgstr "戻る"
+
+msgid "ui.connect"
+msgstr "接続"
+
+msgid "ui.disable"
+msgstr "無効化"
+
+msgid "ui.disconnect"
+msgstr "切断"
+
+msgid "ui.enable"
+msgstr "有効化"
+
+msgid "ui.error"
+msgstr "エラー"
+
+msgid "ui.language_label"
+msgstr "言語"
+
+msgid "ui.next"
+msgstr "次へ"
+
+msgid "ui.off"
+msgstr "オフ"
+
+msgid "ui.on"
+msgstr "オン"
+
+msgid "ui.optional"
+msgstr "任意"
+
+msgid "ui.reconfigure"
+msgstr "再設定"
+
+msgid "ui.reload"
+msgstr "リロード"
+
+msgid "ui.remove"
+msgstr "削除"
+
+msgid "ui.reset"
+msgstr "リセット"
+
+msgid "ui.save"
+msgstr "保存"
+
+msgid "ui.start"
+msgstr "開始"
+
+msgid "ui.stop"
+msgstr "停止"
+
+msgid "ui.title_suffix"
+msgstr "– Belabox Duo"
+
+msgid "wtype.combined"
+msgstr "エンコーダー + リレー"
+
+msgid "wtype.encoder"
+msgstr "エンコーダー"
+
+msgid "wtype.kick_chat"
+msgstr "Kick チャット"
+
+msgid "wtype.tiktok_chat"
+msgstr "TikTok チャット"
+
+msgid "wtype.twitch_chat"
+msgstr "Twitch チャット"
+
+msgid "wtype.youtube_chat"
+msgstr "YouTube チャット"
+
+msgid "wtype.kick_stats"
+msgstr "Kick 統計"
+
+msgid "wtype.obs"
+msgstr "OBS Studio"
+
+msgid "wtype.relay"
+msgstr "Relay"
+
+msgid "wtype.stats"
+msgstr "Relay 統計"
+
+msgid "wtype.status"
+msgstr "ステータス"
+
+msgid "dash.widget_channel"
+msgstr "チャンネル"
+
+msgid "dash.widget_not_configured"
+msgstr "未設定 – チャンネル名を入力してください"
+
+msgid "ui.cancel"
+msgstr "キャンセル"
+
+msgid "dash.widget_settings"
+msgstr "チャンネル設定"
+
+msgid "dash.new"
+msgstr "Nová"
+
+msgid "dash.rename"
+msgstr "Přejmenovat"
+
+msgid "dash.default_name"
+msgstr "Přehled"
+
+msgid "dash.delete_confirm"
+msgstr "Smazat přehled „{0}“?"
+
+msgid "dash.delete_fail"
+msgstr "Smazení se nezdařilo"
+
+msgid "dash.done"
+msgstr "Hotovo"
+
+msgid "dash.hide"
+msgstr "Skrýt"
+
+msgid "dash.remove"
+msgstr "Odebrat"
+
+msgid "dash.kick"
+msgstr "Kick (nezávislý)"
+
+msgid "dash.saved"
+msgstr "Uloženo"
+
+msgid "dash.save_error"
+msgstr "Uložení se nezdařilo"
+
+msgid "dash.conflict"
+msgstr "Změnil jiný uživatel — načteno poslední"
+
+msgid "dash.device"
+msgstr "Zařízení"

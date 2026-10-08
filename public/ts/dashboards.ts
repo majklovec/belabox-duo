@@ -111,7 +111,7 @@ const App: m.Component = {
 };
 
 void refresh();
-mountPage(t("dash.title"), App);
+void mountPage(() => t("dash.title"), App);
 setInterval(() => {
 	void refresh();
 }, REFRESH_MS);

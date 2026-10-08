@@ -210,7 +210,7 @@ void (async () => {
 	const body = (res?.ok ? await res.json().catch(() => null) : null) as { ok?: boolean; dashboard?: ServerDashboard } | null;
 	if (body?.ok && body.dashboard) state.dash = body.dashboard;
 	else state.notFound = true;
-	mountPage(t("dash.title"), App);
+	void mountPage(() => t("dash.title"), App);
 	await refreshDevices();
 	m.redraw();
 })();

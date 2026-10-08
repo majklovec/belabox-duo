@@ -134,6 +134,6 @@ const App: m.Component = {
 	},
 };
 
-mountPage(t("mgmt.title"), App);
+void mountPage(() => t("mgmt.title"), App);
 void refresh();
 setInterval(refresh, REFRESH_MS);

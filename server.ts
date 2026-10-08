@@ -67,7 +67,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import type { DeviceInfo, DeviceSummary, ServerDashboard, ServerDashboardWidget, SrtlaStats, SrtlaStatsEvent, Status, WidgetType } from "./public/types";
 import { arg, argFail, flag, intArg } from "./src/args";
 import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
-import { isLanguage, type Language, translate } from "./src/i18n";
+import { i18nReady, isLanguage, type Language, translate } from "./src/i18n";
 import { initWidgetHub, syncWidgetHub, widgetConfigFields, widgetHubSnapshot } from "./modules/registry.backend";
 import { LOG_MAX, type LogEntry, type LogEvent, type LogLevel } from "./src/logMessages";
 import { parseJsonObject, textOf } from "./src/util";
@@ -185,6 +185,10 @@ const assets = new Map<string, Blob>();
         else assets.set(file, out);
     }
 }
+
+// Log strings (t()/translate) are only served from request handlers, but make
+// sure the PO catalogs are loaded before the server accepts any request.
+await i18nReady;
 
 const htmlResponse = (page: PageName) =>
     new Response(pages[page], { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });
