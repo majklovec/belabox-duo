@@ -2,7 +2,7 @@
 import m from "mithril";
 import type { DeviceSummary } from "../types";
 import { type BadgeKind, badge, Card, type Child, encoderIssueBadge, Page, serverNav } from "./components/ui";
-import { t } from "./i18n";
+import { i18nReady, t } from "./i18n";
 import { icon, roleTag } from "./icons";
 import { formatBitrate, mountPage, since } from "./util";
 
@@ -40,7 +40,8 @@ function bitrate(d: DeviceSummary): Child {
 
 function row(d: DeviceSummary): m.Vnode {
 	const { srtla: s, encoder: e } = d;
-	const stopped = badge(t("dev.badge.stopped"), "warn");
+	// A new vnode per cell: mithril cannot patch one vnode object into two slots
+	const stoppedBadge = () => badge(t("dev.badge.stopped"), "warn");
 	return m(
 		"tr",
 		{ key: d.id },
@@ -66,11 +67,11 @@ function row(d: DeviceSummary): m.Vnode {
 		m("td", d.online && d.totalLinks !== undefined ? `${d.activeLinks ?? 0}/${d.totalLinks}` : "—"),
 		m(
 			"td",
-			hasEncoder(d) && e ? (e.running ? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on") : stopped) : "—",
+			hasEncoder(d) && e ? (e.running ? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on") : stoppedBadge()) : "—",
 		),
 		m(
 			"td",
-			d.role !== "encoder" && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : stopped) : "—",
+			d.role !== "encoder" && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : stoppedBadge()) : "—",
 		),
 	);
 }
@@ -135,5 +136,8 @@ const App: m.Component = {
 };
 
 void mountPage(() => t("mgmt.title"), App);
-void refresh();
-setInterval(refresh, REFRESH_MS);
+// First poll only once the catalogs are loaded, so header badges land translated
+void i18nReady.then(() => {
+	void refresh();
+	setInterval(refresh, REFRESH_MS);
+});
