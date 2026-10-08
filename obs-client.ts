@@ -47,6 +47,8 @@ import { ApiError, optionalStringList, requireString } from "./src/params";
 import { errorMessage, scrubUrl, textOf } from "./src/util";
 import { REMOTE_URL_RE } from "./src/validate";
 import { APP_VERSION } from "./src/version";
+import { type LowBitrateSwitcherConfig, defaultLowBitrateSwitcherConfig } from "./modules/types";
+import { normalizeSwitcherConfig } from "./modules/obs-controller/switcher-engine";
 
 export enum ObsOpCode {
   Hello = 0,
@@ -660,10 +662,21 @@ async function main(): Promise<void> {
   if (!REMOTE_URL_RE.test(remoteUrl)) argFail("--remote", remoteUrl, "ws:// or wss:// URL");
 
   // Stable device identity: the uuid is assigned once and persisted, so the
-  // control server (and its dashboards) keep seeing the same device
-  const stored = (await Bun.file(stateFile).json().catch(() => null)) as { uuid?: string } | null;
+  // control server (and its dashboards) keep seeing the same device. The
+  // state file also carries the obs-controller's switcher config (the box
+  // runs only the obs module, so there is no full state.settings here).
+  const stored = (await Bun.file(stateFile).json().catch(() => null)) as
+    | { uuid?: string; switcherEnabled?: boolean; switcher?: unknown }
+    | null;
   const uuid = arg("--uuid") ?? stored?.uuid ?? crypto.randomUUID();
-  if (stored?.uuid !== uuid) await Bun.write(stateFile, JSON.stringify({ uuid }, null, 2));
+  const obsConfig = {
+    switcherEnabled: stored?.switcherEnabled === true,
+    switcher: normalizeSwitcherConfig(stored?.switcher) ?? defaultLowBitrateSwitcherConfig(),
+  };
+  await Bun.write(
+    stateFile,
+    JSON.stringify({ uuid, ...obsConfig }, null, 2),
+  );
 
   const obs = new ObsClient({
     url: obsUrl,
@@ -707,6 +720,8 @@ async function main(): Promise<void> {
         obsUrl,
         obsPassword: obsPassword ? { configured: true } : "",
         sceneEvents: true,
+        switcherEnabled: obsConfig.switcherEnabled,
+        switcher: obsConfig.switcher,
       },
     },
   });
@@ -770,6 +785,27 @@ async function main(): Promise<void> {
           );
           obs.setEventSubscriptions(intents);
           result = { ok: true, eventSubscriptions: intents };
+          break;
+        }
+        case "modules.configure": {
+          // The obs box runs only the obs-controller module; the browser's
+          // switcher toggle and form send their config here. obsUrl /
+          // obsPassword / sceneEvents are CLI-driven and ignored.
+          const id = requireString(params, "id");
+          if (id !== OBS_MODULE) throw new ApiError(`Unknown module: ${id}`, 404);
+          const config =
+            params.config && typeof params.config === "object" && !Array.isArray(params.config)
+              ? (params.config as Record<string, unknown>)
+              : {};
+          if (typeof config.switcherEnabled === "boolean") obsConfig.switcherEnabled = config.switcherEnabled;
+          if (config.switcher !== undefined) {
+            const next = normalizeSwitcherConfig(config.switcher);
+            if (!next) throw new ApiError("invalid switcher config", 400);
+            obsConfig.switcher = next;
+          }
+          await Bun.write(stateFile, JSON.stringify({ uuid, ...obsConfig }, null, 2));
+          pushStatus();
+          result = { ok: true, switcherEnabled: obsConfig.switcherEnabled, switcher: obsConfig.switcher };
           break;
         }
         default:

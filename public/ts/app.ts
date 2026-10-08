@@ -62,6 +62,7 @@ const App: m.Component = {
 		// SRT/streaming cards would be inactive there.
 		const obsOnly = !!status && role === "obs";
 		const obsOn = status?.modules["obs-controller"]?.enabled === true;
+		// The obs card also carries its low-bitrate switcher (a second card under it)
 		const children = [
 			!obsOnly && hasEncoder && moduleCard("encoder", status),
 			!obsOnly && hasRelay && [moduleCard("srtla", status), interfacesCard(status), moduleCard("modems", status)],

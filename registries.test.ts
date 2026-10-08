@@ -35,6 +35,7 @@ const frontendIds = (): string[] => {
 };
 
 describe("module registries", () => {
+    // The low-bitrate switcher is a sub-component of the obs module, not a registered module
     test("backend registry enumerates all four modules in order", () => {
         expect(ALL_MODULES.length).toBe(4);
         expect(ALL_MODULES.map((mod) => mod.id)).toEqual(EXPECTED_ORDER);

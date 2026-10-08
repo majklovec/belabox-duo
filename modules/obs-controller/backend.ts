@@ -3,6 +3,10 @@
  * Studio and forwards its events into the belabox event stream (pushed with a
  * `module: "obs-controller"` tag). The obs.* API methods in methods.ts
  * dispatch their raw requests straight to this client.
+ *
+ * Also hosts the low-bitrate switcher sub-component (switcher.ts): its
+ * engine runs on this module's lifecycle, drives scene changes through this
+ * client, and its config nests under this module's settings slice.
  */
 import {
 	DEFAULT_EVENT_SUBSCRIPTIONS,
@@ -16,6 +20,7 @@ import {
 import { ApiError } from "../../src/params";
 import { state } from "../../src/state";
 import type { DeviceModule, ModuleContext } from "../types";
+import { startSwitcher, stopSwitcher, switcherServices } from "./switcher";
 
 // op5 events forwarded to the UI; the ones an operator dashboard reacts to.
 // OBS v5 output events carry no "Current" prefix — they are StreamStateChanged /
@@ -82,7 +87,12 @@ export const obsServices = {
 	subscriptionMask(names: string[]): number {
 		return names.reduce((acc, name) => acc | (EVENT_SUBSCRIPTION_LOOKUP[name.toUpperCase()] ?? EventSubscription.None), 0);
 	},
-	/** Apply persisted config fields (url / password / sceneEvents / enabled); caller saves the state. */
+	/**
+	 * Apply persisted config fields (url / password / sceneEvents / enabled /
+	 * switcherEnabled plus the nested `switcher` slice); caller saves the
+	 * state. Only fields present in `config` are touched; an invalid switcher
+	 * slice is a 400.
+	 */
 	configure(config: Record<string, unknown>): void {
 		const obs = state.settings.modules?.["obs-controller"];
 		if (!obs) return;
@@ -90,6 +100,8 @@ export const obsServices = {
 		if (typeof config.obsUrl === "string") obs.obsUrl = config.obsUrl;
 		if (typeof config.obsPassword === "string") obs.obsPassword = config.obsPassword;
 		if (typeof config.sceneEvents === "boolean") obs.sceneEvents = config.sceneEvents;
+		if (typeof config.switcherEnabled === "boolean") obs.switcherEnabled = config.switcherEnabled;
+		if (config["switcher"] !== undefined) switcherServices.configure(config["switcher"] as Record<string, unknown>);
 	},
 };
 
@@ -125,13 +137,22 @@ export const obsControllerModule: DeviceModule = {
 		for (const name of FORWARDED_EVENTS) obsClient.on(name, forward(name, ctx.emit));
 		// Synthetic drop event (clearly marked as non-standard by the client)
 		obsClient.on(OBS_DISCONNECTED_EVENT, () => ctx.emit("obs.event", { disconnected: true }));
+		// The low-bitrate switcher sub-component: runs on this module's
+		// lifecycle, scene-switches through this client (no extra websocket),
+		// and only while its OBS-level master switch is on.
+		if (ctx.config["switcherEnabled"] === true) startSwitcher(ctx, () => obsClient);
 	},
 	async stop() {
+		stopSwitcher();
 		obsClient?.disconnect();
 		obsClient = null;
 	},
 	methods: ["obs.request", "obs.requestBatch", "obs.setEventSubscriptions"] as const,
-	events: ["obs.event"] as const,
+	events: ["obs.event", "lowBitrateSwitcher.state"] as const,
+	async status() {
+		// The switcher's live state in the status payload (null = not running)
+		return { lowBitrateSwitcher: switcherServices.status() };
+	},
 	async dispatch(method, params) {
 		switch (method) {
 			case "obs.request": {

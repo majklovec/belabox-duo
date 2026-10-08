@@ -228,4 +228,162 @@ export interface ChannelLive {
  */
 export const eventFrame = (event: string, data: unknown): string => JSON.stringify({ type: "event", event, data });
 
+// ----------------------------------------------------------------------
+// Low-bitrate switcher module (shared by backend, state.ts, public/types.ts)
+// ----------------------------------------------------------------------
+
+/** The switcher's state machine states — each maps to a scene. */
+export type SwitcherState = "NORMAL" | "LOW" | "OFFLINE";
+
+/**
+ * One merged metrics sample from the active sources. A field is null when no
+ * active source provides it (its triggers are skipped, not treated as a fault).
+ */
+export interface SwitcherMetrics {
+	/** Live stream bitrate in kbps (null: not available). */
+	bitrateKbps: number | null;
+	/** Round-trip time in ms (null: not available). */
+	rttMs: number | null;
+	/** Upstream connected (null: no source reports it). */
+	connected: boolean | null;
+	/** Encoder / stream is live (null: not available). */
+	streaming: boolean | null;
+}
+
+/** The enabled flag plus which module instance a source reads from. */
+export interface SwitcherSourceConfig {
+	enabled: boolean;
+	moduleId: string;
+}
+
+/** Maps the switcher's expected keys to the combined module's exposed keys. */
+export interface SwitcherFieldMap {
+	bitrate: string;
+	rtt: string;
+	connected: string;
+	streaming: string;
+}
+
+export interface LowBitrateSwitcherSources {
+	encoder: SwitcherSourceConfig;
+	relay: SwitcherSourceConfig;
+	combined: SwitcherSourceConfig & { fieldMap: SwitcherFieldMap };
+}
+
+/** What the switcher does when its obs-controller is disconnected. */
+export type SwitcherFailBehaviour = "pause" | "ignore";
+
+export interface SwitcherObsControllerConfig {
+	moduleId: string;
+	failBehaviour: SwitcherFailBehaviour;
+}
+
+/** Thresholds: bitrate in kbps, rtt in ms. */
+export interface SwitcherTriggers {
+	low: number;
+	offline: number;
+	rtt: number;
+}
+
+/** The scenes the switcher may move between. */
+export interface SwitcherScenes {
+	normal: string;
+	low: string;
+	offline: string;
+}
+
+/** The automatic-switching engine's own settings. */
+export interface SwitcherEngineConfig {
+	/** Master switch for the automatic switching (the module `enabled` flag is separate). */
+	bitrateSwitcherEnabled: boolean;
+	/** Ignore metrics while OBS is not streaming. */
+	onlySwitchWhenStreaming: boolean;
+	/** Return to the normal scene without the retry delay. */
+	instantlySwitchOnRecover: boolean;
+	/** Consecutive bad polls before a switch happens. */
+	retryAttempts: number;
+	/** Sampling period of the sources, ms. */
+	pollIntervalMs: number;
+	triggers: SwitcherTriggers;
+	switchingScenes: SwitcherScenes;
+}
+
+/** Scenes the operator manages manually; the switcher never leaves the privacy scene. */
+export interface SwitcherOptionalScenes {
+	starting: string;
+	ending: string;
+	privacy: string;
+}
+
+/**
+ * Full switcher settings (persisted under settings.modules["obs-controller"].switcher).
+ * The OBS-level `switcherEnabled` parameter (sibling of `switcher`) decides
+ * whether the switcher runs; this object carries only its settings.
+ */
+export interface LowBitrateSwitcherConfig {
+	sources: LowBitrateSwitcherSources;
+	obsController: SwitcherObsControllerConfig;
+	switcher: SwitcherEngineConfig;
+	optionalScenes: SwitcherOptionalScenes;
+	logToFile: boolean;
+}
+
+/**
+ * Which sources are active after resolution (combined takes precedence over
+ * encoder/relay). Used by the status so the card can show what feeds the engine.
+ */
+export interface SwitcherActiveSources {
+	encoder: string | null;
+	relay: string | null;
+	combined: string | null;
+}
+
+/** The module's live state, merged into the status payload and pushed per change. */
+export interface SwitcherStatus {
+	/** Module started with a valid config and at least one source available. */
+	active: boolean;
+	/** The state the engine currently acts as. */
+	state: SwitcherState;
+	/** What the latest poll wants (differs from `state` while retrying). */
+	desiredState: SwitcherState;
+	/** Consecutive bad polls toward the next switch (0 when stable). */
+	retryCount: number;
+	/** Last known OBS program scene (null: not sampled yet / controller down). */
+	currentScene: string | null;
+	/** OBS streaming flag as last reported by the controller. */
+	streaming: boolean;
+	/** The selected obs-controller is identified (websocket up). */
+	obsConnected: boolean;
+	sources: SwitcherActiveSources;
+	/** Last successful poll (epoch ms; 0 when none). */
+	updatedAt: number;
+}
+
+/** Factory defaults; a fresh device starts with the switcher idle. */
+export function defaultLowBitrateSwitcherConfig(): LowBitrateSwitcherConfig {
+	return {
+		sources: {
+			encoder: { enabled: false, moduleId: "encoder" },
+			relay: { enabled: false, moduleId: "relay" },
+			combined: {
+				enabled: false,
+				moduleId: "encoder-relay",
+				fieldMap: { bitrate: "bitrate", rtt: "rtt", connected: "connected", streaming: "streaming" },
+			},
+		},
+		obsController: { moduleId: "obs-controller", failBehaviour: "pause" },
+		switcher: {
+			bitrateSwitcherEnabled: true,
+			onlySwitchWhenStreaming: false,
+			instantlySwitchOnRecover: true,
+			retryAttempts: 5,
+			pollIntervalMs: 1000,
+			triggers: { low: 500, offline: 400, rtt: 1500 },
+			switchingScenes: { normal: "LIVE", low: "LOW", offline: "BRB" },
+		},
+		optionalScenes: { starting: "STARTING", ending: "ENDING", privacy: "PRIVACY" },
+		logToFile: true,
+	};
+}
+
 

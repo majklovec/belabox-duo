@@ -22,7 +22,12 @@ import { srtlaModule } from "./srtla/frontend";
 import { modemsModule } from "./modems/frontend";
 import { obsControllerModule } from "./obs-controller/frontend";
 
-export const FRONTEND_MODULES: BrowserModule[] = [encoderModule, srtlaModule, modemsModule, obsControllerModule];
+export const FRONTEND_MODULES: BrowserModule[] = [
+	encoderModule,
+	srtlaModule,
+	modemsModule,
+	obsControllerModule,
+];
 
 export const getFrontendModule = (id: string) => FRONTEND_MODULES.find((mod) => mod.id === id);
 

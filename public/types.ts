@@ -1,5 +1,5 @@
 /* Wire types shared by the device UI, the device list and the control server. */
-import type { AudioSource, CeraConfig, EncoderState, ModemInfo, StatsLive, ChatLive, SrtlaState } from "../modules/types";
+import type { AudioSource, CeraConfig, EncoderState, LowBitrateSwitcherConfig, ModemInfo, StatsLive, ChatLive, SrtlaState, SwitcherStatus } from "../modules/types";
 import type { Language } from "../src/i18n";
 import type { Iface, ModemConfig } from "../src/routing";
 import type { SrtlaControlState } from "../src/srtlaControl";
@@ -32,6 +32,8 @@ export interface Status {
 	srtlaControl: SrtlaControlState;
 	monitor: { running: boolean; reloadMode: string };
 	ceracoder: CeraConfig | null;
+	/** Live state of the low-bitrate switcher (null when the module is stopped). */
+	lowBitrateSwitcher?: SwitcherStatus | null;
 	/** Module system: enabled flags + non-secret settings (secrets come back as `{configured}`). */
 	modules: ModulesView;
 }
@@ -41,6 +43,10 @@ export interface ObsModuleView {
 	obsUrl: string;
 	obsPassword: string | { configured: boolean };
 	sceneEvents: boolean;
+	/** Master switch for the low-bitrate switcher hosted by the obs module. */
+	switcherEnabled: boolean;
+	/** The low-bitrate switcher settings hosted by the obs module. */
+	switcher: LowBitrateSwitcherConfig;
 }
 export interface ModulesView {
 	relay: { enabled: boolean };

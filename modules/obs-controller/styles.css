@@ -29,6 +29,7 @@
   gap: 0.5rem;
   align-items: center;
   margin-top: 0.6rem;
+  font-size: small;
 }
 .mod-obs-controller .obs-meta {
   margin-left: auto;
@@ -150,4 +151,14 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   background: #0a0a0a;
+}
+/* Low-bitrate switcher card */
+.mod-switcher .lbs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+}
+.mod-switcher .lbs-select {
+  margin-left: 0.5rem;
+  flex: 1;
 }

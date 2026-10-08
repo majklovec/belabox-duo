@@ -12,7 +12,8 @@
 import { randomUUID } from "node:crypto";
 
 import { CONFIG_EXISTS, CONFIG_FILE, DRY_RUN, INITIAL_CONFIG } from "./config";
-import type { CeraConfig, EncoderConfig, EncoderState, SrtlaState } from "../modules/types";
+import { defaultLowBitrateSwitcherConfig, type CeraConfig, type EncoderConfig, type EncoderState, type LowBitrateSwitcherConfig, type SrtlaState } from "../modules/types";
+import { normalizeSwitcherConfig } from "../modules/obs-controller/switcher-engine";
 import { writeFileAtomic } from "./files";
 import { asLanguage, DEFAULT_LANGUAGE, type Language, setCurrentLanguage } from "./i18n";
 import type { ModemConfig } from "./routing";
@@ -63,9 +64,26 @@ export interface ObsModuleConfig {
     obsUrl: string;
     obsPassword: string;
     sceneEvents: boolean;
+    /** Master switch for the low-bitrate switcher this module hosts (OBS must run for it). */
+    switcherEnabled: boolean;
+    /** The low-bitrate switcher sub-component this module hosts. */
+    switcher: LowBitrateSwitcherConfig;
 }
 /** All module keys the registry knows, and their on-disk shape. */
 export const ALL_MODULES = ["relay", "encoder", "obs-controller"] as const;
+
+/**
+ * Registry module ID → persisted settings key. `srtla` reads the legacy
+ * "relay" key. Kept here so methods and the registry both resolve the same
+ * persisted slice.
+ */
+export const MODULE_CONFIG_KEYS: Record<string, string> = {
+	"encoder": "encoder",
+	"srtla": "relay",
+	"modems": "modems",
+	"obs-controller": "obs-controller",
+};
+
 export type ModuleId = (typeof ALL_MODULES)[number];
 
 export const OBS_MODULE = "obs-controller" as const;
@@ -160,9 +178,9 @@ function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
             color: cfg?.color,
             pipelineRepositories: cfg?.pipelineRepositories,
             language: cfg?.language,
-            // Backfill: pre-module configs get a modules map with the role's
-            // preset modules enabled.
-            modules: cfg?.modules ?? defaultModules(cfg?.role),
+            // Backfill: pre-module configs get the role's preset modules
+            // enabled; modules added later get their defaults merged in.
+            modules: backfillModules(cfg?.modules, cfg?.role),
         },
         selection: cfg?.modems ?? {},
         srtla: { running: false },
@@ -188,8 +206,45 @@ export function defaultModules(role?: Role): ModulesState {
     return {
         relay: { enabled: on.has("relay") },
         encoder: { enabled: on.has("encoder") },
-        "obs-controller": { enabled: false, obsUrl: "", obsPassword: "", sceneEvents: true },
+        "obs-controller": { enabled: false, obsUrl: "", obsPassword: "", sceneEvents: true, switcherEnabled: false, switcher: defaultLowBitrateSwitcherConfig() },
     };
+}
+
+/**
+ * Stored module maps predate newer settings (e.g. the switcher slice); fill
+ * missing keys with the defaults for the role so the map always has the
+ * full shape. Stored values win over the defaults. Configs written before
+ * the switcher merged into obs-controller carry it as a top-level modules
+ * key — move it into the obs slice once, here.
+ */
+function backfillModules(stored: Partial<ModulesState> | undefined, role?: Role): ModulesState {
+    if (!stored) return defaultModules(role);
+    // A pre-merge top-level switcher slice is promoted into the obs one, not copied across
+    const { lowBitrateSwitcher: legacy, ...rest } =
+        stored as Partial<ModulesState> & { lowBitrateSwitcher?: Record<string, unknown> };
+    const out: ModulesState = { ...defaultModules(role), ...rest };
+    const storedObs = rest["obs-controller"] as { switcherEnabled?: boolean } | undefined;
+    // Pre-merge configs enabled the switcher under the top-level slice's own flag
+    const legacyEnabled =
+        typeof (legacy as { enabled?: unknown } | undefined)?.enabled === "boolean"
+            ? (legacy as { enabled: boolean }).enabled
+            : undefined;
+    const obs = out["obs-controller"];
+    // A stored obs slice may predate the switcher slice — the type requires it.
+    if (!obs.switcher) obs.switcher = defaultLowBitrateSwitcherConfig();
+    if (legacy) {
+        const migrated = normalizeSwitcherConfig(legacy);
+        if (migrated) out["obs-controller"] = { ...obs, switcher: migrated };
+    }
+    // One-time migration: the switcher's own `enabled` flag moves up to the
+    // OBS-level `switcherEnabled` parameter (legacy top-level included). Only
+    // when the OBS slice never stored `switcherEnabled` explicitly does the
+    // migrated `enabled` win — a stored value is kept verbatim.
+    const o = out["obs-controller"] as { switcherEnabled?: boolean; switcher: LowBitrateSwitcherConfig };
+    if (storedObs?.switcherEnabled === undefined)
+        o.switcherEnabled = legacyEnabled ?? ((o.switcher as { enabled?: boolean }).enabled === true);
+    delete (o.switcher as { enabled?: boolean }).enabled;
+    return out;
 }
 
 // ----------------------------------------------------------------------

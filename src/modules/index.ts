@@ -43,6 +43,9 @@ export function modulesView(): object {
             obsUrl: obs.obsUrl,
             obsPassword: obs.obsPassword ? { configured: true } : { configured: false },
             sceneEvents: obs.sceneEvents,
+            switcherEnabled: obs.switcherEnabled,
+            // No secrets in the switcher config: the whole slice goes to the client
+            switcher: obs.switcher,
         },
     };
 }

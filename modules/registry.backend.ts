@@ -15,14 +15,19 @@
  */
 import { logEvent } from "../src/eventlog";
 import { pushModuleEvent } from "../src/push";
-import { state } from "../src/state";
+import { MODULE_CONFIG_KEYS, state } from "../src/state";
 import type { DeviceModule, ModuleContext } from "./types";
 import { encoderModule, encoderServices } from "./encoder/backend";
 import { srtlaModule, srtlaServices } from "./srtla/backend";
 import { detectModems, modemNetworkIface, modemsModule } from "./modems/backend";
 import { obsControllerModule, obsServices } from "./obs-controller/backend";
 
-export const ALL_MODULES: DeviceModule[] = [encoderModule, srtlaModule, modemsModule, obsControllerModule];
+export const ALL_MODULES: DeviceModule[] = [
+	encoderModule,
+	srtlaModule,
+	modemsModule,
+	obsControllerModule,
+];
 
 /**
  * Encoder services consumed by the core (stream orchestration in stream.ts,
@@ -63,9 +68,12 @@ export const modemServices = { detect: detectModems, modemIface: modemNetworkIfa
  * (push.ts), `log` appends to the device log (eventlog.ts).
  */
 export function makeCtx(mod: DeviceModule): ModuleContext {
+	// The persisted slice is keyed by config key (MODULE_CONFIG_KEYS), not by
+	// registry id — e.g. "srtla" reads the legacy "relay" key
 	const m = state.settings.modules as Record<string, Record<string, unknown>> | undefined;
+	const key = MODULE_CONFIG_KEYS[mod.id] ?? mod.id;
 	return {
-		config: m?.[mod.id] ? { ...m[mod.id] } : {},
+		config: m?.[key] ? { ...m[key] } : {},
 		emit: (event, data) => pushModuleEvent(event, data, mod.id),
 		log: (section, message) => logEvent("info", section, message),
 	};
@@ -118,7 +126,7 @@ export async function moduleStatuses(): Promise<Record<string, unknown>> {
 
 function moduleSettingsEnabled(id: string): boolean {
 	const m = state.settings.modules as Record<string, { enabled?: boolean }> | undefined;
-	return m?.[id]?.enabled ?? false;
+	return (m?.[MODULE_CONFIG_KEYS[id] ?? id]?.enabled ?? false);
 }
 // ---------------------------------------------------------------------------
 // Dashboard widget hub (kick channel widgets — device-independent).
