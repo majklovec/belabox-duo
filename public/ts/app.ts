@@ -1,7 +1,7 @@
 /* Device page — a Mithril view over the device store (device/store.ts): header, one card per
  * role-specific function, and the event log. The WebSocket client mutates state and redraws. */
 import m from "mithril";
-import { badge, Page } from "./components/ui";
+import { badge, Page, TitleWithBack } from "./components/ui";
 import { interfacesCard } from "./device/interfaces";
 import { LogCard } from "./device/log";
 import { moduleCard } from "../../modules/registry.frontend";
@@ -70,11 +70,13 @@ const App: m.Component = {
 		return m(
 			Page,
 			{
-				title: [
-					st.device && m("a", { href: "../../", title: t("dev.all_devices_title") }, "←"),
-					` ${t("dev.title")} `,
+				title: m(TitleWithBack, {
+					href: st.device ? "../../" : undefined,
+					backLabel: t("dev.all_devices_title"),
+				}, [
+					`${t("dev.title")} `,
 					st.device && m("span.muted", st.device.hostname || st.device.id),
-				],
+				]),
 				headerRight: headerRight(),
 			},
 			children,

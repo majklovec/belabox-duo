@@ -130,6 +130,36 @@ export const gearIcon = (): m.Vnode =>
 export const dashboardIcon = (): m.Vnode =>
 	draw(DASHBOARD, { width: "18", height: "18", fill: "none", stroke: "currentColor", "stroke-width": "2" });
 
+const ACTION_SHAPES = {
+	fullscreen: [
+		["path", { d: "M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5" }],
+	],
+	exitFullscreen: [
+		["path", { d: "M3 8h5V3M21 8h-5V3M16 21v-5h5M8 21v-5H3" }],
+	],
+	view: [
+		["path", { d: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" }],
+		["circle", { cx: "12", cy: "12", r: "3" }],
+	],
+	edit: [
+		["path", { d: "m16 3 5 5-12 12-6 1 1-6L16 3ZM13 6l5 5" }],
+	],
+	delete: [
+		["path", { d: "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" }],
+	],
+} as const satisfies Record<string, Shape>;
+
+export const actionIcon = (action: keyof typeof ACTION_SHAPES): m.Vnode =>
+	draw(ACTION_SHAPES[action], {
+		width: "18",
+		height: "18",
+		fill: "none",
+		stroke: "currentColor",
+		"stroke-width": "1.75",
+		"stroke-linecap": "round",
+		"stroke-linejoin": "round",
+	});
+
 /** Role icon(s) with the translated role as tooltip; combined devices get both icons. */
 export const roleTag = (role: Role): m.Vnode =>
 	m(

@@ -2,25 +2,24 @@
 import m from "mithril";
 import type { ServerDashboard } from "../types";
 import { button, Card, Page, input, serverNav } from "./components/ui";
-import { devices, refreshDevices } from "./dashboard";
 import { t } from "./i18n";
+import { actionIcon } from "./icons";
 import { mountPage } from "./util";
 
 const REFRESH_MS = 3_000;
 
 const state = {
-	onlineText: t("mgmt.loading"),
 	dashboards: [] as ServerDashboard[],
 	newName: "",
 	saving: false,
 };
 
 async function refresh(): Promise<void> {
-	await refreshDevices();
-	const list = devices.list ?? [];
-	state.onlineText = `${list.filter((d) => d.online).length}/${list.length}`;
 	const res = await fetch("/api/dashboards", { cache: "no-store" }).catch(() => null);
-	if (res?.ok) state.dashboards = ((await res.json()) as { dashboards: ServerDashboard[] }).dashboards;
+	if (res?.ok) {
+		state.dashboards = ((await res.json()) as { dashboards: ServerDashboard[] }).dashboards;
+		m.redraw();
+	}
 }
 
 function createDashboard(): void {
@@ -65,19 +64,16 @@ function list(): m.Vnode {
 			state.dashboards.map((d) =>
 				m(
 					"tr",
-					{
-						key: d.id,
-						onclick: () => {
-							location.href = `/dashboards/edit/${encodeURIComponent(d.id)}/`;
-						},
-					},
-					m("td.dash-name", d.name),
+					{ key: d.id },
+					m("td.dash-name", m("a.dash-row-link", { href: `/dashboards/view/${encodeURIComponent(d.id)}/` }, d.name)),
 					m("td.muted", `${d.widgets.length} ${d.widgets.length === 1 ? t("dash.widget") : t("dash.widgets").toLowerCase()}`),
 					m(
 						"td.actions-cell",
-						m("a.dash-row-link", { href: `/dashboards/view/${encodeURIComponent(d.id)}/` }, t("dash.view")),
-						m("a.dash-row-link", { href: `/dashboards/edit/${encodeURIComponent(d.id)}/` }, t("dash.edit")),
-						button(t("dash.delete"), { title: t("dash.delete"), onclick: () => deleteDashboard(d.id) }),
+						m("div.dash-row-actions", [
+							m("a.icon-link", { href: `/dashboards/view/${encodeURIComponent(d.id)}/`, title: t("dash.view"), "aria-label": t("dash.view") }, actionIcon("view")),
+							m("a.icon-link", { href: `/dashboards/edit/${encodeURIComponent(d.id)}/`, title: t("dash.edit"), "aria-label": t("dash.edit") }, actionIcon("edit")),
+							button(actionIcon("delete"), { class: "icon-link dash-delete", title: t("dash.delete"), "aria-label": t("dash.delete"), onclick: () => deleteDashboard(d.id) }),
+						]),
 					),
 				),
 			),
@@ -97,7 +93,7 @@ function createToolbar(): m.Vnode {
 function dashboardsCard(): m.Vnode {
 	return m(
 		Card,
-		{ title: t("dash.title") },
+		{  },
 		state.dashboards.length ? [list(), createToolbar()] : m("div.dash-empty", m("p.muted", t("dash.empty")), createToolbar()),
 	);
 }
@@ -109,7 +105,6 @@ const App: m.Component = {
 			{
 				title: t("dash.title"),
 				nav: serverNav("dashboards"),
-				headerRight: [m("span.muted", [t("dash.devices"), " ", state.onlineText])],
 			},
 			dashboardsCard(),
 		),

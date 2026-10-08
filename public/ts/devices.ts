@@ -111,7 +111,7 @@ const App: m.Component = {
 			{ title: t("mgmt.title"), nav: serverNav("devices"), headerRight: badge(state.connText, state.connKind) },
 			m(
 				Card,
-				{ title: t("mgmt.devices") },
+				{  },
 				m(
 					"table",
 					m("thead", m("tr", headers.map((h) => m("th", h)))),

@@ -21,11 +21,35 @@ export const Page: m.Component<{ title: m.Children; nav?: m.Children; headerRigh
 	],
 };
 
+export const TitleWithBack: m.Component<{ href?: string; backLabel: string }> = {
+	view: ({ attrs: { href, backLabel }, children }) => [
+		href !== undefined
+			? m(
+					"a.icon-link.page-back",
+					{ href, title: backLabel, "aria-label": backLabel },
+					m("svg", {
+						width: 16,
+						height: 16,
+						viewBox: "0 0 16 16",
+						fill: "none",
+						stroke: "currentColor",
+						"stroke-width": 1.75,
+						"stroke-linecap": "round",
+						"stroke-linejoin": "round",
+						"aria-hidden": "true",
+					}, m("path", { d: "M10 12L6 8l4-4" })),
+				)
+			: null,
+		" ",
+		children,
+	],
+};
+
 /** Main menu of the control server: the device list and the dashboards page. */
 export const serverNav = (active: "devices" | "dashboards"): m.Vnode =>
 	m("span", [
-		m("a", { href: "/", class: active === "devices" ? "nav-link active" : "nav-link" }, t("mgmt.devices")),
-		m("a", { href: "/dashboards/", class: active === "dashboards" ? "nav-link active" : "nav-link" }, t("dash.title")),
+		m("a", { href: "/", class: active === "devices" ? "nav-link active" : "nav-link", "aria-current": active === "devices" ? "page" : undefined }, t("mgmt.devices")),
+		m("a", { href: "/dashboards/", class: active === "dashboards" ? "nav-link active" : "nav-link", "aria-current": active === "dashboards" ? "page" : undefined }, t("dash.title")),
 	]);
 
 export interface CardProps {

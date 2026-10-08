@@ -9,9 +9,8 @@
  * the dashboard from the server. */
 import m from "mithril";
 import type { ServerDashboard, ServerDashboardWidget } from "../types";
-import { Page, serverNav } from "./components/ui";
+import { Page, serverNav, TitleWithBack } from "./components/ui";
 import {
-	devices,
 	ensureDashboardsWs,
 	refreshDevices,
 	setDashboardChangedSink,
@@ -21,6 +20,7 @@ import {
 } from "./dashboard";
 import { GridDashboard } from "./dashboardgrid";
 import { t } from "./i18n";
+import { actionIcon } from "./icons";
 import { mountPage } from "./util";
 
 const REFRESH_MS = 3_000;
@@ -36,7 +36,6 @@ const state = {
 	saveState: "idle" as SaveState,
 	saving: false,
 	dashMenu: false,
-	onlineText: t("mgmt.loading"),
 	toast: undefined as string | undefined,
 };
 
@@ -56,9 +55,13 @@ function colsOf(dash: ServerDashboard | undefined): number {
 	return dash?.columns ?? 12;
 }
 
-function onlineText(): string {
-	const list = devices.list ?? [];
-	return `${list.filter((d) => d.online).length}/${list.length}`;
+async function toggleFullscreen(): Promise<void> {
+	try {
+		if (document.fullscreenElement) await document.exitFullscreen();
+		else await document.documentElement.requestFullscreen();
+	} catch (err) {
+		toastMsg(t("dash.fullscreen_error", err instanceof Error ? err.message : String(err)));
+	}
 }
 
 
@@ -118,7 +121,7 @@ async function doSave(): Promise<void> {
 /** Rebase the dashboard onto the server copy (a saved `prefer` or a fresh GET). */
 async function resync(prefer?: ServerDashboard): Promise<void> {
 	const id = state.dash?.id;
-if (!id) return;
+	if (!id) return;
 	let fresh = prefer;
 	if (!fresh) {
 		const res = await fetch(`/api/dashboards/${encodeURIComponent(id)}`, { cache: "no-store" }).catch(() => null);
@@ -142,7 +145,7 @@ function onLayout(widgets: ServerDashboardWidget[]): void {
 
 function removeWidget(widget: ServerDashboardWidget): void {
 	const dash = state.dash;
-if (!dash) return;
+	if (!dash) return;
 	state.dash = { ...dash, widgets: dash.widgets.filter((w) => w.id !== widget.id) };
 	syncConnectionsFor(state.dash);
 	scheduleSave();
@@ -150,7 +153,7 @@ if (!dash) return;
 
 function hideWidget(widget: ServerDashboardWidget): void {
 	const dash = state.dash;
-if (!dash) return;
+	if (!dash) return;
 	state.dash = { ...dash, widgets: dash.widgets.map((w) => (w.id === widget.id ? { ...w, visible: !w.visible } : w)) };
 	scheduleSave();
 }
@@ -178,7 +181,7 @@ async function newDashboard(): Promise<void> {
 
 function renameDashboard(): void {
 	const dash = state.dash;
-if (!dash) return;
+	if (!dash) return;
 	state.dashMenu = false;
 	const name = window.prompt(t("dash.rename"), dash.name);
 	if (!name || !name.trim()) return;
@@ -188,7 +191,7 @@ if (!dash) return;
 
 async function deleteDashboard(): Promise<void> {
 	const dash = state.dash;
-if (!dash) return;
+	if (!dash) return;
 	if (!window.confirm(t("dash.delete_confirm", dash.name))) return;
 	state.dashMenu = false;
 	const res = await fetch(`/api/dashboards/${encodeURIComponent(dash.id)}`, { method: "DELETE" }).catch(() => null);
@@ -213,47 +216,54 @@ const App: m.Component = {
 		return m(
 			Page,
 			{
-				title: t("dash.title"),
-				nav: serverNav("dashboards"),
+				title: m(TitleWithBack, {
+					href: "/dashboards/",
+					backLabel: t("dash.back"),
+				}, dash?.name ?? t("dash.title")),
+				nav: dash
+					? m("button.dash-edittoggle", {
+						type: "button",
+						"aria-pressed": state.editMode,
+						onclick: () => setEdit(!state.editMode),
+					}, state.editMode ? t("dash.done") : t("dash.edit"))
+					: undefined,
 				headerRight: [
-					m("a.dash-back", { href: "/dashboards/" }, t("dash.back")),
 					dash
 						? [
-								m("span.dash-name-btn", [
-									m("button.dash-name", { onclick: () => (state.dashMenu = !state.dashMenu) }, `${dash.name} ▾`),
-									state.dashMenu
-										? m("div.dash-popup.dash-name-menu", [
-												m("button", { onclick: () => void newDashboard() }, t("dash.new")),
-												m("button", { onclick: renameDashboard }, t("dash.rename")),
-												m("button.danger", { onclick: () => void deleteDashboard() }, t("dash.delete")),
-											])
-										: null,
-								]),
-								m("button.dash-edittoggle", { onclick: () => setEdit(!state.editMode) }, state.editMode ? t("dash.done") : t("dash.edit")),
-								m("span.dash-save.dash-save-" + state.saveState, state.saveState === "idle" ? "" : t(state.saveState === "saving" ? "dash.saving" : state.saveState === "saved" ? "dash.saved" : "dash.save_error")),
-								m("span.dash-online.muted", state.onlineText),
-							]
+							m("span.dash-save.dash-save-" + state.saveState, state.saveState === "idle" ? "" : t(state.saveState === "saving" ? "dash.saving" : state.saveState === "saved" ? "dash.saved" : "dash.save_error")),
+							m("button.icon-link.dash-fullscreen", {
+								type: "button",
+								title: t(document.fullscreenElement ? "dash.exit_fullscreen" : "dash.fullscreen"),
+								"aria-label": t(document.fullscreenElement ? "dash.exit_fullscreen" : "dash.fullscreen"),
+								"aria-pressed": !!document.fullscreenElement,
+								disabled: !document.fullscreenEnabled,
+								onclick: () => void toggleFullscreen(),
+							}, actionIcon(document.fullscreenElement ? "exitFullscreen" : "fullscreen")),
+						]
 						: null,
 				],
 			},
 			dash
 				? [
-						state.toast ? m("div.dash-toast", state.toast) : null,
-						state.editMode
-							? m(
-									"div.dash-add-bar",
-									m("a.dash-add", { href: `/dashboards/add/${encodeURIComponent(dash.id)}/` }, `+ ${t("dash.add_widget")}`),
-								)
-							: null,
-						m(GridDashboard, {
-							widgets: dash.widgets,
-							columns: colsOf(dash),
-							editMode: state.editMode,
-							actions,
-							onLayout,
-						}),
-						dash.widgets.length ? null : m("p.dash-empty.muted", t("dash.no_widgets")),
-					]
+					state.toast ? m("div.dash-toast", state.toast) : null,
+					state.editMode
+						? m(
+							"div.dash-add-bar",
+							m("button.dash-add", {
+								type: "button",
+								onclick: () => { location.href = `/dashboards/add/${encodeURIComponent(dash.id)}/`; },
+							}, `+ ${t("dash.add_widget")}`),
+						)
+						: null,
+					m(GridDashboard, {
+						widgets: dash.widgets,
+						columns: colsOf(dash),
+						editMode: state.editMode,
+						actions,
+						onLayout,
+					}),
+					dash.widgets.length ? null : m("p.dash-empty.muted", t("dash.no_widgets")),
+				]
 				: m("p.muted", t("mgmt.loading")),
 		);
 	},
@@ -272,18 +282,17 @@ void (async () => {
 	setWidgetConfigSaver(() => scheduleSave());
 	setDashboardChangedSink(onDashboardsChanged);
 	await refreshDevices();
-	state.onlineText = onlineText();
 	syncConnectionsFor(state.dash);
 	ensureDashboardsWs();
 	m.redraw();
 	setInterval(() => {
 		void (async () => {
 			await refreshDevices();
-			state.onlineText = onlineText();
 			syncConnectionsFor(state.dash);
 			m.redraw();
 		})();
 	}, REFRESH_MS);
 })();
 
+document.addEventListener("fullscreenchange", () => m.redraw());
 mountPage(t("dash.title"), App);

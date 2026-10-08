@@ -150,7 +150,7 @@ const App: m.Component = {
 			Page,
 			{
 				title: t("dash.title"),
-				nav: serverNav("dashboards"),
+				//nav: serverNav("dashboards"),
 				headerRight: [
 					m("a.dash-back", { href: "/dashboards/" }, t("dash.back")),
 					m("span.dash-name", ` ${t("dash.add_widget")} · ${dash.name}`),
