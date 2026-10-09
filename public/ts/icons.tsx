@@ -2,22 +2,17 @@
  *
  * lucide-mithril components are Mithril `{view}` objects, and TS's JSX type
  * checking additionally requires element types to be callable — so each icon
- * we use is re-exported through `wrapIcon` as a stateless function component. */
+ * we use is re-exported through the shared JSX adapter. */
 import m from "mithril";
 import * as L from "lucide-mithril";
 import type { Role } from "../types";
 import { t } from "./i18n";
+import { pum } from "./jsx";
 import { css } from "styled-system/css";
 
 export type IconProps = m.Attributes & { size?: number };
 
-/** Make a lucide `{view}` component usable as a JSX element. Mithril calls function
- * components with the vnode, while TS's JSX type check expects a props argument —
- * the cast bridges the two calling conventions. */
-const wrapIcon = (c: m.Component<m.Attributes>) => {
-	const render = (v: m.Vnode): m.Vnode => m(c, v.attrs);
-	return render as unknown as (props: IconProps) => m.Vnode;
-};
+const wrapIcon = (c: m.Component<m.Attributes>) => pum<IconProps>(c);
 
 export const Check = wrapIcon(L.Check);
 export const ChevronLeft = wrapIcon(L.ChevronLeft);

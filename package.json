@@ -7,6 +7,8 @@
     "test": "bun test"
   },
   "devDependencies": {
+    "@pandacss/dev": "^2.2.0",
+    "@pandacss/preset-panda": "^2.2.0",
     "@types/bun": "^1.4.2",
     "@types/mithril": "^2.2.9",
     "@types/node": "^26.6.3",
@@ -17,6 +19,7 @@
   "dependencies": {
     "gridstack": "^11",
     "mithril": "^2.3.8",
+    "panda-ui-mithril": "https://github.com/carlos-sweb/panda-ui-mithril.git",
     "tiktok-live-connector": "^2.5.0",
     "youtube-chat-next": "^3.1.0",
     "zod": "^4.6.5"

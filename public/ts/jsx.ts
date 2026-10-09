@@ -1,13 +1,12 @@
-/* Bridges between Mithril's function-component convention (called with the vnode) and
- * TypeScript's JSX type checking (treats the first parameter as the props type). */
+/* Bridges Mithril's object components and TypeScript's JSX props checking. */
 import type m from "mithril";
 
-export type JSXComponent<A> = (props: A) => m.Vnode;
+export type JSXComponent<A> = m.Component<A> & ((props: A) => m.Vnode);
 
-/** App function components (mithril renders them with the vnode). */
+/** Bare view functions must be wrapped: Mithril calls function tags as component factories. */
 export const asJSX = <A,>(fn: (v: m.Vnode<A>) => m.Vnode | m.Children): JSXComponent<A> =>
-	fn as unknown as JSXComponent<A>;
+	pum({ view: fn });
 
 /** panda-ui-mithril components are `m.Component` objects with a `view`; mithril's
  * renderer handles them natively, JSX type-checking only needs a props call. */
-export const pum = <A,>(c: m.Component<A>): JSXComponent<A> => c as unknown as JSXComponent<A>;
+export const pum = <A,>(c: m.Component<A>): JSXComponent<A> => c as JSXComponent<A>;
