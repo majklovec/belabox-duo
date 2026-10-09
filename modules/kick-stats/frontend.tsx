@@ -8,8 +8,11 @@ import { ChannelWidgetModule, type ChannelLive, type StatsSample } from "./types
 import { badge as badgeEl } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import { KICK_STATS_CONFIG_FIELDS } from "./backend";
+import { pum } from "../../public/ts/jsx";
 import { LineChart } from "./graph-linechart";
-import "./styles.css";
+import { css, cx } from "styled-system/css";
+
+const LineChartView = pum(LineChart);
 
 /** The widget's channel name ("" when not configured) — the module owns which
  * config parameter carries it. */
@@ -38,27 +41,37 @@ function durationMinutes(fromMs: number, toMs: number): string {
 /** The card body: stream info on top, the viewers line chart below. */
 function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 	const channel = channelOf(w);
-	if (!channel) return m("p.muted", t("dash.widget_not_configured"));
+	if (!channel) return <p class={css({color: "neutral"})}>{t("dash.widget_not_configured")}</p>;
 	const s = live.stats;
-	if (!s) return m("p.muted", t("kickstats.waiting"));
+	if (!s) return <p class={css({color: "neutral"})}>{t("kickstats.waiting")}</p>;
 	const now = s.at;
-	return m("div.kick-stats", [
-		m("div.kick-stats-top", [
-			m("span.big", [m("span.kick-viewers", (s.viewers ?? 0).toLocaleString()), ` ${t("kickstats.viewers")}`]),
-			s.isLive ? badgeEl(t("kickstats.live"), "on") : badgeEl(t("kickstats.offline"), "off"),
-		]),
-		s.title ? m("p.kick-title", s.title) : null,
-		m("div.kick-stats-meta", [
-			s.category ? m("span", s.category) : null,
-			s.startTime ? m("span.muted", `${t("kickstats.start")} ${new Date(s.startTime).toLocaleString()}`) : null,
-			(s.isLive && s.startTime) ? m("span.muted", `${t("kickstats.duration")} ${durationMinutes(s.startTime, now)}`) : null,
-		]),
-		m("div.kick-spark", [
-			(s.series && s.series.length >= 2)
-				? m(LineChart, { points: s.series, title: `${channel} — ${t("kickstats.chart")}`, key: `c${s.series.length}` })
-				: m("span.muted", t("kickstats.spark_pending")),
-		]),
-	]);
+	return (
+		<div class={cx("kick-stats", css({display: "flex", height: "100%", flexDirection: "column", gap: "0.5rem"}))}>
+			<div class={css({display: "flex", alignItems: "center", gap: "0.5rem"})}>
+				<span class={css({fontSize: "1.875rem", lineHeight: "2.25rem", fontWeight: "600"})}>
+					{(s.viewers ?? 0).toLocaleString()} {t("kickstats.viewers")}
+				</span>
+				{s.isLive ? badgeEl(t("kickstats.live"), "on") : badgeEl(t("kickstats.offline"), "off")}
+			</div>
+			{s.title ? <p class={css({overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.875rem", lineHeight: "1.25rem"})}>{s.title}</p> : null}
+			<div class={css({display: "flex", flexWrap: "wrap", columnGap: "0.75rem", rowGap: "0.25rem", fontSize: "0.75rem", lineHeight: "1rem"})}>
+				{s.category ? <span>{s.category}</span> : null}
+				{s.startTime ? (
+					<span class={css({color: "neutral"})}>{`${t("kickstats.start")} ${new Date(s.startTime).toLocaleString()}`}</span>
+				) : null}
+				{s.isLive && s.startTime ? (
+					<span class={css({color: "neutral"})}>{`${t("kickstats.duration")} ${durationMinutes(s.startTime, now)}`}</span>
+				) : null}
+			</div>
+			<div class={css({minHeight: "0px", flex: "1"})}>
+				{s.series && s.series.length >= 2 ? (
+					<LineChartView key={`c${s.series.length}`} points={s.series} title={`${channel} — ${t("kickstats.chart")}`} />
+				) : (
+					<span class={css({color: "neutral"})}>{t("kickstats.spark_pending")}</span>
+				)}
+			</div>
+		</div>
+	);
 }
 
 const kickStatsModule: ChannelWidgetModule<ServerDashboardWidget> = {

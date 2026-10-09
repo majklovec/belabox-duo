@@ -6,6 +6,7 @@ import { LOG_MAX, type LogEntry, type LogEvent, label } from "../../../src/logMe
 import { Card } from "../components/ui";
 import { t } from "../i18n";
 import { type Level, levelIcon } from "../icons";
+import { css, cx } from "styled-system/css";
 
 const LEVEL_KEY: Record<Level, string> = {
 	info: "log.level.info",
@@ -54,32 +55,28 @@ function sorted(): LogEntry[] {
 function time(at: number): m.Vnode {
 	const date = new Date(at);
 	const today = date.toDateString() === new Date().toDateString();
-	return m(
-		"time",
-		{ datetime: date.toISOString(), title: date.toLocaleString() },
-		today ? date.toLocaleTimeString() : date.toLocaleString(),
+	return (
+		<time datetime={date.toISOString()} title={date.toLocaleString()}>
+			{today ? date.toLocaleTimeString() : date.toLocaleString()}
+		</time>
 	);
 }
 
 export const LogCard: m.Component = {
-	view: () =>
-		m(
-			Card,
-			{ title: t("dev.card.log") },
-			m(
-				"code#log",
-				sorted().map((e) =>
-					m(
-						"li",
-						{ key: keyOf(e), class: `log-${e.level}` },
-						levelIcon(e.level),
-						time(e.at),
-						m("span.log-level", t(LEVEL_KEY[e.level])),
-						m("span.log-section", label(e.section)),
-						m("span.log-message", e.message),
-						m("span.log-count", (e.count ?? 1) > 1 ? `×${e.count}` : null),
-					),
-				),
-			),
-		),
+	view: () => (
+		<Card title={t("dev.card.log")}>
+			<code id="log" class={css({display: "flex", flexDirection: "column", overflowY: "auto", fontFamily: "mono", fontSize: "0.75rem", lineHeight: "1rem"})}>
+				{sorted().map((e) => (
+					<li key={keyOf(e)} class={cx(css({ display: "flex", alignItems: "center", gap: "0.5rem", borderRadius: "0.25rem", paddingInline: "0.5rem", paddingBlock: "0.25rem" }), e.level === "error" ? css({ color: "error" }) : e.level === "warn" ? css({ color: "warning" }) : undefined)}>
+						{levelIcon(e.level)}
+						{time(e.at)}
+						<span class={css({textTransform: "uppercase", opacity: "0.6"})}>{t(LEVEL_KEY[e.level])}</span>
+						<span class={css({opacity: "0.7"})}>{label(e.section)}</span>
+						<span class={css({minWidth: "0px", flex: "1"})}>{e.message}</span>
+						{(e.count ?? 1) > 1 && <span class={css({opacity: "0.6"})}>×{e.count}</span>}
+					</li>
+				))}
+			</code>
+		</Card>
+	),
 };

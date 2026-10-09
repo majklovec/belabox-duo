@@ -76,7 +76,7 @@ function ceracoderControls(host: DeviceCard): m.Children {
 			),		
 		actions(
 			button(t("dev.apply_cera"), {
-				class: "secondary",
+				tone: "secondary",
 				disabled: !host.enabled("ceracoder-apply"),
 				onclick: () =>
 					host.press("ceracoder-apply", "ceracoder.set", {
@@ -99,10 +99,10 @@ function pipelineOptions(host: DeviceCard): m.Children {
 	const groups = new Map<string, Pipeline[]>();
 	for (const p of host.st.pipelines) groups.set(p.group, [...(groups.get(p.group) ?? []), p]);
 	if (!groups.size)
-		return m("option", { value: "", disabled: true }, `${t("dev.no_pipelines", host.st.pipelineDir)} ${t("dev.no_pipelines_hint")}`);
+		return <option value="" disabled>{`${t("dev.no_pipelines", host.st.pipelineDir)} ${t("dev.no_pipelines_hint")}`}</option>;
 	return [...groups].map(([group, list]) => {
 		const opts = options(list.map((p) => [p.id, p.name]));
-		return group ? m("optgroup", { key: group, label: group }, opts) : m.fragment({ key: "" }, opts);
+		return group ? <optgroup key={group} label={group}>{opts}</optgroup> : opts;
 	});
 }
 
@@ -136,11 +136,10 @@ export function encoderCardBody(host: DeviceCard, status: Status): m.Vnode {
 	const { fields, touched } = host;
 	const combined = status.role === "combined";
 	const pipeline = host.selectedPipeline();
-	return m(
-		Card,
-		{ title: t("dev.card.encoder"), class: "mod-encoder" },
-		definitionList(statusRows(host, status)),
-		form(
+	return (
+		<Card title={t("dev.card.encoder")} class="mod-encoder">
+			{definitionList(statusRows(host, status))}
+			{form(
 			{ onSubmit: host.encoderStart },
 			fieldGroup(
 				t("dev.group.video"),
@@ -162,7 +161,7 @@ export function encoderCardBody(host: DeviceCard, status: Status): m.Vnode {
 					actions(
 						input(fields, "maxBitrate", BITRATE_ATTRS("5000")),
 						button(t("dev.apply_bitrate"), {
-							class: "secondary",
+							tone: "secondary",
 							disabled: !host.enabled("encoder-bitrate"),
 							onclick: () =>
 								host.press("encoder-bitrate", "encoder.bitrate", {
@@ -205,7 +204,8 @@ export function encoderCardBody(host: DeviceCard, status: Status): m.Vnode {
 				field(t("dev.field.stream_id"), input(fields, "streamid", { placeholder: t("ui.optional") })),
 			),
 			!combined && [brk(), host.streamButtons("encoder.stop")],
-		),
+			)}
+		</Card>
 	);
 }
 

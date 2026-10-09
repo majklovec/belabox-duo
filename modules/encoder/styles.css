@@ -1,5 +1,0 @@
-/* Encoder module — no module-specific styles.
- * The card composes the shared core components (Card, form, fieldGroup…) so
- * its look comes from public/css/style.css; the .mod-encoder class on the
- * card root exists for future scoping.
- */

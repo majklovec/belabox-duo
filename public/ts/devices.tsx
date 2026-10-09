@@ -2,11 +2,12 @@
  * list (devices.snapshot / devices.changed over the shared feed websocket). */
 import m from "mithril";
 import type { DeviceSummary } from "../types";
-import { badge, Card, type Child, encoderIssueBadge, Page, serverNav } from "./components/ui";
+import { badge, Card, muted, type Child, encoderIssueBadge, Page, serverNav } from "./components/ui";
 import { i18nReady, t } from "./i18n";
 import { icon, roleTag } from "./icons";
 import { serverLive } from "./services/serverws";
 import { formatBitrate, mountPage, since } from "./util";
+import { css, cx } from "styled-system/css";
 
 const state = {
 	connected: false,
@@ -55,7 +56,11 @@ function streamState(d: DeviceSummary): Child {
 function bitrate(d: DeviceSummary): Child {
 	const live = d.online && d.bitrate !== undefined ? formatBitrate(d.bitrate) : null;
 	const max = d.maxBitrate !== undefined ? t("dev.max_value", formatBitrate(d.maxBitrate * 125)) : null;
-	if (live && max) return m("span", live, " / ", m("span.muted", max));
+	if (live && max) return (
+		<span>
+			{live} / {muted(max)}
+		</span>
+	);
 	return live ?? max ?? "—";
 }
 
@@ -63,37 +68,28 @@ function row(d: DeviceSummary): m.Vnode {
 	const { srtla: s, encoder: e } = d;
 	// A new vnode per cell: mithril cannot patch one vnode object into two slots
 	const stoppedBadge = () => badge(t("dev.badge.stopped"), "warn");
-	return m(
-		"tr",
-		{ key: d.id },
-		// The dot wears the device's header color and beats while the link is up;
-		// the uuid is stable, the hostname is the display name (shown when present)
-		m(
-			"td",
-			m(
-				"a.device",
-				{ href: `d/${encodeURIComponent(d.id)}/`, title: d.id },
-				m("span.device-dot", {
-					class: d.online ? "online" : "",
-					style: d.color ? `background:${d.color};color:${d.color}` : "",
-				}),
-				d.hostname || d.id,
-			),
-		),
-		m("td.muted", d.role ? roleTag(d.role) : "—"),
-		m("td", d.online ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off")),
-		m("td", d.online ? since(d.connectedAt) : t("mgmt.last_seen", since(d.lastSeen))),
-		m("td", streamState(d)),
-		m("td", bitrate(d)),
-		m("td", d.online && d.totalLinks !== undefined ? `${d.activeLinks ?? 0}/${d.totalLinks}` : "—"),
-		m(
-			"td",
-			hasEncoder(d) && e ? (e.running ? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on") : stoppedBadge()) : "—",
-		),
-		m(
-			"td",
-			d.role !== "encoder" && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : stoppedBadge()) : "—",
-		),
+	return (
+		<tr key={d.id}>
+			{/* The dot wears the device's header color and beats while the link is
+			 * up; the uuid is stable, the hostname is the display name */}
+			<td>
+				<a class={css({display: "inline-flex", alignItems: "center", gap: "0.5rem", "&:hover": {textDecorationLine: "underline"}})} href={`d/${encodeURIComponent(d.id)}/`} title={d.id}>
+					<span
+						class={cx(css({ display: "inline-block", width: "0.5rem", height: "0.5rem", borderRadius: "9999px" }), d.online && css({ animation: "pulse" }))}
+						style={d.color ? `background:${d.color};color:${d.color}` : ""}
+					/>
+					{d.hostname || d.id}
+				</a>
+			</td>
+			<td>{muted(d.role ? roleTag(d.role) : "—", "span")}</td>
+			<td>{d.online ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off")}</td>
+			<td>{d.online ? since(d.connectedAt) : t("mgmt.last_seen", since(d.lastSeen))}</td>
+			<td>{streamState(d)}</td>
+			<td>{bitrate(d)}</td>
+			<td>{d.online && d.totalLinks !== undefined ? `${d.activeLinks ?? 0}/${d.totalLinks}` : "—"}</td>
+			<td>{hasEncoder(d) && e ? (e.running ? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on") : stoppedBadge()) : "—"}</td>
+			<td>{d.role !== "encoder" && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : stoppedBadge()) : "—"}</td>
+		</tr>
 	);
 }
 
@@ -109,35 +105,30 @@ const columnHeaders = (): m.Children[] => [
 	[icon("relay"), ` ${t("setup.step.relay")}`],
 ];
 
-const App: m.Component = {
-	view: () => {
-		const headers = columnHeaders();
-		return m(
-			Page,
-			{ title: t("mgmt.title"), nav: serverNav("devices"), headerRight: connBadge() },
-			m(
-				Card,
-				{  },
-				m(
-					"table",
-					m("thead", m("tr", headers.map((h) => m("th", h)))),
-					m(
-						"tbody",
-						state.devices?.length
+const App = () => {
+	const headers = columnHeaders();
+	return (
+		<Page title={t("mgmt.title")} nav={serverNav("devices")} headerRight={connBadge()}>
+			<Card>
+				<table class={css({width: "100%", fontSize: "0.875rem", lineHeight: "1.25rem"})}>
+					<thead>
+						<tr>
+							{headers.map((h, i) => <th key={i} class={css({paddingInline: "0.75rem", paddingBlock: "0.5rem", textAlign: "left", fontWeight: "500"})}>{h}</th>)}
+						</tr>
+					</thead>
+					<tbody class={css({"& td": {paddingInline: "0.75rem", paddingBlock: "0.5rem"}})}>
+						{state.devices?.length
 							? state.devices.map(row)
-							: m(
-									"tr",
-									m(
-										"td",
-										{ colspan: headers.length, class: "muted" },
-										state.devices ? t("mgmt.none") : t("mgmt.loading"),
-									),
-								),
-					),
-				),
-			),
-		);
-	},
+							: <tr>
+									<td colspan={headers.length}>
+										{muted(state.devices ? t("mgmt.none") : t("mgmt.loading"), "span")}
+									</td>
+							 </tr>}
+					</tbody>
+				</table>
+			</Card>
+		</Page>
+	);
 };
 
 void mountPage(() => t("mgmt.title"), App);

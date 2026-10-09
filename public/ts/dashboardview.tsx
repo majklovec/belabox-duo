@@ -9,7 +9,7 @@
  * the dashboard from the server. */
 import m from "mithril";
 import type { ServerDashboard, ServerDashboardWidget } from "../types";
-import { Page, serverNav, TitleWithBack } from "./components/ui";
+import { button, Page, serverNav, TitleWithBack } from "./components/ui";
 import {
 	ensureDashboardsWs,
 	refreshDevices,
@@ -18,10 +18,14 @@ import {
 	syncConnectionsFor,
 	type WidgetActions,
 } from "./dashboard";
+import { pum } from "./jsx";
 import { GridDashboard } from "./dashboardgrid";
 import { t } from "./i18n";
 import { actionIcon } from "./icons";
 import { mountPage } from "./util";
+import { css } from "styled-system/css";
+
+const GridDashboardView = pum(GridDashboard);
 
 const SAVE_DEBOUNCE_MS = 500;
 const PATH_RE = /\/dashboards\/(view|edit)\/([^/]+)\/?$/;
@@ -209,61 +213,73 @@ function onDashboardsChanged(data: { id: string; widgets: ServerDashboardWidget[
 const App: m.Component = {
 	view() {
 		if (state.notFound) {
-			return m(Page, { title: t("dash.title"), nav: serverNav("dashboards") }, m("p.muted", t("dash.not_found")));
+			return (
+				<Page title={t("dash.title")} nav={serverNav("dashboards")}>
+					<p class={css({fontSize: "0.875rem", lineHeight: "1.25rem", color: "neutral"})}>{t("dash.not_found")}</p>
+				</Page>
+			);
 		}
 		const dash = state.dash;
-		return m(
-			Page,
-			{
-				title: m(TitleWithBack, {
-					href: "/dashboards/",
-					backLabel: t("dash.back"),
-				}, dash?.name ?? t("dash.title")),
-				nav: dash
-					? m("button.dash-edittoggle", {
-						type: "button",
-						"aria-pressed": state.editMode,
-						onclick: () => setEdit(!state.editMode),
-					}, state.editMode ? t("dash.done") : t("dash.edit"))
-					: undefined,
-				headerRight: [
+		return (
+			<Page
+				title={
+					<TitleWithBack href="/dashboards/" backLabel={t("dash.back")}>
+						{dash?.name ?? t("dash.title")}
+					</TitleWithBack>
+				}
+				nav={
+					dash
+						? button(dash && state.editMode ? t("dash.done") : t("dash.edit"), {
+							"aria-pressed": state.editMode,
+							onclick: () => setEdit(!state.editMode),
+						})
+						: undefined
+				}
+				headerRight={
 					dash
 						? [
-							m("span.dash-save.dash-save-" + state.saveState, state.saveState === "idle" ? "" : t(state.saveState === "saving" ? "dash.saving" : state.saveState === "saved" ? "dash.saved" : "dash.save_error")),
-							m("button.icon-link.dash-fullscreen", {
-								type: "button",
-								title: t(document.fullscreenElement ? "dash.exit_fullscreen" : "dash.fullscreen"),
-								"aria-label": t(document.fullscreenElement ? "dash.exit_fullscreen" : "dash.fullscreen"),
-								"aria-pressed": !!document.fullscreenElement,
-								disabled: !document.fullscreenEnabled,
-								onclick: () => void toggleFullscreen(),
-							}, actionIcon(document.fullscreenElement ? "exitFullscreen" : "fullscreen")),
+							state.saveState === "idle"
+								? null
+								: <span class={css({fontSize: "0.875rem", lineHeight: "1.25rem", color: "neutral"})}>{t(state.saveState === "saving" ? "dash.saving" : state.saveState === "saved" ? "dash.saved" : "dash.save_error")}</span>,
+							<button
+								class={css({display: "inline-flex", alignItems: "center", borderRadius: "0.375rem", padding: "0.25rem", "&:hover": {backgroundColor: "neutral/10"}, "&:disabled": {opacity: "0.5"}})}
+								type="button"
+								title={t(document.fullscreenElement ? "dash.exit_fullscreen" : "dash.fullscreen")}
+								aria-label={t(document.fullscreenElement ? "dash.exit_fullscreen" : "dash.fullscreen")}
+								aria-pressed={!!document.fullscreenElement}
+								disabled={!document.fullscreenEnabled}
+								onclick={() => void toggleFullscreen()}
+							>
+								{actionIcon(document.fullscreenElement ? "exitFullscreen" : "fullscreen")}
+							</button>,
 						]
-						: null,
-				],
-			},
-			dash
-				? [
-					state.toast ? m("div.dash-toast", state.toast) : null,
-					state.editMode
-						? m(
-							"div.dash-add-bar",
-							m("button.dash-add", {
-								type: "button",
-								onclick: () => { location.href = `/dashboards/add/${encodeURIComponent(dash.id)}/`; },
-							}, `+ ${t("dash.add_widget")}`),
-						)
-						: null,
-					m(GridDashboard, {
-						widgets: dash.widgets,
-						columns: colsOf(dash),
-						editMode: state.editMode,
-						actions,
-						onLayout,
-					}),
-					dash.widgets.length ? null : m("p.dash-empty.muted", t("dash.no_widgets")),
-				]
-				: m("p.muted", t("mgmt.loading")),
+						: null
+				}
+			>
+				{dash && [
+					state.toast && (
+						<div class={css({borderRadius: "0.375rem", borderWidth: "1px", borderColor: "neutral/30", backgroundColor: "neutral/10", paddingInline: "0.75rem", paddingBlock: "0.5rem", fontSize: "0.875rem", lineHeight: "1.25rem"})}>{state.toast}</div>
+					),
+					state.editMode && (
+						<div class={css({display: "flex", alignItems: "center", gap: "0.5rem"})}>
+							{button(`+ ${t("dash.add_widget")}`, {
+								onclick: () => {
+									location.href = `/dashboards/add/${encodeURIComponent(dash.id)}/`;
+								},
+							})}
+						</div>
+					),
+					<GridDashboardView
+						widgets={dash.widgets}
+						columns={colsOf(dash)}
+						editMode={state.editMode}
+						actions={actions}
+						onLayout={onLayout}
+					/>,
+					!dash.widgets.length && <p class={css({fontSize: "0.875rem", lineHeight: "1.25rem", color: "neutral"})}>{t("dash.no_widgets")}</p>,
+				]}
+				{!dash && <p class={css({fontSize: "0.875rem", lineHeight: "1.25rem", color: "neutral"})}>{t("mgmt.loading")}</p>}
+			</Page>
 		);
 	},
 };

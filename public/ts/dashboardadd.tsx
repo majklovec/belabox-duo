@@ -8,11 +8,12 @@
  * conflict reloads the server copy; the widget is not added twice. */
 import m from "mithril";
 import type { ServerDashboard, ServerDashboardWidget, WidgetType } from "../types";
-import { Page, button, field, fieldGroup, input, serverNav } from "./components/ui";
+import { actions, muted, Page, button, field, input, serverNav } from "./components/ui";
 import { devices, independentTypes, isIndependent, typeLabel, refreshDevices, widgetSize, widgetTypesFor } from "./dashboard";
 import { widgetModule } from "../../src/registry.frontend";
 import { t } from "./i18n";
 import { mountPage } from "./util";
+import { css } from "styled-system/css";
 
 const ADD_PATH_RE = /\/dashboards\/add\/([^/]+)\/?$/;
 
@@ -140,64 +141,67 @@ const App: m.Component = {
 	view() {
 		const dash = state.dash;
 		if (state.notFound) {
-			return m(Page, { title: t("dash.title"), nav: serverNav("dashboards") }, m("p.muted", t("dash.not_found")));
+			return (
+				<Page title={t("dash.title")} nav={serverNav("dashboards")}>
+					<p class={css({fontSize: "0.875rem", lineHeight: "1.25rem", color: "neutral"})}>{t("dash.not_found")}</p>
+				</Page>
+			);
 		}
-		if (!dash) return m(Page, { title: t("dash.title"), nav: serverNav("dashboards") }, m("p.muted", t("mgmt.loading")));
+		if (!dash)
+			return (
+				<Page title={t("dash.title")} nav={serverNav("dashboards")}>
+					<p class={css({fontSize: "0.875rem", lineHeight: "1.25rem", color: "neutral"})}>{t("mgmt.loading")}</p>
+				</Page>
+			);
 
 		const type = state.type;
 		const groups = typeGroups();
-		return m(
-			Page,
-			{
-				title: t("dash.title"),
-				//nav: serverNav("dashboards"),
-				headerRight: [
-					m("a.dash-back", { href: "/dashboards/" }, t("dash.back")),
-					m("span.dash-name", ` ${t("dash.add_widget")} · ${dash.name}`),
-				],
-			},
-			m("div.dash-add-page", [
-				m("h2.dash-add-heading", t("dash.add_widget")),
-				m(
-					"form.dash-add-form",
-					{
-						onsubmit: (e: Event) => {
+		return (
+			<Page
+				title={t("dash.title")}
+				headerRight={actions(
+					button(t("dash.back"), { href: "/dashboards/" }),
+					muted(`${t("dash.add_widget")} · ${dash.name}`),
+				)}
+			>
+				<div class={css({display: "flex", flex: "1", flexDirection: "column", gap: "0.75rem"})}>
+					<h2 class={css({fontSize: "1rem", lineHeight: "1.5rem", fontWeight: "600"})}>{t("dash.add_widget")}</h2>
+					<form
+						class={css({display: "flex", flexDirection: "column", gap: "0.75rem"})}
+						onsubmit={(e: Event) => {
 							e.preventDefault();
 							void submit();
-						},
-					},
-					[
-						field(
+						}}
+					>
+						{field(
 							t("dash.widget_type"),
-							m(
-								"select",
-								{
-									value: selectedValue(),
-									onchange: (e: Event) => onTypeChange((e.target as HTMLSelectElement).value),
-								},
-								[
-									// m("option", { key: "", value: "" }, "…"),
-									...groups.map((g) =>
-										m(
-											"optgroup",
-											{ key: g.label, label: g.label },
-											g.types.map((ty) => m("option", { key: optionValue(g.device, ty), value: optionValue(g.device, ty) }, typeLabel(ty))),
-										),
-									),
-								],
-							),
-						),
-						...(type ? (widgetModule(type)?.configFields ?? []).map((name) =>
+							<select
+								class="select"
+								value={selectedValue()}
+								onchange={(e: Event) => onTypeChange((e.target as HTMLSelectElement).value)}
+							>
+								{groups.map((g) => (
+									<optgroup key={g.label} label={g.label}>
+										{g.types.map((ty) => (
+											<option key={optionValue(g.device, ty)} value={optionValue(g.device, ty)}>
+												{typeLabel(ty)}
+											</option>
+										))}
+									</optgroup>
+								))}
+							</select>,
+						)}
+						{...(type ? (widgetModule(type)?.configFields ?? []).map((name) =>
 							field(t(`dash.widget_${name}`), input(state.config, name, { type: "text", placeholder: t(`dash.widget_${name}`) })),
-						) : []),
-						m("div.dash-config-actions.dash-add-actions", [
-							button(t("dash.add"), { type: "submit", disabled: state.saveState === "saving" }),
-							state.saveState === "saving" ? m("span.dash-save.dash-save-saving", t("dash.saving")) : null,
-							state.saveState === "error" ? m("span.dash-save.dash-save-error", t("dash.save_error")) : null,
-						]),
-					],
-				),
-			]),
+						) : [])}
+						<div class={css({display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem"})}>
+							{button(t("dash.add"), { type: "submit", disabled: state.saveState === "saving" })}
+							{state.saveState === "saving" && <span class={css({fontSize: "0.875rem", lineHeight: "1.25rem", color: "neutral"})}>{t("dash.saving")}</span>}
+							{state.saveState === "error" && <span class={css({fontSize: "0.875rem", lineHeight: "1.25rem", color: "error"})}>{t("dash.save_error")}</span>}
+						</div>
+					</form>
+				</div>
+			</Page>
 		);
 	},
 };

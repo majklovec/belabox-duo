@@ -1,7 +1,8 @@
 {
   "scripts": {
     "gen:modules": "bun scripts/gen-modules.ts",
-    "predev": "bun scripts/gen-modules.ts",
+    "gen:panda": "bun scripts/gen-panda.ts",
+    "predev": "bun gen:modules && bun gen:panda",
     "dev": "bun server.ts",
     "test": "bun test"
   },

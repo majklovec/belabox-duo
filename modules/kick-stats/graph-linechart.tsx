@@ -1,5 +1,6 @@
 import m from "mithril";
 import type { StatsSample } from "./types";
+import { css } from "styled-system/css";
 // ---------------------------------------------------------------------------
 // Line chart
 //
@@ -27,11 +28,11 @@ function gridLines(vertical: number, horizontal: number, x0: number, x1: number,
     const lines: m.Children[] = [];
     for (let i = 0; i <= vertical; i++) {
         const x = x0 + (i * (x1 - x0)) / vertical;
-        lines.push(m("line", { key: `v${i}`, x1: x, x2: x, y1: y0, y2: y1 }));
+        lines.push(<line key={`v${i}`} x1={x} x2={x} y1={y0} y2={y1} />);
     }
     for (let i = 0; i <= horizontal; i++) {
         const y = y1 - (i * (y1 - y0)) / horizontal;
-        lines.push(m("line", { key: `h${i}`, x1: x0, x2: x1, y1: y, y2: y }));
+        lines.push(<line key={`h${i}`} x1={x0} x2={x1} y1={y} y2={y} />);
     }
     return lines;
 }
@@ -65,7 +66,7 @@ export const LineChart: m.Component<{ points: StatsSample[]; title?: string }, S
     },
     view: (vnode) => {
         const { points } = vnode.attrs;
-        if (!points.length) return m("svg.spark", { role: "img", "aria-hidden": "true" });
+        if (!points.length) return <svg role="img" aria-hidden="true" />;
         const n = points.length;
 
         // Fit the viewBox height to the container aspect so the chart scales
@@ -91,35 +92,40 @@ export const LineChart: m.Component<{ points: StatsSample[]; title?: string }, S
         for (let i = 0; i < tickCount; i++) {
             const idx = tickCount === 1 ? 0 : Math.round((i * (n - 1)) / (tickCount - 1));
             const [x] = pt(idx);
-            xTicks.push(m("text", { key: `x${i}`, x, y: y1 + 5, "text-anchor": "middle", "font-size": 3 }, timeLabel(points[idx]!.t)));
+            xTicks.push(<text key={`x${i}`} x={x} y={y1 + 5} textAnchor="middle" fontSize={3}>{timeLabel(points[idx]!.t)}</text>);
         }
 
-        return m(
-            "svg.spark",
-            {
-                viewBox: `0 0 ${W} ${h}`,
-                preserveAspectRatio: "xMidYMid meet",
-                role: "img",
-                "aria-label": vnode.attrs.title,
-            },
-            [
-                // Grid (mirrors the reference's dashed grid).
-                m("g", { class: "spark-grid" }, gridLines(GRID_V, gridH, x0, x1, y0, y1)),
-                // Y legends: min / max of the visible series.
-                m("g", { class: "spark-axis" }, [
-                    m("text", { key: "max", x: x0 - 1, y: y0 + 1, "text-anchor": "end", "font-size": 3 }, fmt(max)),
-                    m("text", { key: "min", x: x0 - 1, y: y1 + 1, "text-anchor": "end", "font-size": 3 }, fmt(min)),
-                ]),
-                // X legends.
-                m("g", { class: "spark-axis" }, xTicks),
-                // Series points.
-                m("g", { class: "spark-points" }, points.map((p, i) => {
-                    const [x, y] = pt(i);
-                    return m("circle", { key: i, cx: x, cy: y, r: 0.8 });
-                })),
-                // The line itself.
-                m("g", { class: "spark-line" }, m("polyline", { points: points.map((_, i) => pt(i).join(",")).join(" ") })),
-            ],
+        return (
+            <svg
+                viewBox={`0 0 ${W} ${h}`}
+                preserveAspectRatio="xMidYMid meet"
+                role="img"
+                aria-label={vnode.attrs.title}
+                class={css({height: "100%", width: "100%"})}
+            >
+                {/* Grid. */}
+                <g class="spark-grid" stroke="currentColor" opacity={0.3} strokeWidth={0.3} strokeDasharray={GRID_V ? "1, 1" : undefined}>
+                    {gridLines(GRID_V, gridH, x0, x1, y0, y1)}
+                </g>
+                {/* Y legends. */}
+                <g class="spark-axis" fill="currentColor" opacity={0.7}>
+                    <text key="max" x={x0 - 1} y={y0 + 1} textAnchor="end" fontSize={3}>{fmt(max)}</text>
+                    <text key="min" x={x0 - 1} y={y1 + 1} textAnchor="end" fontSize={3}>{fmt(min)}</text>
+                </g>
+                {/* X legends. */}
+                <g class="spark-axis" fill="currentColor" opacity={0.7}>{xTicks}</g>
+                {/* Series points. */}
+                <g class="spark-points" fill="currentColor">
+                    {points.map((p, i) => {
+                        const [x, y] = pt(i);
+                        return <circle key={i} cx={x} cy={y} r={0.8} />;
+                    })}
+                </g>
+                {/* The line itself. */}
+                <g class="spark-line" stroke="currentColor" fill="none" strokeWidth={1} strokeLinejoin="round" strokeLinecap="round">
+                    <polyline points={points.map((_, i) => pt(i).join(",")).join(" ")} />
+                </g>
+            </svg>
         );
     },
 };

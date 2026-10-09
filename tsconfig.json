@@ -2,10 +2,17 @@
   "compilerOptions": {
     "noEmit": true,
     "types": ["node"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "styled-system": ["./public/css/panda"],
+      "styled-system/*": ["./public/css/panda/*"]
+    },
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "jsx": "react",
     "jsxFactory": "m",
     "jsxFragmentFactory": "m.Fragment"
-  }
+  },
+  "exclude": ["node_modules", "public/css/panda", ".panda-dist", "panda.config.ts"]
 }

@@ -9,12 +9,14 @@ import {
 	audioCodecOptions,
 	brk,
 	button,
+	Card,
 	checkbox,
 	checkField,
 	connectionBadge,
 	field,
 	form,
 	input,
+	muted,
 	numberAttrs,
 	options,
 	Page,
@@ -25,6 +27,7 @@ import { languageOptions, setLanguage, t } from "./i18n";
 import { roleCardIcon } from "./icons";
 import { RpcClient, socketUrl } from "./services/rpc";
 import { HOSTNAME_PATTERN, inRange, mountPage, setHeaderColor, toNumber } from "./util";
+import { css, cx } from "styled-system/css";
 
 interface SetupInfo {
 	required: boolean;
@@ -206,25 +209,33 @@ async function complete(): Promise<void> {
 }
 
 // -- One fieldset per step -----------------------------------------------------
-const step = (key: StepKey, heading: string, desc: string, ...children: m.Children[]) =>
-	m("fieldset.wizard-step", { "data-step": key }, m("h2.wiz-heading", heading), m("p.wiz-desc", desc), children);
+const step = (key: StepKey, heading: string, desc: string, ...children: m.Children[]): m.Vnode => (
+	<fieldset class={css({display: "flex", flexDirection: "column", gap: "0.75rem"})} data-step={key}>
+		<h2 class={css({fontSize: "1rem", lineHeight: "1.5rem", fontWeight: "600"})}>{heading}</h2>
+		{muted(desc, "p")}
+		{children}
+	</fieldset>
+);
 
-const roleCard = (value: Role, name: string, tagline: string): m.Vnode =>
-	m(
-		"label.role-card",
-		m("input", {
-			type: "radio",
-			name: "role",
-			value,
-			required: true,
-			checked: f.role === value,
-			onchange: () => (f.role = value),
-		}),
-		roleCardIcon(value),
-		m("span.role-name", name),
-		m("span.role-tagline", tagline),
-		m("img", { src: `/img/${value}.svg`, alt: "", "aria-hidden": "true" }),
-	);
+const roleCard = (value: Role, name: string, tagline: string): m.Vnode => (
+	<label
+		class={cx(css({ display: "flex", cursor: "pointer", flexDirection: "column", alignItems: "center", gap: "0.25rem", borderRadius: "0.5rem", borderWidth: "1px", padding: "1rem", textAlign: "center" }), f.role === value ? css({ borderColor: "primary", backgroundColor: "primary/5" }) : css({ borderColor: "neutral/30", "&:hover": { backgroundColor: "neutral/5" } }))}
+	>
+		<input
+			class={css({position: "absolute", width: "1px", height: "1px", padding: "0px", margin: "-1px", overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", borderWidth: "0px"})}
+			type="radio"
+			name="role"
+			value={value}
+			required
+			checked={f.role === value}
+			onchange={() => (f.role = value)}
+		/>
+		{roleCardIcon(value)}
+		<span class={css({fontSize: "0.875rem", lineHeight: "1.25rem", fontWeight: "500"})}>{name}</span>
+		{muted(tagline, "span")}
+		<img src={`/img/${value}.svg`} alt="" aria-hidden="true" />
+	</label>
+);
 
 const check = (key: "bitrateOverlay" | "srtlaQuality" | "autostart", label: string) =>
 	checkField(null, [checkbox(f, key), ` ${label}`]);
@@ -337,39 +348,39 @@ function wizard(): m.Children {
 	const last = current === steps.length - 1;
 	const stage = (i: number) => (i < current ? "done" : i === current ? "current" : "upcoming");
 	return [
-		m(
-			"ol.wizard-stepper",
-			steps.map((s, i) =>
-				m(
-					"li",
-					{ key: s.key, class: `wiz-item ${stage(i)}`, "data-step": s.key },
-					m("span.wiz-dot", i < current ? "✓" : String(i + 1)),
-					m("span.wiz-title", t(s.title)),
-					m("span.wiz-sub", t(s.sub)),
-				),
-			),
-		),
+		<ol class={css({marginBottom: "1rem", display: "flex", "& > :not(:first-child)": {borderInlineStartWidth: "1px", borderColor: "neutral/20"}})}>
+			{steps.map((s, i) => (
+				<li key={s.key} class={css({flex: "1", minWidth: "0px"})} data-step={s.key}>
+					<span
+						class={cx(css({ display: "flex", width: "1.5rem", height: "1.5rem", alignItems: "center", justifyContent: "center", borderRadius: "9999px", fontSize: "0.75rem", lineHeight: "1rem" }), stage(i) === "current" ? css({ backgroundColor: "primary" }) : stage(i) === "done" ? css({ backgroundColor: "success" }) : css({ backgroundColor: "neutral/20" }))}
+					>
+						{i < current ? "✓" : String(i + 1)}
+					</span>
+					<span class={css({display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.875rem", lineHeight: "1.25rem", fontWeight: "500"})}>{t(s.title)}</span>
+					{muted(t(s.sub), "span")}
+				</li>
+			))}
+		</ol>,
 		form(
 			{ id: "setup-form", onSubmit: complete },
 			stepBody(steps[current].key),
 			brk(),
 			actions(
-				button(t("ui.back"), { class: "secondary", hidden: current === 0, onclick: goPrev }),
+				button(t("ui.back"), { tone: "secondary", hidden: current === 0, onclick: goPrev }),
 				button(t("ui.next"), { hidden: last, onclick: goNext }),
 				button(t("setup.save"), { type: "submit", hidden: !last, disabled: state.saving }),
 			),
 		),
-		m("p.muted", { role: "status" }, state.message),
+		state.message ? muted(state.message, "p") : null,
 	];
 }
 
-const App: m.Component = {
-	view: () =>
-		m(
-			Page,
-			{ title: t("setup.title"), headerRight: connectionBadge(state.connected) },
-			m("section.card", state.loaded ? wizard() : m("p.muted", t("setup.loading"))),
-		),
-};
+const App = () => (
+	<Page title={t("setup.title")} headerRight={connectionBadge(state.connected)}>
+		<Card>
+			{state.loaded ? wizard() : muted(t("setup.loading"), "p")}
+		</Card>
+	</Page>
+);
 
 void mountPage(() => t("setup.title"), App);

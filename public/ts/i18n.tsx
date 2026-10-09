@@ -2,6 +2,8 @@
  * adds the *current* UI language (remembered in localStorage), a header <select>, and redraw. */
 import m from "mithril";
 import { asLanguage, i18nReady, LANGUAGE_INFO, LANGUAGES, type Language, setCurrentLanguage, translate } from "../../src/i18n";
+import { asJSX } from "./jsx";
+import { css, cx } from "styled-system/css";
 
 export { LANGUAGES, i18nReady };
 export type { Language };
@@ -49,18 +51,17 @@ export function setLanguage(next: string): void {
 }
 
 /** <option> per language, labelled by its flag and native name. */
-export const languageOptions = () => LANGUAGES.map((l) => m("option", { key: l, value: l }, languageLabel(l)));
+export const languageOptions = () =>
+	LANGUAGES.map((l) => <option key={l} value={l}>{languageLabel(l)}</option>);
 
 /** Header <select> listing every language by its flag and native name. */
-export const LanguageSelect: m.Component = {
-	view: () =>
-		m(
-			"select.lang-select",
-			{
-				"aria-label": t("ui.language_label"),
-				value: current,
-				onchange: (e: Event) => setLanguage((e.target as HTMLSelectElement).value),
-			},
-			languageOptions(),
-		),
-};
+export const LanguageSelect = asJSX<Record<string, never>>((v) => (
+	<select
+		class={cx("select", css({fontSize: "0.75rem", lineHeight: "1rem"}))}
+		aria-label={t("ui.language_label")}
+		value={current}
+		onchange={(e: Event) => setLanguage((e.target as HTMLSelectElement).value)}
+	>
+		{languageOptions()}
+	</select>
+));

@@ -9,3 +9,7 @@ pipeline/majklovec
 
 # Generated frontend module manifest — emitted by scripts/gen-modules.ts (predev / prebuild).
 modules/.generated.frontend.ts
+
+# Panda CSS artifacts — emitted by scripts/gen-panda.ts (predev).
+.panda-dist/
+public/css/panda/

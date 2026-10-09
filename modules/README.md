@@ -9,7 +9,7 @@ names a module by id.
 
 The core↔module boundary is enforced by `test/registries.test.ts`:
 `"core (src/ + public/ts/) names no module by id"` scans both core trees and
-fails on any module-specific import, and `frontend.ts imports nothing from /src`.
+fails on any module-specific import, and `frontend.tsx imports nothing from /src`.
 
 ## Layout
 
@@ -27,11 +27,11 @@ modules/
 Each module ships exactly:
 - `backend.ts` — default-exports a backend registration. Runs in Bun on the
   host: **no** mithril/DOM, no browser globals.
-- `frontend.ts` — default-exports a frontend registration. Runs in the browser
+- `frontend.tsx` — default-exports a frontend registration. Runs in the browser
   (mithril components), **no** `../../src` imports.
 - `types.ts` — **this module's** local types: its own config keys, status
   fragment, capability types, hub/widget types. Core-free.
-- `styles.css` — scoped under `.mod-<id>` (device card) or `.dash-card`
+(frontend styling is panda-ui-mithril components + panda utility classes)
   (dashboard widget).
 - any number of plain helpers for its own use (e.g. obs-controller's
   `switcher-engine.ts`, kick-stats' `graph-linechart.ts`).
@@ -63,7 +63,7 @@ Default-exports an object the registry validates structurally:
 | `hub?` | no | channel-widget hub (`widgetType`, `snapshotKey`, `configFields`, `channelSpec`, `create`, `enabled?`) |
 | `dependencies?` | no | ids of modules that must have `start()`ed first (see ordering) |
 
-### Frontend (`modules/<id>/frontend.ts`)
+### Frontend (`modules/<id>/frontend.tsx`)
 
 Default-exports an object the generated manifest re-exports and the frontend
 registry bridges:
@@ -108,9 +108,8 @@ be marked auto-generated.
   types are module-owned, so a generic `Panel` signature would force the core
   to re-declare obs types (§6 violation). It is allow-listed in the ban test.
 
-Each module's `frontend.ts` side-effect-imports its own `styles.css`
-(`import "./styles.css"`); Bun's bundler emits it into the page (see `css.d.ts`),
-so the core never pulls module CSS by id. Components use mithril + CSS classes.
+Frontends are JSX (`frontend.tsx`) and are styled with panda-ui-mithril
+components plus panda utility classes (no per-module CSS files).
 
 ## Ordering
 
@@ -123,8 +122,8 @@ No module currently declares `dependencies`, so the order is the id sort.
 ## Adding a module
 
 1. `mkdir modules/<id>`; write `backend.ts` (default-export registration above),
-   `frontend.ts` (default-export registration), `types.ts`, `styles.css`.
-2. Device module: register the card as `cardBody` in `frontend.ts`.
+   `frontend.tsx` (default-export registration), `types.ts`.
+2. Device module: register the card as `cardBody` in `frontend.tsx`.
    Channel widget: register `component` + `createHub`/`hub` so it appears in
    `WIDGET_MODULES`.
 3. If it must start after another module, add `dependencies: ["<id>", ...]`.

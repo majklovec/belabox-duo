@@ -11,13 +11,16 @@ import {
 	field,
 	form,
 	input,
+	muted,
 	options,
 	Page,
 	select,
+	TitleWithBack,
 } from "./components/ui";
 import { t } from "./i18n";
 import { RpcClient, socketUrl } from "./services/rpc";
 import { HOSTNAME_PATTERN, mountPage, setHeaderColor } from "./util";
+import { css } from "styled-system/css";
 
 interface Settings {
 	/** Stable identity on the control server; hostnames change, the uuid does not */
@@ -141,87 +144,83 @@ function settingsCard(): m.Vnode {
 		: state.settings.hasRemoteToken
 			? t("set.token_ph_configured")
 			: t("set.token_ph_missing");
-	return m(
-		Card,
-		m("p.muted", t("set.description")),
-		form(
-			{ onSubmit: save },
-			field(t("set.hostname"), input(draft, "hostname", { pattern: HOSTNAME_PATTERN })),
-			field(
-				t("set.role"),
-				select(
-					draft,
-					"role",
-					options([
-						["", t("set.role_keep")],
-						["relay", t("role.relay")],
-						["encoder", t("role.encoder")],
-						["combined", t("role.combined")],
-						["obs", t("role.obs")],
-						["custom", t("role.custom")],
-					]),
+	return (
+		<Card>
+			{muted(t("set.description"), "p")}
+			{form(
+				{ onSubmit: save },
+				field(t("set.hostname"), input(draft, "hostname", { pattern: HOSTNAME_PATTERN })),
+				field(
+					t("set.role"),
+					select(
+						draft,
+						"role",
+						options([
+							["", t("set.role_keep")],
+							["relay", t("role.relay")],
+							["encoder", t("role.encoder")],
+							["combined", t("role.combined")],
+							["obs", t("role.obs")],
+							["custom", t("role.custom")],
+						]),
+					),
 				),
-			),
-			brk(),
-			field(t("set.color"), input(draft, "color", { type: "color" }, setHeaderColor)),
-			brk(),
-			field(t("set.remote_url"), input(draft, "remoteUrl", { placeholder: "wss://control.example/device" })),
-			field(
-				t("set.remote_token"),
-				input(draft, "remoteToken", { type: "password", autocomplete: "off", placeholder: tokenPlaceholder }),
-			),
-			brk(),
-			actions(button(t("set.save"), { type: "submit", disabled: state.saving })),
-		),
-		m("p.muted", { role: "status" }, state.message),
+				brk(),
+				field(t("set.color"), input(draft, "color", { type: "color" }, setHeaderColor)),
+				brk(),
+				field(t("set.remote_url"), input(draft, "remoteUrl", { placeholder: "wss://control.example/device" })),
+				field(
+					t("set.remote_token"),
+					input(draft, "remoteToken", { type: "password", autocomplete: "off", placeholder: tokenPlaceholder }),
+				),
+				brk(),
+				actions(button(t("set.save"), { type: "submit", disabled: state.saving })),
+			)}
+			{state.message && muted(state.message, "p")}
+		</Card>
 	);
 }
 
 function repositoriesCard(): m.Vnode {
-	return m(
-		Card,
-		{ title: t("set.repos") },
-		m("p.muted", t("set.repos_desc")),
-		form(
-			{ onSubmit: addRepository },
-			field(
-				t("set.repo_field"),
-				input(state, "repository", { required: true, pattern: REPO_PATTERN, placeholder: "author/repository" }),
-			),
-			actions(
-				button(t("set.repo_add"), { type: "submit", disabled: state.repoBusy }),
-				button(t("set.repo_update_all"), {
-					class: "secondary",
-					disabled: state.repoBusy,
-					onclick: () => void updateAllRepositories(),
-				}),
-			),
-		),
-		state.repositories.length
-			? state.repositories.map((repository) =>
-					m(
-						"div.card-head",
-						{ key: repository },
-						m("code", repository),
-						button(t("ui.remove"), { class: "danger", onclick: () => void removeRepository(repository) }),
-					),
-				)
-			: m("p.muted", t("set.no_repos")),
-		m("p.muted", { role: "status" }, state.repoMessage),
+	return (
+		<Card title={t("set.repos")}>
+			{muted(t("set.repos_desc"), "p")}
+			{form(
+				{ onSubmit: addRepository },
+				field(
+					t("set.repo_field"),
+					input(state, "repository", { required: true, pattern: REPO_PATTERN, placeholder: "author/repository" }),
+				),
+				actions(
+					button(t("set.repo_add"), { type: "submit", disabled: state.repoBusy }),
+					button(t("set.repo_update_all"), {
+						tone: "secondary",
+						disabled: state.repoBusy,
+						onclick: () => void updateAllRepositories(),
+					}),
+				),
+			)}
+			{state.repositories.length ? state.repositories.map((repository) => (
+				<div class={css({display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", paddingBlock: "0.25rem"})} key={repository}>
+					<code>{repository}</code>
+					{button(t("ui.remove"), { tone: "danger", size: "sm", onclick: () => void removeRepository(repository) })}
+				</div>
+			)) : (
+				muted(t("set.no_repos"), "p")
+			)}
+			{!!state.repoMessage && muted(state.repoMessage, "p")}
+		</Card>
 	);
 }
 
-const App: m.Component = {
-	view: () =>
-		m(
-			Page,
-			{
-				title: [m("a", { href: "../", title: t("set.back") }, "←"), ` ${t("set.title")}`],
-				headerRight: connectionBadge(state.connected),
-			},
-			settingsCard(),
-			repositoriesCard(),
-		),
-};
+const App = () => (
+	<Page
+		title={<TitleWithBack href="../" backLabel={t("set.back")}>{t("set.title")}</TitleWithBack>}
+		headerRight={connectionBadge(state.connected)}
+	>
+		{settingsCard()}
+		{repositoriesCard()}
+	</Page>
+);
 
 void mountPage(() => t("set.title"), App);

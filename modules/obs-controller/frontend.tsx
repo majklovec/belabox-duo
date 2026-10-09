@@ -9,14 +9,15 @@
  * (one instance per widget, fed by that device's viewer websocket via
  * `createObsPanel` below).
  */
-import "./styles.css";
 import m from "mithril";
 import { badge, button, Card, checkField } from "../../public/ts/components/ui";
+import { Mic, MicOff } from "../../public/ts/icons";
 import { t } from "../../public/ts/i18n";
 import { card, obsRequest, st } from "../../public/ts/device/store";
 import type { Status } from "../../public/types";
 import type { BridgedModule } from "./types";
 import { handleSwitcherEvent, switcherCard } from "./switcher-frontend";
+import { css, cx } from "styled-system/css";
 
 // ----------------------------------------------------------------------
 // Panel factory — one instance per render surface, own state and timers
@@ -73,21 +74,10 @@ interface VuFrame {
 	peakHold: number;
 }
 
-/** Outline microphone (24×24, strokes with currentColor); muted adds a slash. */
+/** Microphone glyph from the icon set; muted swaps in the slashed variant. */
 function micIcon(muted: boolean): m.Vnode {
-	return m(
-		"svg.obs-mic-icon",
-		{ viewBox: "0 0 24 24", "aria-hidden": "true" },
-		[
-			m("rect", { x: "9", y: "3", width: "6", height: "11", rx: "3" }),
-			m("path", { d: "M5 11a7 7 0 0 0 14 0" }),
-			m("path", { d: "M12 18v3" }),
-			m("path", { d: "M8 21h8" }),
-			muted ? m("path", { d: "M4 4 20 20" }) : null,
-		],
-	);
+	return muted ? <MicOff size={18} /> : <Mic size={18} />;
 }
-
 /**
  * Build the panel. `component()` renders the card body; `head()` the card
  * header extras (connection badge + refresh); `handleEvent` feeds pushes.
@@ -148,7 +138,7 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		mirror?.(state);
 	};
 
-	const obsCall = async <T>(type: string, data: Record<string, unknown> = {}): Promise<T | undefined> => {
+	const obsCall = async <T,>(type: string, data: Record<string, unknown> = {}): Promise<T | undefined> => {
 		let res: ObsRequestResult<T> | undefined;
 		try {
 			res = await send<T>(type, data);
@@ -485,181 +475,161 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		};
 
 		/* Actions — state comes from the stream/record/mute/studio events. */
-		const actionBtn = (key: string, label: string, active: boolean, cls: string, run: () => void) =>
+		const actionBtn = (key: string, label: string, active: boolean, tone: "primary" | "secondary" | "danger", run: () => void) =>
 			button(label, {
-				class: active ? `${cls} active`.trim() : `secondary`,
+				width: "full",
+				tone: active ? "danger" : tone,
 				disabled: !ui.connected || pending.has(key),
 				onclick: run,
 			});
 
-		return m(
-			"div",
-			{
-				oncreate: () => {
+		return (
+			<div
+				oncreate={() => {
 					mounts++;
 					if (mounts === 1) {
 						if (startConnected?.()) ui.connected = true;
 						tickTimer = window.setInterval(tick, 500);
 						rafId = requestAnimationFrame(vuLoop);
 					}
-				},
-				onremove: () => {
+				}}
+				onremove={() => {
 					mounts--;
 					if (mounts <= 0) {
 						mounts = 0;
 						destroy();
 					}
-				},
-			},
-			!ui.connected
-				? m("p.muted", t("obs.offline"))
-				: !ui.loaded
-					? m("p.muted", t("obs.waiting"))
-					: [
-						/* Preview */
-						m(
-							"div.obs-preview-block",
-							m(
-								"div.obs-preview-stage",
-								ui.previewData
-									? m("img", { alt: t("obs.preview"), src: ui.previewData })
-									: m("div.obs-preview-empty", ui.previewFailed ? t("obs.preview_failed") : t("obs.waiting")),
-							),
-							m(
-								"div.obs-preview-bar",
-								m(
-									"select",
-									{
-										disabled: !ui.connected,
-										value: String(ui.previewInterval),
-										onchange: (e: Event) => (ui.previewInterval = Number((e.target as HTMLSelectElement).value)),
-									},
-									[
-										[5_000, "5s"],
-										[10_000, "10s"],
-										[30_000, "30s"],
-										[0, t("obs.manual")],
-									].map(([ms, label]) => m("option", { key: String(ms), value: String(ms) }, label)),
-								),
-								ui.previewInterval > 0 && !ui.previewPaused
-									? m("span.obs-preview-meta", meta())
-									: null,
-								button(ui.previewPaused ? t("obs.resume") : t("obs.pause"), {
-									class: "secondary",
+				}}
+			>
+				{!ui.connected ? (
+					<p class={css({color: "neutral"})}>{t("obs.offline")}</p>
+				) : !ui.loaded ? (
+					<p class={css({color: "neutral"})}>{t("obs.waiting")}</p>
+				) : (
+					<div class={css({display: "grid", gap: "1rem"})}>
+						{/* Preview */}
+						<div class={css({display: "flex", flexDirection: "column", gap: "0.5rem"})}>
+							<div
+								class={css({position: "relative", display: "flex", aspectRatio: "16 / 9", alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: "0.5rem", borderWidth: "1px", borderColor: "white/10", backgroundColor: "black"})}
+								style={{ backgroundColor: "transparent" }}
+							>
+								{ui.previewData ? (
+									<img alt={t("obs.preview")} src={ui.previewData} class={css({height: "100%", width: "100%", objectFit: "cover"})} />
+								) : (
+									<span class={css({color: "neutral"})}>{ui.previewFailed ? t("obs.preview_failed") : t("obs.waiting")}</span>
+								)}
+							</div>
+							<div class={css({display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem"})}>
+								<select
+									class="select"
+									disabled={!ui.connected}
+									value={String(ui.previewInterval)}
+									onchange={(e: Event) => (ui.previewInterval = Number((e.target as HTMLSelectElement).value))}
+								>
+									{[[5_000, "5s"], [10_000, "10s"], [30_000, "30s"], [0, t("obs.manual")]].map(([ms, label]) => (
+										<option key={String(ms)} value={String(ms)}>
+											{label}
+										</option>
+									))}
+								</select>
+								{ui.previewInterval > 0 && !ui.previewPaused && (
+									<span class={css({marginLeft: "auto", fontSize: "0.75rem", lineHeight: "1rem", opacity: "0.6"})}>{meta()}</span>
+								)}
+								{button(ui.previewPaused ? t("obs.resume") : t("obs.pause"), {
+									tone: "secondary",
 									onclick: () => (ui.previewPaused = !ui.previewPaused),
-								}),
-								button(t("obs.preview_now"), {
-									class: "secondary",
+								})}
+								{button(t("obs.preview_now"), {
+									tone: "secondary",
 									disabled: ui.inFlight || ui.previewPaused,
 									onclick: () => void capturePreview(),
-								}),
-								// button(t("obs.screenshot"), {
-								// 	class: "secondary",
-								// 	disabled: pending.has("obs.screenshot"),
-								// 	onclick: () => void screenshot(),
-								// }),
-							),
-						),
-						/* Scenes + output actions */
-						m(
-							"div.obs-deck",
-							m(
-								"div.obs-deck-col",
-								m("h3.obs-section", t("obs.scenes")),
-								m(
-									"div.obs-scene-deck",
-									ui.scenes.length
+								})}
+							</div>
+						</div>
+						{/* Scenes + output actions */}
+						<div class={css({display: "grid", gap: "1rem", "md": {gridTemplateColumns: "repeat(2, minmax(0, 1fr))"}})}>
+							<div class={css({display: "flex", flexDirection: "column", gap: "0.5rem"})}>
+								<h3 class={css({fontSize: "0.875rem", lineHeight: "1.25rem", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.025em", opacity: "0.7"})}>{t("obs.scenes")}</h3>
+								<div class={css({display: "flex", flexDirection: "column", gap: "0.25rem"})}>
+									{ui.scenes.length
 										? ui.scenes.map((name) =>
-											button(name, {
-												class: ui.scene === name ? "active" : "secondary",
-												disabled: !ui.connected || pending.has("obs.scene"),
-												onclick: () => press("obs.scene", "SetCurrentProgramScene", { sceneName: name }),
-											}),
-										  )
-										: m("span.muted", t("obs.no_scenes")),
-								),
-							),
-							m(
-								"div.obs-deck-col",
-								m("h3.obs-section", t("obs.output")),
-								m(
-									"div.obs-actions",
-									actionBtn(
+												button(name, {
+													width: "full",
+													tone: ui.scene === name ? "primary" : "secondary",
+													disabled: !ui.connected || pending.has("obs.scene"),
+													onclick: () => press("obs.scene", "SetCurrentProgramScene", { sceneName: name }),
+												}),
+											)
+										: <span class={css({color: "neutral"})}>{t("obs.no_scenes")}</span>}
+								</div>
+							</div>
+							<div class={css({display: "flex", flexDirection: "column", gap: "0.5rem"})}>
+								<h3 class={css({fontSize: "0.875rem", lineHeight: "1.25rem", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.025em", opacity: "0.7"})}>{t("obs.output")}</h3>
+								<div class={css({display: "flex", flexDirection: "column", gap: "0.5rem"})}>
+									{actionBtn(
 										"obs.stream",
 										ui.streaming ? t("obs.stop_stream") : t("obs.start_stream"),
 										ui.streaming,
-										"obs-action-stream",
+										"secondary",
 										() => press("obs.stream", ui.streaming ? "StopStream" : "StartStream"),
-									),
-									actionBtn(
+									)}
+									{actionBtn(
 										"obs.record",
 										ui.recording ? t("obs.stop_record") : t("obs.start_record"),
 										ui.recording,
-										"obs-action-record",
+										"secondary",
 										() => press("obs.record", ui.recording ? "StopRecord" : "StartRecord"),
-									),
-									// actionBtn(
-									// 	"obs.studio",
-									// 	t("obs.studio"),
-									// 	ui.studio,
-									// 	"obs-action-studio",
-									// 	() =>
-									// 		toggle(
-									// 			"obs.studio",
-									// 			"GetStudioModeEnabled",
-									// 			{},
-									// 			(r) => r.studioModeEnabled === true,
-									// 			"SetStudioModeEnabled",
-									// 			(next) => ({ studioModeEnabled: next }),
-									// 			(next) => {
-									// 				ui.studio = next;
-									// 			},
-									// 		),
-									// ),
-								),
-							),
-						),
-						/* Audio — one meter row per input, each with its own mic mute toggle. */
-						m(
-							"div.obs-deck",
-							m("h3.obs-section", t("obs.audio")),
-							m(
-								"div.obs-audio",
-								ui.vuInputs.length
+									)}
+								</div>
+							</div>
+						</div>
+						{/* Audio — one meter row per input, each with its own mic mute toggle. */}
+						<div class={css({display: "flex", flexDirection: "column", gap: "0.5rem"})}>
+							<h3 class={css({fontSize: "0.875rem", lineHeight: "1.25rem", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.025em", opacity: "0.7"})}>{t("obs.audio")}</h3>
+							<div class={css({display: "flex", flexDirection: "column", gap: "0.5rem"})}>
+								{ui.vuInputs.length
 									? ui.vuInputs.map((name) => {
-										const muted = ui.vuMuted.get(name) === true;
-										const muteKey = `obs.mute.${name}`;
-										return m(
-											"div.obs-audio-row",
-											{ key: name },
-											button(micIcon(muted), {
-												class: muted ? "obs-mic muted" : "obs-mic",
-												title: t(muted ? "obs.unmute" : "obs.mute"),
-												disabled: !ui.connected || pending.has(muteKey),
-												onclick: () =>
-													toggle(
-														muteKey,
-														"GetInputMute",
-														{ inputName: name },
-														(r) => r.inputMuted === true,
-														"SetInputMute",
-														(next) => ({ inputName: name, inputMuted: next }),
-														(next) => {
-															ui.vuMuted.set(name, next);
-														},
-													),
-											}),
-											m("span.obs-audio-name", { title: name }, name),
-											m("canvas.obs-vu", {
-												oncreate: (v) => vuCanvases.set(name, v.dom as HTMLCanvasElement),
-												onremove: () => vuCanvases.delete(name),
-											}),
-										);
-									})
-									: m("span.muted", t("obs.no_inputs")),
-							),
-						),
-					],
+											const muted = ui.vuMuted.get(name) === true;
+											const muteKey = `obs.mute.${name}`;
+											return (
+												<div key={name} class={css({display: "flex", alignItems: "center", gap: "0.5rem", borderRadius: "0.5rem", borderWidth: "1px", borderColor: "white/10", paddingInline: "0.5rem", paddingBlock: "0.25rem"})}>
+													<button
+														class={cx("icon-btn", css({ borderRadius: "0.25rem", paddingInline: "0.5rem", paddingBlock: "0.25rem" }), muted && css({ color: "error" }))}
+														title={t(muted ? "obs.unmute" : "obs.mute")}
+														disabled={!ui.connected || pending.has(muteKey)}
+														onclick={() =>
+															toggle(
+																muteKey,
+																"GetInputMute",
+																{ inputName: name },
+																(r) => r.inputMuted === true,
+																"SetInputMute",
+																(next) => ({ inputName: name, inputMuted: next }),
+																(next) => {
+																	ui.vuMuted.set(name, next);
+																},
+															)
+														}
+													>
+														{micIcon(muted)}
+													</button>
+													<span class={css({minWidth: "0px", flex: "1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.875rem", lineHeight: "1.25rem"})} title={name}>
+														{name}
+													</span>
+													<canvas
+														class={css({height: "1rem", width: "10rem"})}
+														oncreate={(v) => vuCanvases.set(name, v.dom as HTMLCanvasElement)}
+														onremove={() => vuCanvases.delete(name)}
+													/>
+												</div>
+											);
+										})
+									: <span class={css({color: "neutral"})}>{t("obs.no_inputs")}</span>}
+							</div>
+						</div>
+					</div>
+				)}
+			</div>
 		);
 	}
 
@@ -709,17 +679,17 @@ function switcherEnableToggle(status: Status | undefined): m.Vnode | null {
 	const on = status.modules["obs-controller"].switcherEnabled === true;
 	return checkField(
 		t("lowbs.enable_switcher"),
-		m("input", {
-			type: "checkbox",
-			class: "obs-switcher-toggle",
-			checked: on,
-			onchange: (e: Event) => {
+		<input
+			class="checkbox"
+			type="checkbox"
+			checked={on}
+			onchange={(e: Event) => {
 				void card.act("obs-switcher-enable", "modules.configure", {
 					id: "obs-controller",
 					config: { switcherEnabled: (e.target as HTMLInputElement).checked },
 				});
-			},
-		}),
+			}}
+		/>,
 	);
 }
 
@@ -731,8 +701,14 @@ const obsControllerModule: BridgedModule = {
 	minSize: { w: 4, h: 4 },
 	// Two cards: the OBS panel (its head carries the switcher toggle) plus the
 	// low-bitrate switcher card, which only renders while the toggle is on.
-	component: (status?: Status) => [
-		m(Card, { title: t("obs.card"), class: "mod-obs-controller", headActions: [...panel.head(), switcherEnableToggle(status)] }, panel.component()),
+	component: (status?: Status): m.Children => [
+		<Card
+			title={t("obs.card")}
+			class="mod-obs-controller"
+			headActions={[...panel.head(), switcherEnableToggle(status)]}
+		>
+			{panel.component()}
+		</Card>,
 		status ? switcherCard(status) : null,
 	],
 	handleEvent: (event, data) => {

@@ -33,7 +33,7 @@ function renderWidget(id: string): m.Vnode {
 	const cur = manager.current;
 	const w = cur?.widgets.find((x) => x.id === id);
 	// The widget may be gone/hidden between event and redraw: render an empty card.
-	if (!w) return m("div.dash-widget");
+	if (!w) return <div class="dash-widget" />;
 	const actions = cur?.actions ?? ({ remove: () => {}, hide: () => {} } as WidgetActions);
 	return widgetInner(w, cur?.editMode ?? false, actions);
 }
@@ -109,8 +109,10 @@ function teardownGrid(): void {
 
 export const GridDashboard: m.Component<GridProps> = {
 	view(vnode) {
-		return m("div.grid-stack.dash-grid", {
-			oncreate: (vd: m.VnodeDOM) => {
+		return (
+			<div
+				class="grid-stack dash-grid"
+				oncreate={(vd: m.VnodeDOM) => {
 				teardownGrid();
 				manager.host = vd.dom as HTMLElement;
 				manager.current = vnode.attrs;
@@ -128,14 +130,15 @@ export const GridDashboard: m.Component<GridProps> = {
 				manager.grid = grid;
 				setEditMode(vnode.attrs.editMode);
 				reconcile();
-			},
-			onupdate: () => {
-				const prev = manager.current;
-				manager.current = vnode.attrs;
-				if (!prev || prev.editMode !== vnode.attrs.editMode || (prev.widgets !== vnode.attrs.widgets)) reconcile();
-				setEditMode(vnode.attrs.editMode);
-			},
-			onremove: () => teardownGrid(),
-		});
+			}}
+				onupdate={() => {
+					const prev = manager.current;
+					manager.current = vnode.attrs;
+					if (!prev || prev.editMode !== vnode.attrs.editMode || (prev.widgets !== vnode.attrs.widgets)) reconcile();
+					setEditMode(vnode.attrs.editMode);
+				}}
+				onremove={() => teardownGrid()}
+			/>
+		);
 	},
 };

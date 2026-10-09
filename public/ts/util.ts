@@ -1,7 +1,12 @@
-/* Plain helpers shared by all pages (formatting, parsing, page bootstrap). Views are Mithril
- * vnodes built with components/ui; this is what doesn't need to be. */
+/* Plain helpers shared by all pages (formatting, parsing, page bootstrap). Views are JSX
+ * (Bun's transform with the `m` pragma) built with components/ui; this is what doesn't
+ * need to be. Also the single place the UI styles enter the bundle: Panda's generated
+ * CSS first (preflight, tokens, recipes), then the small theme foundations file so the
+ * app's rules win the cascade; Bun replaces the HTML <link> with the combined asset. */
 import m from "mithril";
 import { i18nReady, t } from "./i18n";
+import "../css/panda/styles.css";
+import "../css/style.css";
 
 /** A renderable Mithril child: a vnode, text, a number, or nothing. */
 export type Child = m.Vnode | string | number | false | null | undefined;
@@ -9,15 +14,22 @@ export type Child = m.Vnode | string | number | false | null | undefined;
 /** Mount a page component into #app, setting the document title first. */
 /** Wait for the PO catalogs to load, then mount. Title is a thunk so it
  * translates with the loaded catalogs (t() returns the raw key before ready). */
-export async function mountPage(title: () => string, component: m.Component): Promise<void> {
+/** A component for `m.mount`: `m.Component` objects and plain function
+ * (JSX) components — mithril's renderer handles both. */
+export type Mountable = m.Component | ((v?: m.Vnode) => m.Vnode | m.Children);
+
+export async function mountPage(title: () => string, component: Mountable): Promise<void> {
 	await i18nReady;
 	document.title = title();
-	m.mount(document.getElementById("app")!, component);
+	// Always-dark UI: panda-ui-mithril's recipes branch on [data-theme="dark"].
+	document.documentElement.setAttribute("data-theme", "dark");
+	m.mount(document.getElementById("app")!, component as m.Component);
 }
 
-/** Tint the page header with the device's configured color. */
+/** Tint the whole UI with the device's configured color (theme.css derives all
+ * --dev-* vars from this single seed). */
 export const setHeaderColor = (color: string): void =>
-	document.documentElement.style.setProperty("--header-color", color);
+	document.documentElement.style.setProperty("--dev-accent", color);
 
 /** HTML `pattern` for hostnames (src/validate HOSTNAME_RE). Browsers compile `pattern` with the
  * `v` flag, where a literal "-" in a character class must be escaped. */

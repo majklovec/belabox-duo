@@ -23,6 +23,7 @@ import { since } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
 import { card, type DeviceCard } from "../../public/ts/device/store";
 import type { SwitcherStatus } from "./types";
+import { css } from "styled-system/css";
 
 /** Module ids a source can read from (the relay slot accepts the "srtla" id too). */
 const SOURCE_MODULES: [string, string][] = [
@@ -135,143 +136,114 @@ function switcherCardBody(host: DeviceCard, status: Status): m.Vnode {
 	const f = form;
 	const s = live ?? status.lowBitrateSwitcher ?? null;
 	const busy = host.busy.has("switcher-save");
-	return m(
-		Card,
-		{ title: t("lowbs.title"), class: "mod-switcher" },
-		definitionList([
-			[t("lowbs.row_state"), s ? stateBadge(s.state) : badge(t("lowbs.idle"), "off")],
-			[
-				t("lowbs.row_desired"),
-				s
-					? m("span", [
-							stateBadge(s.desiredState),
-							s.desiredState !== s.state &&
-								m("span.muted", ` · ${t("lowbs.row_retries", s.retryCount, f.retryAttempts)}`),
-						])
-					: null,
-			],
-			[t("lowbs.row_scene"), s?.currentScene ?? null],
-			[t("lowbs.row_updated"), s ? since(s.updatedAt) : null],
-		]),
-		formBox(
+	return (
+		<Card title={t("lowbs.title")} class="mod-switcher">
+			{definitionList([
+				[t("lowbs.row_state"), s ? stateBadge(s.state) : badge(t("lowbs.idle"), "off")],
+				[
+					t("lowbs.row_desired"),
+					s ? (
+						<span class={css({display: "inline-flex", alignItems: "center", gap: "0.25rem"})}>
+							{stateBadge(s.desiredState)}
+							{s.desiredState !== s.state && (
+								<span class={css({color: "neutral"})}>{` · ${t("lowbs.row_retries", s.retryCount, f.retryAttempts)}`}</span>
+							)}
+						</span>
+					) : null,
+				],
+				[t("lowbs.row_scene"), s?.currentScene ?? null],
+				[t("lowbs.row_updated"), s ? since(s.updatedAt) : null],
+			])}
+			{formBox(
 			{ onSubmit: () => save(host, status) },
 			checkField(
 				t("lowbs.auto_switch"),
-				m("input", { type: "checkbox", checked: f.autoSwitch, onchange: (e: Event) => (f.autoSwitch = (e.target as HTMLInputElement).checked) }),
+				<input class="checkbox" type="checkbox" checked={f.autoSwitch} onchange={(e: Event) => (f.autoSwitch = (e.target as HTMLInputElement).checked)} />,
 			),
 			fieldGroup(
 				t("lowbs.group_sources"),
 				checkField(
 					t("lowbs.source_encoder"),
-					m("input", { type: "checkbox", checked: f.encEnabled, onchange: (e: Event) => (f.encEnabled = (e.target as HTMLInputElement).checked) }),
+					<input class="checkbox" type="checkbox" checked={f.encEnabled} onchange={(e: Event) => (f.encEnabled = (e.target as HTMLInputElement).checked)} />,
 				),
-				m(
-					"select",
-					{
-						value: f.encModule,
-						disabled: !f.encEnabled,
-						class: "lbs-select",
-						onchange: (e: Event) => (f.encModule = (e.target as HTMLSelectElement).value),
-					},
-					options(SOURCE_MODULES),
-				),
+				<select
+					class="select"
+					value={f.encModule}
+					disabled={!f.encEnabled}
+					onchange={(e: Event) => (f.encModule = (e.target as HTMLSelectElement).value)}
+				>
+					{options(SOURCE_MODULES)}
+				</select>,
 				brk(),
 				checkField(
 					t("lowbs.source_relay"),
-					m("input", { type: "checkbox", checked: f.relEnabled, onchange: (e: Event) => (f.relEnabled = (e.target as HTMLInputElement).checked) }),
+					<input class="checkbox" type="checkbox" checked={f.relEnabled} onchange={(e: Event) => (f.relEnabled = (e.target as HTMLInputElement).checked)} />,
 				),
-				m(
-					"select",
-					{
-						value: f.relModule,
-						disabled: !f.relEnabled,
-						class: "lbs-select",
-						onchange: (e: Event) => (f.relModule = (e.target as HTMLSelectElement).value),
-					},
-					options(SOURCE_MODULES),
-				),
+				<select
+					class="select"
+					value={f.relModule}
+					disabled={!f.relEnabled}
+					onchange={(e: Event) => (f.relModule = (e.target as HTMLSelectElement).value)}
+				>
+					{options(SOURCE_MODULES)}
+				</select>,
 				brk(),
 				checkField(
 					t("lowbs.source_combined"),
-					m(
-						"input",
-						{
-							type: "checkbox",
-							checked: f.combEnabled,
-							onchange: (e: Event) => (f.combEnabled = (e.target as HTMLInputElement).checked),
-						},
-					),
+					<input class="checkbox" type="checkbox" checked={f.combEnabled} onchange={(e: Event) => (f.combEnabled = (e.target as HTMLInputElement).checked)} />,
 				),
-				m(
-					"select",
-					{
-						value: f.combModule,
-						title: t("lowbs.group_sources_title"),
-						disabled: !f.combEnabled,
-						class: "lbs-select",
-						onchange: (e: Event) => (f.combModule = (e.target as HTMLSelectElement).value),
-					},
-					options(COMBINED_MODULES),
-				),
+				<select
+					class="select"
+					value={f.combModule}
+					title={t("lowbs.group_sources_title")}
+					disabled={!f.combEnabled}
+					onchange={(e: Event) => (f.combModule = (e.target as HTMLSelectElement).value)}
+				>
+					{options(COMBINED_MODULES)}
+				</select>,
 			),
 			fieldGroup(
 				t("lowbs.group_triggers"),
-				m(
-					"div.lbs-grid",
-					[
-						field(
-							t("lowbs.trigger_low_bitrate"),
-							input({ v: f.lowBitrate } as { v: string }, "v", numberAttrs(0, 1e9, "2500"), (v) => (f.lowBitrate = v)),
-						),
-						field(
-							t("lowbs.trigger_offline_bitrate"),
-							input({ v: f.offlineBitrate } as { v: string }, "v", numberAttrs(0, 1e9, "500"), (v) => (f.offlineBitrate = v)),
-						),
-						field(
-							t("lowbs.trigger_rtt"),
-							input({ v: f.rtt } as { v: string }, "v", numberAttrs(0, 1e6, "300"), (v) => (f.rtt = v)),
-						),
-						field(
-							t("lowbs.retry_attempts"),
-							input({ v: f.retryAttempts } as { v: string }, "v", numberAttrs(1, 100, "3"), (v) => (f.retryAttempts = v)),
-						),
-						field(
-							t("lowbs.poll_interval"),
-							input({ v: f.pollInterval } as { v: string }, "v", numberAttrs(200, 3600000, "1000"), (v) => (f.pollInterval = v)),
-						),
-					],
-				),
+				<div class={css({display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem"})}>
+					{[
+						field(t("lowbs.trigger_low_bitrate"), input({ v: f.lowBitrate } as { v: string }, "v", numberAttrs(0, 1e9, "2500"), (v) => (f.lowBitrate = v))),
+						field(t("lowbs.trigger_offline_bitrate"), input({ v: f.offlineBitrate } as { v: string }, "v", numberAttrs(0, 1e9, "500"), (v) => (f.offlineBitrate = v))),
+						field(t("lowbs.trigger_rtt"), input({ v: f.rtt } as { v: string }, "v", numberAttrs(0, 1e6, "300"), (v) => (f.rtt = v))),
+						field(t("lowbs.retry_attempts"), input({ v: f.retryAttempts } as { v: string }, "v", numberAttrs(1, 100, "3"), (v) => (f.retryAttempts = v))),
+						field(t("lowbs.poll_interval"), input({ v: f.pollInterval } as { v: string }, "v", numberAttrs(200, 3600000, "1000"), (v) => (f.pollInterval = v))),
+					]}
+				</div>,
 			),
 			fieldGroup(
 				t("lowbs.group_scenes"),
-				m(
-					"div.lbs-grid",
-					[
+				<div class={css({display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.75rem"})}>
+					{[
 						field(t("lowbs.scene_normal"), input(f, "sceneNormal", { placeholder: "Normal" })),
 						field(t("lowbs.scene_low"), input(f, "sceneLow", { placeholder: "Low" })),
 						field(t("lowbs.scene_offline"), input(f, "sceneOffline", { placeholder: "Offline" })),
 						field(t("lowbs.scene_starting"), input(f, "sceneStarting", { placeholder: "—" })),
 						field(t("lowbs.scene_ending"), input(f, "sceneEnding", { placeholder: "—" })),
 						field(t("lowbs.scene_privacy"), input(f, "scenePrivacy", { placeholder: "—" })),
-					],
-				),
+					]}
+				</div>,
 			),
 			brk(),
 			checkField(
 				t("lowbs.instantly_recover"),
-				m("input", { type: "checkbox", checked: f.instantlyRecover, onchange: (e: Event) => (f.instantlyRecover = (e.target as HTMLInputElement).checked) }),
+				<input class="checkbox" type="checkbox" checked={f.instantlyRecover} onchange={(e: Event) => (f.instantlyRecover = (e.target as HTMLInputElement).checked)} />,
 			),
 			checkField(
 				t("lowbs.only_streaming"),
-				m("input", { type: "checkbox", checked: f.onlySwitchWhenStreaming, onchange: (e: Event) => (f.onlySwitchWhenStreaming = (e.target as HTMLInputElement).checked) }),
+				<input class="checkbox" type="checkbox" checked={f.onlySwitchWhenStreaming} onchange={(e: Event) => (f.onlySwitchWhenStreaming = (e.target as HTMLInputElement).checked)} />,
 			),
 			checkField(
 				t("lowbs.log_to_file"),
-				m("input", { type: "checkbox", checked: f.logToFile, onchange: (e: Event) => (f.logToFile = (e.target as HTMLInputElement).checked) }),
+				<input class="checkbox" type="checkbox" checked={f.logToFile} onchange={(e: Event) => (f.logToFile = (e.target as HTMLInputElement).checked)} />,
 			),
 			brk(),
 			actions(button(t("ui.save"), { type: "submit", disabled: busy })),
-		),
+			)}
+		</Card>
 	);
 }
 
