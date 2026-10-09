@@ -2,18 +2,18 @@ import { describe, expect, test } from "bun:test";
 import {
     defaultLowBitrateSwitcherConfig,
     type LowBitrateSwitcherConfig,
-} from "../../src/switcher";
+} from "../src/switcher";
 import {
     type SwitcherMetrics,
     type SwitcherActiveSources,
-} from "./types";
+} from "../modules/obs-controller/types";
 import {
     determineState,
     normalizeSwitcherConfig,
     SwitcherEngine,
     type ObsSnapshot,
     type SwitcherDeps,
-} from "./switcher-engine";
+} from "../modules/obs-controller/switcher-engine";
 
 const SOURCES: SwitcherActiveSources = { encoder: "encoder", relay: null, combined: null };
 

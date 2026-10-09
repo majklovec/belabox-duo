@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { allModules } from "./src/registry";
-import { defaultModules, state } from "./src/state";
-import { modulesForRole } from "./src/validate";
-import { modulesView } from "./src/modules";
+import { allModules } from "../src/registry";
+import { defaultModules, state } from "../src/state";
+import { modulesForRole } from "../src/validate";
+import { modulesView } from "../src/modules";
 
 /**
  * Registry order of the device modules: the result of the registry's topological
@@ -24,7 +24,7 @@ const WIDGET_IDS = ["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "yo
  * registration whose `id` matches its directory and whose `kind` splits the
  * set into device cards (matching the backend registry) and widgets.
  */
-const modulesDir = join(import.meta.dir, "modules");
+const modulesDir = join(import.meta.dir, "..", "modules");
 
 function scanFrontends(): { dir: string; id: string; kind: string }[] {
 	const out: { dir: string; id: string; kind: string }[] = [];
@@ -92,7 +92,7 @@ describe("module registries", () => {
 	});
 
 	test("frontend registry discovers via the generated manifest (no per-module imports, no Glob)", () => {
-		const src = readFileSync(join(import.meta.dir, "src", "registry.frontend.ts"), "utf8");
+		const src = readFileSync(join(import.meta.dir, "..", "src", "registry.frontend.ts"), "utf8");
 		expect(src).not.toMatch(/from "\.\.\/modules\/[\w-]+\/frontend/);
 		expect(src).not.toMatch(/import\.meta\.glob|Bun\.Glob|from "bun\/glob"|modules\/\*\/frontend/);
 		expect(src).toMatch(/from "\.\.\/modules\/\.generated\.frontend\*?";/);
@@ -102,7 +102,7 @@ describe("module registries", () => {
 	});
 
 	test("backend registry discovers by directory scan, no per-module imports", () => {
-		const src = readFileSync(join(import.meta.dir, "src", "registry.ts"), "utf8");
+		const src = readFileSync(join(import.meta.dir, "..", "src", "registry.ts"), "utf8");
 		expect(src).not.toMatch(/from "\.\.\/modules\/[\w-]+\/backend/);
 		expect(src).toMatch(/readdirSync\(MODULES_DIR\)/);
 	});
@@ -133,7 +133,7 @@ describe("module registries", () => {
 			readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
 		const filesOf = (root: string): string[] => walk(root).filter((f) => f.endsWith(".ts") || f.endsWith(".tsx"));
 		const offenders: string[] = [];
-		for (const root of [join(import.meta.dir, "src"), join(import.meta.dir, "public", "ts")]) {
+		for (const root of [join(import.meta.dir, "..", "src"), join(import.meta.dir, "..", "public", "ts")]) {
 			for (const file of filesOf(root)) {
 				readFileSync(file, "utf8").split("\n").forEach((line, i) => {
 					const m = line.match(/(?:from\s+|require\()\s*["']([^"']+)["']/);

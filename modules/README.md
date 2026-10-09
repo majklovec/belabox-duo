@@ -7,7 +7,7 @@ UI, and its CSS. It exposes all of that to the core **only** through a
 registration object; the core never imports a module by path, and no core file
 names a module by id.
 
-The core↔module boundary is enforced by `src/registries.test.ts`:
+The core↔module boundary is enforced by `test/registries.test.ts`:
 `"core (src/ + public/ts/) names no module by id"` scans both core trees and
 fails on any module-specific import, and `frontend.ts imports nothing from /src`.
 
