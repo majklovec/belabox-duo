@@ -2,6 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { allModules } from "./src/registry";
+import { defaultModules, state } from "./src/state";
+import { modulesForRole } from "./src/validate";
+import { modulesView } from "./src/modules";
 
 /**
  * Registry order of the device modules: the result of the registry's topological
@@ -146,5 +149,33 @@ describe("module registries", () => {
 			}
 		}
 		expect(offenders, `core names module ids:\n${offenders.join("\n")}`).toEqual([]);
+	});
+});
+
+// modems feeds routing's detectInterfaces, so it must be enabled wherever
+// the relay half runs; encoder-only never boots it (regression: boot crashed
+// on the unbound modems core after the self-contained-modules refactor).
+describe("modems role presets", () => {
+	test("relay and combined roles enable the modems module", () => {
+		expect(modulesForRole("relay")).toEqual(["relay", "modems"]);
+		expect(modulesForRole("combined")).toEqual(["relay", "encoder", "modems"]);
+		expect(modulesForRole("encoder")).toEqual(["encoder"]);
+	});
+
+	test("default modules mirror the role presets", () => {
+		expect(defaultModules("relay").modems.enabled).toBe(true);
+		expect(defaultModules("combined").modems.enabled).toBe(true);
+		expect(defaultModules("encoder").modems.enabled).toBe(false);
+	});
+
+	test("status view exposes the modems module flag", () => {
+		const saved = state.settings.modules;
+		try {
+			state.settings.modules = defaultModules("relay");
+			const view = modulesView() as { modems?: { enabled: boolean } };
+			expect(view.modems).toEqual({ enabled: true });
+		} finally {
+			state.settings.modules = saved;
+		}
 	});
 });
