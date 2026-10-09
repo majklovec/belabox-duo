@@ -161,6 +161,7 @@ function onSrtlaExit(code: number | null): void {
 }
 
 async function stopSrtla(): Promise<void> {
+	if (!sup) return; // srtla_send was never started in this role — nothing to stop
 	await supervisorRef().stop();
 	sc().stopSrtlaControl();
 	dryRunActive = false;

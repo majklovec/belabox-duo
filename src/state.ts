@@ -90,6 +90,7 @@ export const OBS_MODULE = "obs-controller" as const;
 export interface ModulesState {
     relay: { enabled: boolean };
     encoder: { enabled: boolean };
+    modems: { enabled: boolean };
     "obs-controller": ObsModuleConfig;
 }
 
@@ -206,6 +207,7 @@ export function defaultModules(role?: Role): ModulesState {
     return {
         relay: { enabled: on.has("relay") },
         encoder: { enabled: on.has("encoder") },
+        modems: { enabled: on.has("modems") },
         "obs-controller": { enabled: false, obsUrl: "", obsPassword: "", sceneEvents: true, switcherEnabled: false, switcher: defaultLowBitrateSwitcherConfig() },
     };
 }

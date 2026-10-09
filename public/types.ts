@@ -342,6 +342,7 @@ export interface ObsModuleView {
 export interface ModulesView {
 	relay: { enabled: boolean };
 	encoder: { enabled: boolean };
+	modems: { enabled: boolean };
 	"obs-controller": ObsModuleView;
 }
 /** A dashboard widget type, backed by (or showing) one of a device's modules. */

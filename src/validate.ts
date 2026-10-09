@@ -25,11 +25,13 @@ export const modulesForRole = (role: Role): string[] => {
 			return ["obs-controller"];
 		case "custom":
 			return [];
-		case "combined":
-			return ["relay", "encoder"];
-		default:
-			return [role];
-	}
+	case "relay":
+		return ["relay", "modems"];
+	case "combined":
+		return ["relay", "encoder", "modems"];
+	default:
+		return [role];
+}
 };
 export const isRole = (v: unknown): v is Role => (ROLES as readonly unknown[]).includes(v);
 

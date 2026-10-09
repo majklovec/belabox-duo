@@ -80,7 +80,7 @@ export default {
 	kind: "device",
 	id: "modems",
 	title: "Modems",
-	configSchema: z.object({}).strict(),
+	configSchema: z.object({}).passthrough(),
 	secretFields: [] as string[],
 	async start(ctx: Mctx) {
 		core = ctx.core;
@@ -109,8 +109,10 @@ export default {
 	},
 	services: {
 		capabilities: {
-			"modem.detect": detectModems,
-			"modem.interface": modemNetworkIface,
+			"stream.modems": {
+				detect: detectModems,
+				modemIface: modemNetworkIface,
+			},
 		},
 	},
 };

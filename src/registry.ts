@@ -164,6 +164,9 @@ const moduleConfig = (id: string): Record<string, unknown> => {
 	return slice ? { ...slice } : {};
 };
 
+/** Modules whose `start()` ran; only these get stopped (`stop()` assumes a bound `core`). */
+const started = new Set<string>();
+
 /** Start every registered, settings-enabled module. */
 export async function startModules(): Promise<void> {
 	for (const mod of ALL_MODULES) {
@@ -176,13 +179,15 @@ export async function startModules(): Promise<void> {
 			emit: (event, data) => pushModuleEvent(event, data, mod.id),
 			log: (section, message) => logEvent("info", section, message),
 		});
+		started.add(mod.id);
 	}
 }
 
-/** Stop every registered module (device + widget backends alike). */
+/** Stop the modules that were started (skipping never-started ones whose `core` is unbound). */
 export async function stopModules(): Promise<void> {
 	for (const mod of ALL_MODULES) {
-		if (mod.hub) continue;
+		if (mod.hub || !started.has(mod.id)) continue;
+		started.delete(mod.id);
 		await mod.stop();
 	}
 }
@@ -191,8 +196,10 @@ export async function stopModules(): Promise<void> {
 export async function restartRegisteredModule(id: string): Promise<void> {
 	const mod = ALL_MODULES.find((m) => m.id === id);
 	if (!mod) return;
+	started.delete(id);
 	await mod.stop();
 	if (moduleConfig(id).enabled === true) {
+		started.add(id);
 		await mod.start({
 			config: moduleConfig(id),
 			core,

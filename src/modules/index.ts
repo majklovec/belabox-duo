@@ -38,6 +38,7 @@ export function modulesView(): object {
     return {
         relay: m.relay,
         encoder: m.encoder,
+        modems: m.modems,
         "obs-controller": {
             enabled: obs.enabled,
             obsUrl: obs.obsUrl,
