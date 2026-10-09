@@ -8,8 +8,8 @@
  * Config lives in state.settings.modules["obs-controller"].switcher. The obs
  * module's start/stop owns this sub-component's lifecycle (backend.ts).
  *
- * Self-contained: inter-module access flows through the capability bus
- * (capability names, never module ids); the only core edge is the bag.
+ * Self-contained: the only core edge is the bag; metric sources are the
+ * control server's registered devices, read through server-mediated requests.
  */
 import { randomUUID } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
@@ -18,10 +18,13 @@ import { dirname, join } from "node:path";
 import { OBS_DISCONNECTED_EVENT, type ObsClient } from "../../obs-client";
 import {
 	defaultLowBitrateSwitcherConfig,
+	SWITCHER_SOURCE_ROLES,
 	type LowBitrateSwitcherConfig,
 	type MCore,
 	type Mctx,
 	type SwitcherActiveSources,
+	type SwitcherDeviceOption,
+	type SwitcherMetricSources,
 	type SwitcherMetrics,
 	type SwitcherStatus,
 } from "./types";
@@ -29,17 +32,16 @@ import { normalizeSwitcherConfig, SwitcherEngine, type ObsSnapshot } from "./swi
 
 const SECTION = "LowBitrateSwitcher";
 
-/** Capability shapes the switcher reads through the bus (minimally typed). */
-interface EncoderCap {
-	encoder(): { status(): { running: boolean } };
+/** The control server's registry, cached per start (refreshed at start + per poll). */
+let deviceList: SwitcherDeviceOption[] | null = null;
+
+/** Wire shapes returned by the metric source devices (their methods.ts). */
+interface EncoderStatusResult {
+	encoder?: { running: boolean };
 }
-interface SrtlaCap {
-	latestStats(): {
-		at: number;
-		stats?: {
-			links: { connected: boolean; bitrate_bytes_per_sec: number; rtt_ms: number }[];
-		} | null;
-	};
+interface SrtlaStatsResult {
+	at?: number;
+	stats?: { links: { connected: boolean; bitrate_bytes_per_sec: number; rtt_ms: number }[] } | null;
 }
 
 /** Core bag, set at bind (discovery) and re-filled at startSwitcher (a module may not import the core directly). */
@@ -55,7 +57,7 @@ let getClient: (() => ObsClient | null) | null = null;
 
 let cfg: LowBitrateSwitcherConfig = defaultLowBitrateSwitcherConfig();
 let engine: SwitcherEngine | null = null;
-let sources: SwitcherActiveSources = { encoder: null, relay: null, combined: null };
+let sources: SwitcherActiveSources = { encoder: null, relay: null };
 let scene: string | null = null;
 let streaming = false;
 let fileLogBroken = false;
@@ -142,83 +144,106 @@ function attachObsEvents(): void {
 
 // ---------------------------------------------------------------------- sources
 
-/** `relay` is the persisted id for the srtla module; accept both. */
-const relayModuleId = (id: string): string => (id === "relay" ? "srtla" : id);
-
-/** Resolve the enabled sources into the module ids that will feed the engine. */
-function resolveSources(): SwitcherActiveSources {
-	const out: SwitcherActiveSources = { encoder: null, relay: null, combined: null };
-	const combinedCfg = cfg.sources.combined;
-	if (combinedCfg.enabled) {
-		if (core.moduleById(combinedCfg.moduleId)) {
-			out.combined = combinedCfg.moduleId;
-			return out; // combined takes precedence over the individual sources
-		}
-		core.logEvent("warn", SECTION, `combined source module "${combinedCfg.moduleId}" not found; falling back to encoder/relay`);
-	}
-	if (cfg.sources.encoder.enabled) {
-		if (core.moduleById(cfg.sources.encoder.moduleId)) out.encoder = cfg.sources.encoder.moduleId;
-		else core.logEvent("warn", SECTION, `encoder source module "${cfg.sources.encoder.moduleId}" not found; source skipped`);
-	}
-	if (cfg.sources.relay.enabled) {
-		const id = relayModuleId(cfg.sources.relay.moduleId);
-		if (core.moduleById(id)) out.relay = cfg.sources.relay.moduleId;
-		else core.logEvent("warn", SECTION, `relay source module "${cfg.sources.relay.moduleId}" not found; source skipped`);
-	}
-	if (!out.encoder && !out.relay && !out.combined) {
-		core.logEvent("warn", SECTION, "no active source is configured; switcher idle");
-	}
-	return out;
-}
-
 /** Merge one source's contribution; a null field must not clobber a value. */
 function mergeField<T>(cur: T | null, next: T | null): T | null {
 	return next === null ? cur : next;
 }
 
+/** Refresh the control server's registry, best-effort (null when no remote link). */
+async function refreshDeviceList(): Promise<void> {
+	try {
+		deviceList = await core.listDevices();
+	} catch {
+		deviceList = null;
+	}
+}
+
+/** Ask a source device for its srtla link stats (null when it answers none). */
+async function requestLinks(deviceId: string): Promise<{ connected: boolean; bitrate_bytes_per_sec: number; rtt_ms: number }[] | null> {
+	try {
+		const res = (await core.requestDevice(deviceId, "srtla.stats")) as SrtlaStatsResult;
+		return res.stats?.links ?? null;
+	} catch {
+		// Source unreachable this poll; the engine sees a metrics gap
+		return null;
+	}
+}
+
+/**
+ * Resolve the enabled sources into the device ids that will feed the engine.
+ * A slot is active only when its configured device is registered, online, and
+ * its role matches the slot's (encoder slot: encoder/combined devices; relay
+ * slot: relay/combined ones).
+ */
+function resolveSources(): SwitcherActiveSources {
+	const out: SwitcherActiveSources = { encoder: null, relay: null };
+	for (const key of ["encoder", "relay"] as const) {
+		const s = cfg.sources[key];
+		if (!s.enabled) continue;
+		const device = deviceList?.find((d) => d.id === s.deviceId);
+		if (!device) {
+			core.logEvent("warn", SECTION, `${key} source device "${s.deviceId}" is not registered; source skipped`);
+			continue;
+		}
+		if (!device.online) {
+			core.logEvent("warn", SECTION, `${key} source device "${device.hostname ?? s.deviceId}" is offline; source skipped`);
+			continue;
+		}
+		if (!SWITCHER_SOURCE_ROLES[key].includes(device.role ?? "")) {
+			core.logEvent("warn", SECTION, `${key} source device "${device.hostname ?? s.deviceId}" has a non-matching role (${device.role}); source skipped`);
+			continue;
+		}
+		out[key] = device.id;
+	}
+	if (!out.encoder && !out.relay) {
+		core.logEvent("warn", SECTION, "no active source is configured; switcher idle");
+	}
+	return out;
+}
+
 /** One merged sample of the resolved sources; null when none is available. */
 async function collectMetrics(): Promise<SwitcherMetrics | null> {
-	if (sources.combined) {
-		const mod = core.moduleById(sources.combined);
-		if (!mod?.status) return null;
-		const frag = (await mod.status()) as Record<string, Record<string, unknown>>;
-		const rec = frag[sources.combined] ?? frag[Object.keys(frag)[0]] ?? {};
-		const fm = cfg.sources.combined.fieldMap;
-		const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-		const bool = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
-		return {
-			bitrateKbps: num(rec[fm.bitrate]),
-			rttMs: num(rec[fm.rtt]),
-			connected: bool(rec[fm.connected]),
-			streaming: bool(rec[fm.streaming]),
-		};
-	}
-
-	let any = false;
-	let connected: boolean | null = null;
-	let bitrateKbps: number | null = null;
-	let rttMs: number | null = null;
-	let streamingField: boolean | null = null;
-
+	await refreshDeviceList();
+	const acc = {
+		any: false,
+		connected: null as boolean | null,
+		bitrateKbps: null as number | null,
+		rttMs: null as number | null,
+		streaming: null as boolean | null,
+	};
+	const applyLinks = (links: { connected: boolean; bitrate_bytes_per_sec: number; rtt_ms: number }[]): void => {
+		const live = links.filter((l) => l.connected);
+		acc.connected = mergeField(acc.connected, live.length > 0);
+		acc.bitrateKbps = mergeField(acc.bitrateKbps, Math.round((live.reduce((a, l) => a + l.bitrate_bytes_per_sec, 0) * 8 * 1000) / 1e6 * 10) / 10);
+		acc.rttMs = mergeField(acc.rttMs, live.length > 0 ? Math.max(...live.map((l) => l.rtt_ms)) : null);
+	};
 	if (sources.encoder) {
-		const enc = core.requireCapability<EncoderCap>("stream.encoder").encoder().status();
-		any = true;
-		connected = mergeField(connected, enc.running);
-		streamingField = mergeField(streamingField, enc.running);
-		// belacoder exposes no live bitrate; its triggers are skipped
-	}
-	if (sources.relay) {
-		const stat = core.requireCapability<SrtlaCap>("stream.srtla").latestStats().stats ?? null;
-		if (stat) {
-			any = true;
-			const links = stat.links.filter((l) => l.connected);
-			connected = mergeField(connected, links.length > 0);
-			bitrateKbps = mergeField(bitrateKbps, Math.round((links.reduce((a, l) => a + l.bitrate_bytes_per_sec, 0) * 8 * 1000) / 1e6 * 10) / 10);
-			rttMs = mergeField(rttMs, links.length > 0 ? Math.max(...links.map((l) => l.rtt_ms)) : null);
+		try {
+			const res = (await core.requestDevice(sources.encoder, "encoder.status")) as EncoderStatusResult;
+			const running = res.encoder?.running;
+			if (typeof running === "boolean") {
+				acc.any = true;
+				acc.connected = mergeField(acc.connected, running);
+				acc.streaming = mergeField(acc.streaming, running);
+			}
+		} catch {
+			// Source unreachable this poll; the engine sees a metrics gap
+		}
+		// A combined device runs the wire too — its stats carry the bitrate/rtt.
+		if (deviceList?.find((d) => d.id === sources.encoder)?.role === "combined") {
+			const links = await requestLinks(sources.encoder);
+			if (links) applyLinks(links);
 		}
 	}
-	if (!any) return null;
-	return { bitrateKbps, rttMs, connected, streaming: streamingField };
+	if (sources.relay) {
+		const links = await requestLinks(sources.relay);
+		if (links) {
+			acc.any = true;
+			applyLinks(links);
+		}
+	}
+	if (!acc.any) return null;
+	return { bitrateKbps: acc.bitrateKbps, rttMs: acc.rttMs, connected: acc.connected, streaming: acc.streaming };
 }
 
 // ------------------------------------------------------------------------ logging
@@ -256,6 +281,19 @@ export const switcherServices = {
 	status(): SwitcherStatus | null {
 		return engine?.status() ?? null;
 	},
+	/**
+	 * The metric source options (part of the module configuration surface):
+	 * the registered devices each source slot can read from — the encoder slot
+	 * lists encoder/combined devices, the relay slot relay/combined ones.
+	 * Empty until the first registry query succeeds.
+	 */
+	metricSources(): SwitcherMetricSources {
+		const list = deviceList ?? [];
+		return {
+			encoder: list.filter((d) => SWITCHER_SOURCE_ROLES.encoder.includes(d.role ?? "")),
+			relay: list.filter((d) => SWITCHER_SOURCE_ROLES.relay.includes(d.role ?? "")),
+		};
+	},
 };
 
 /**
@@ -263,11 +301,13 @@ export const switcherServices = {
  * `switcherEnabled` parameter is on): resolves the sources, attaches to the obs
  * client's events, starts the poll loop.
  */
-export function startSwitcher(ctx: Mctx, getClientAccessor: () => ObsClient | null): void {
+export async function startSwitcher(ctx: Mctx, getClientAccessor: () => ObsClient | null): Promise<void> {
 	bindSwitcherCore(ctx.core);
 	getClient = getClientAccessor;
 	attachedTo = null; // the obs client is fresh on every module start
+	deviceList = null;
 	cfg = loadSwitcherConfig();
+	await refreshDeviceList();
 	sources = resolveSources();
 	attachObsEvents();
 	engine = new SwitcherEngine(cfg, {
@@ -280,7 +320,7 @@ export function startSwitcher(ctx: Mctx, getClientAccessor: () => ObsClient | nu
 		now: () => Date.now(),
 	});
 	engine.start();
-	moduleLog("info", `started (sources: ${[sources.encoder, sources.relay, sources.combined].filter(Boolean).join(", ") || "none"})`);
+	moduleLog("info", `started (sources: ${[sources.encoder, sources.relay].filter(Boolean).join(", ") || "none"})`);
 }
 
 /** Stop the sub-component (called from the obs module's stop). */
@@ -288,4 +328,5 @@ export function stopSwitcher(): void {
 	engine?.stop();
 	engine = null;
 	getClient = null;
+	deviceList = null;
 }

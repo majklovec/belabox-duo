@@ -15,6 +15,7 @@ import type {
 	Status,
 	SrtlaStats,
 	SrtlaStatsEvent,
+	SwitcherStatus,
 	WidgetType,
 } from "../types";
 import { badge, button, widgetTable, type Child } from "./components/ui";
@@ -26,6 +27,7 @@ import { createCardHost, type DeviceCard } from "./device/store";
  * signature without the core re-declaring them (§6 "no shared types"). */
 import {
 	createObsPanel,
+	switcherCard,
 	type ObsEvent,
 	type ObsPanel,
 	type ObsRequestResult,
@@ -50,6 +52,8 @@ interface DeviceLive {
 	device?: DeviceInfo;
 	status?: Status;
 	srtla?: SrtlaStats;
+	/** The low-bitrate switcher's live state (pushed as `lowBitrateSwitcher.state`). */
+	switcher?: SwitcherStatus | null;
 	obsConnected: boolean;
 	obsScene?: string;
 	obsStreaming: boolean;
@@ -282,6 +286,10 @@ export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
 			live.srtla = (data as SrtlaStatsEvent).stats ?? undefined;
 			conn.card.handleStats(data as SrtlaStatsEvent);
 		});
+		rpc.on("lowBitrateSwitcher.state", (data) => {
+			live.switcher = (data as SwitcherStatus | null) ?? null;
+			m.redraw();
+		});
 		rpc.on("obs.event", (data) => {
 			const e = data as { eventType: string; eventData?: Record<string, unknown> };
 			if (e.eventType === "CurrentProgramSceneChanged") {
@@ -448,13 +456,22 @@ function obsPanelFor(w: ServerDashboardWidget, conn: Connection): ObsPanel {
 	return panel;
 }
 
-/** The full control panel (preview, scenes, output actions, VU meter), not just the status rows. */
+/** The full control panel (preview, scenes, output actions, VU meter) plus the low-bitrate switcher card. */
 function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Children {
 	const d = deviceById(w.deviceId);
 	if (!conn || !d?.online) return <p class={"muted"}>{t("dev.badge.offline")}</p>;
+	const status = conn.card.st.status;
 	// The dashboard widget card is shared by all widget types, so scope the module CSS
-	// with the same .mod-obs-controller class the device page's card root gets.
-	return <div class={"mod-obs-controller"}>{obsPanelFor(w, conn).component()}</div>;
+	// with the same .mod-obs-controller class the device page's card root gets. The
+	// switcher card renders under the panel (and stays hidden until enabled there).
+	return (
+		<div class={"mod-obs-controller"}>
+			{[
+				obsPanelFor(w, conn).component(),
+				status ? switcherCard(conn.card, status, conn.live.switcher ?? null) : null,
+			]}
+		</div>
+	);
 }
 
 /** The status badge shown next to the widget title in the card head. */

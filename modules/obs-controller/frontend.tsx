@@ -16,7 +16,10 @@ import { t } from "../../public/ts/i18n";
 import { card, obsRequest, st } from "../../public/ts/device/store";
 import type { Status } from "../../public/types";
 import type { BridgedModule } from "./types";
-import { handleSwitcherEvent, switcherCard } from "./switcher-frontend";
+import { handleSwitcherEvent, switcherCard, switcherLive } from "./switcher-frontend";
+// The dashboard's obs widget renders the switcher card under the panel (the
+// core's one documented module import, see REFACTOR-modules.md §7).
+export { switcherCard } from "./switcher-frontend";
 
 // ----------------------------------------------------------------------
 // Panel factory — one instance per render surface, own state and timers
@@ -727,7 +730,7 @@ const obsControllerModule: BridgedModule = {
 		>
 			{panel.component()}
 		</Card>,
-		status ? switcherCard(status) : null,
+		status ? switcherCard(card, status, switcherLive()) : null,
 	],
 	handleEvent: (event, data) => {
 		panel.handleEvent(event, data);

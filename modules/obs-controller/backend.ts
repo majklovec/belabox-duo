@@ -163,7 +163,7 @@ export default {
 		// The low-bitrate switcher sub-component: runs on this module's
 		// lifecycle, scene-switches through this client (no extra websocket),
 		// and only while its OBS-level master switch is on.
-		if (ctx.config["switcherEnabled"] === true) startSwitcher(ctx, () => obsClient);
+		if (ctx.config["switcherEnabled"] === true) await startSwitcher(ctx, () => obsClient);
 	},
 	async stop() {
 		await teardown();
@@ -171,8 +171,12 @@ export default {
 	methods: ["obs.request", "obs.requestBatch", "obs.setEventSubscriptions"] as const,
 	events: ["obs.event", "lowBitrateSwitcher.state"] as const,
 	async status() {
-		// The switcher's live state in the status payload (null = not running)
-		return { lowBitrateSwitcher: switcherServices.status() };
+		// The switcher's live state (null = not running) plus its metric source
+		// options (the module configuration surface that feeds the UI selects)
+		return {
+			lowBitrateSwitcher: switcherServices.status(),
+			switcherMetricSources: switcherServices.metricSources(),
+		};
 	},
 	async dispatch(method: string, params: Record<string, unknown>) {
 		switch (method) {

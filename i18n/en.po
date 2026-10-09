@@ -1292,17 +1292,11 @@ msgstr "Automatic switching"
 msgid "lowbs.group_sources"
 msgstr "Metric sources"
 
-msgid "lowbs.group_sources_title"
-msgstr "Module whose status feed provides the combined metrics"
-
 msgid "lowbs.source_encoder"
 msgstr "Encoder"
 
 msgid "lowbs.source_relay"
 msgstr "Relay"
-
-msgid "lowbs.source_combined"
-msgstr "Combined feed (takes precedence)"
 
 msgid "lowbs.group_triggers"
 msgstr "Triggers"

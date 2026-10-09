@@ -16,24 +16,15 @@
 /** The switcher's state machine states — each maps to a scene. */
 export type SwitcherState = "NORMAL" | "LOW" | "OFFLINE";
 
-/** The enabled flag plus which module instance a source reads from. */
+/** The enabled flag plus which registered device a source reads metrics from. */
 export interface SwitcherSourceConfig {
 	enabled: boolean;
-	moduleId: string;
-}
-
-/** Maps the switcher's expected keys to the combined module's exposed keys. */
-export interface SwitcherFieldMap {
-	bitrate: string;
-	rtt: string;
-	connected: string;
-	streaming: string;
+	deviceId: string;
 }
 
 export interface LowBitrateSwitcherSources {
 	encoder: SwitcherSourceConfig;
 	relay: SwitcherSourceConfig;
-	combined: SwitcherSourceConfig & { fieldMap: SwitcherFieldMap };
 }
 
 /** What the switcher does when its obs-controller is disconnected. */
@@ -98,13 +89,8 @@ export interface LowBitrateSwitcherConfig {
 export function defaultLowBitrateSwitcherConfig(): LowBitrateSwitcherConfig {
 	return {
 		sources: {
-			encoder: { enabled: false, moduleId: "encoder" },
-			relay: { enabled: false, moduleId: "relay" },
-			combined: {
-				enabled: false,
-				moduleId: "encoder-relay",
-				fieldMap: { bitrate: "bitrate", rtt: "rtt", connected: "connected", streaming: "streaming" },
-			},
+			encoder: { enabled: false, deviceId: "" },
+			relay: { enabled: false, deviceId: "" },
 		},
 		obsController: { moduleId: "obs-controller", failBehaviour: "pause" },
 		switcher: {
@@ -147,20 +133,9 @@ export function normalizeSwitcherConfig(raw: unknown): LowBitrateSwitcherConfig 
 		const s = asObject(sources[key]) ?? {};
 		const b = asBool(s.enabled);
 		if (b !== undefined) out.sources[key].enabled = b;
-		const id = asNonEmptyString(s.moduleId);
-		if (id) out.sources[key].moduleId = id;
+		const id = asNonEmptyString(s.deviceId);
+		if (id) out.sources[key].deviceId = id;
 	}
-	const combined = asObject(sources.combined) ?? {};
-	const cb = asBool(combined.enabled);
-	if (cb !== undefined) out.sources.combined.enabled = cb;
-	const cid = asNonEmptyString(combined.moduleId);
-	if (cid) out.sources.combined.moduleId = cid;
-	const fm = asObject(combined.fieldMap) ?? {};
-	for (const k of ["bitrate", "rtt", "connected", "streaming"] as const) {
-		const f = asNonEmptyString(fm[k]);
-		if (f) out.sources.combined.fieldMap[k] = f;
-	}
-
 	// OBS controller
 	const oc = asObject(r.obsController) ?? {};
 	const ocId = asNonEmptyString(oc.moduleId);
@@ -201,6 +176,37 @@ export function normalizeSwitcherConfig(raw: unknown): LowBitrateSwitcherConfig 
 	return out;
 }
 
+/** One registered device this module may read (a metric source option). */
+export interface SwitcherDeviceOption {
+	/** Device uuid — the value a source persists in `deviceId`. */
+	id: string;
+	hostname?: string;
+	role?: string;
+	online: boolean;
+}
+
+/**
+ * The registered devices each switcher source slot can read from — part of
+ * this module's configuration surface (exposed in its status, rendered as the
+ * source selects). The encoder slot lists encoder/combined devices, the relay
+ * slot relay/combined ones.
+ */
+export interface SwitcherMetricSources {
+	encoder: SwitcherDeviceOption[];
+	relay: SwitcherDeviceOption[];
+}
+
+/** Source options before the first registry query (nothing is listed yet). */
+export function defaultSwitcherMetricSources(): SwitcherMetricSources {
+	return { encoder: [], relay: [] };
+}
+
+/** Devices each source slot may read from, by registry role. */
+export const SWITCHER_SOURCE_ROLES: { encoder: readonly string[]; relay: readonly string[] } = {
+	encoder: ["encoder", "combined"],
+	relay: ["relay", "combined"],
+};
+
 /** One merged metrics sample from the active sources (null = source unavailable). */
 export interface SwitcherMetrics {
 	/** Live stream bitrate in kbps (null: not available). */
@@ -213,11 +219,10 @@ export interface SwitcherMetrics {
 	streaming: boolean | null;
 }
 
-/** Which sources are active after resolution (combined wins over encoder/relay). */
+/** Which sources are active after resolution. */
 export interface SwitcherActiveSources {
 	encoder: string | null;
 	relay: string | null;
-	combined: string | null;
 }
 
 /** The module's live state, merged into the status payload and pushed per change. */
@@ -263,6 +268,10 @@ export interface MCore {
 	/** Capability bus (capability names, never module ids). */
 	requireCapability: <T = unknown>(name: string) => T;
 	moduleById: (id: string) => { id: string; status?: () => Promise<Record<string, unknown>> } | undefined;
+	/** The control server's registry — the devices registered on it. */
+	listDevices(): Promise<Array<{ id: string; hostname?: string; role?: string; online: boolean }>>;
+	/** Request a method on another registered device (server-mediated). */
+	requestDevice(deviceId: string, method: string, params?: Record<string, unknown>): Promise<unknown>;
 }
 
 /** The context the registry passes to `start`. */

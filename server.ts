@@ -341,6 +341,11 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
         return;
     }
 
+    if (msg.type === "request") {
+        onDeviceRequest(d, msg);
+        return;
+    }
+
     if (msg.type === "event") {
         if (msg.event === "status") {
             d.statusMsg = text;
@@ -384,6 +389,46 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
             publishDeviceList(true);
         }
     }
+}
+
+/** Device-initiated request: `devices.list` is answered by the server itself
+ * (the registry); anything else with a `target` is forwarded to that device
+ * like a viewer request, and the response travels back over the origin's socket. */
+function onDeviceRequest(origin: Device, msg: Record<string, unknown>): void {
+	const id = msg.id;
+	if (typeof id !== "number") return;
+	const method = typeof msg.method === "string" ? msg.method : "";
+	if (!method) return;
+	const respond = (payload: string): void => {
+		const ws = origin.ws;
+		if (ws && ws.readyState === WebSocket.OPEN) ws.send(payload);
+	};
+
+	if (method === "devices.list") {
+		respond(JSON.stringify({ type: "response", id, method, ok: true, result: summaries() }));
+		return;
+	}
+
+	const targetId = typeof msg.target === "string" ? msg.target : "";
+	const target = targetId ? devices.get(targetId) : undefined;
+	if (!target?.ws) {
+		respond(errorResponse(id, method, "device offline", 503));
+		return;
+	}
+
+	const originWs = origin.ws;
+	if (!target.ws || !originWs) {
+		respond(errorResponse(id, method, "device offline", 503));
+		return;
+	}
+	const params = msg.params && typeof msg.params === "object" && !Array.isArray(msg.params) ? msg.params : {};
+	const sid = nextRequestId++;
+	const timer = setTimeout(() => {
+		pending.delete(sid);
+		respond(errorResponse(id, method, "device did not respond", 504));
+	}, REQUEST_TIMEOUT_MS);
+	pending.set(sid, { deviceId: target.id, viewer: originWs, clientId: id, method, timer });
+	target.ws.send(JSON.stringify({ id: sid, method, params }));
 }
 
 function onViewerMessage(ws: Socket, deviceId: string, raw: string | Buffer): void {

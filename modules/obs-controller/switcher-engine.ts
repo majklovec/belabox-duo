@@ -266,20 +266,9 @@ export function normalizeSwitcherConfig(raw: unknown): LowBitrateSwitcherConfig 
 		const s = asObject(sources[key]) ?? {};
 		const b = asBool(s.enabled);
 		if (b !== undefined) out.sources[key].enabled = b;
-		const id = asNonEmptyString(s.moduleId);
-		if (id) out.sources[key].moduleId = id;
+		const id = asNonEmptyString(s.deviceId);
+		if (id) out.sources[key].deviceId = id;
 	}
-	const combined = asObject(sources.combined) ?? {};
-	const cb = asBool(combined.enabled);
-	if (cb !== undefined) out.sources.combined.enabled = cb;
-	const cid = asNonEmptyString(combined.moduleId);
-	if (cid) out.sources.combined.moduleId = cid;
-	const fm = asObject(combined.fieldMap) ?? {};
-	for (const k of ["bitrate", "rtt", "connected", "streaming"] as const) {
-		const f = asNonEmptyString(fm[k]);
-		if (f) out.sources.combined.fieldMap[k] = f;
-	}
-
 	// OBS controller
 	const oc = asObject(r.obsController) ?? {};
 	const ocId = asNonEmptyString(oc.moduleId);

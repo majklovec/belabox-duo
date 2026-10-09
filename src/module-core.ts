@@ -49,6 +49,7 @@ import {
 	stopSrtlaControl,
 } from "./srtlaControl";
 import { requireCapability } from "./capabilities";
+import { listDevices, requestDevice } from "./remote";
 import { errorMessage, readLines } from "./util";
 
 /** The live process state a module mutates and persists with `saveState`. */
@@ -105,6 +106,14 @@ export interface ModuleCore {
 	 * is unknown.
 	 */
 	moduleById: (id: string) => { id: string; status?: ModuleStatus } | undefined;
+	/**
+	 * The control server's device registry (the devices this box is registered
+	 * with). Empty when no remote link is configured / connected; rejects when
+	 * the link is down.
+	 */
+	listDevices: typeof listDevices;
+	/** Request a method on another registered device (server-mediated). */
+	requestDevice: typeof requestDevice;
 }
 
 /** Live srtla scheduler-options types (re-exported for modules to avoid a core import). */
@@ -152,5 +161,7 @@ export function buildModuleCore(lookup: (id: string) => { id: string; status?: M
 		},
 		requireCapability,
 		moduleById: lookup,
+		listDevices,
+		requestDevice,
 	};
 }

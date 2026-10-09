@@ -49,7 +49,15 @@ import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
 import { callModule, moduleStatuses, restartRegisteredModule } from "./registry";
-import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo, SrtlaState, SwitcherStatus } from "../public/types";
+import type {
+	CeraConfig,
+	EncoderConfig,
+	EncoderState,
+	ModemInfo,
+	SrtlaState,
+	SwitcherMetricSources,
+	SwitcherStatus,
+} from "../public/types";
 import { encoderServices, modemServices, obsServices, srtlaServices } from "./services";
 import {
 	ApiError,
@@ -127,6 +135,8 @@ export async function buildStatus() {
 		ceracoder: encoderServices.ceracoderConfig(),
 		// null when the switcher is not running; the card shows "idle" then
 		lowBitrateSwitcher: (modFragments.lowBitrateSwitcher as SwitcherStatus | null) ?? null,
+		// The switcher's metric source options (part of the module configuration surface)
+		switcherMetricSources: (modFragments.switcherMetricSources as SwitcherMetricSources) ?? null,
 		// Module system: enabled flags + non-secret settings (secrets => {configured})
 		modules: modulesView(),
 	};

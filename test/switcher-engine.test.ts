@@ -15,7 +15,7 @@ import {
     type SwitcherDeps,
 } from "../modules/obs-controller/switcher-engine";
 
-const SOURCES: SwitcherActiveSources = { encoder: "encoder", relay: null, combined: null };
+const SOURCES: SwitcherActiveSources = { encoder: "encoder", relay: null };
 
 interface DepsOpts {
     obs?: ObsSnapshot | null;

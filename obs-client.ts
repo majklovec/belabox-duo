@@ -49,6 +49,7 @@ import { REMOTE_URL_RE } from "./src/validate";
 import { APP_VERSION } from "./src/version";
 import {
 	type LowBitrateSwitcherConfig,
+	type SwitcherDeviceOption,
 	defaultLowBitrateSwitcherConfig,
 	normalizeSwitcherConfig,
 } from "./src/switcher";
@@ -694,6 +695,7 @@ async function main(): Promise<void> {
   let backoff = BACKOFF_MIN_MS;
   let pingTimer: ReturnType<typeof setInterval> | null = null;
   let statusTimer: ReturnType<typeof setInterval> | null = null;
+  let registryTimer: ReturnType<typeof setInterval> | null = null;
   let lastSeen = 0;
 
   const send = (msg: string): void => {
@@ -702,6 +704,54 @@ async function main(): Promise<void> {
 
   const pushStatus = (): void =>
     send(JSON.stringify({ type: "event", event: "status", data: buildStatus() }));
+
+  // Outgoing requests (this box asks the control server for its device
+  // registry, for the switcher's metric source options).
+  let nextOutgoingId = 1;
+  const outgoing = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  const serverRequest = (method: string, params?: Record<string, unknown>): Promise<unknown> => {
+    const id = nextOutgoingId++;
+    return new Promise<unknown>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        outgoing.delete(id);
+        reject(new Error(`request "${method}" timed out`));
+      }, 5_000);
+      outgoing.set(id, {
+        resolve: (v) => { clearTimeout(timer); resolve(v); },
+        reject: (e) => { clearTimeout(timer); reject(e); },
+      });
+      send(JSON.stringify({ type: "request", id, method, ...(params ? { params } : {}) }));
+    });
+  };
+  const settleOutgoing = (text: string): boolean => {
+    let msg: { type?: unknown; id?: unknown; ok?: unknown; result?: unknown; error?: unknown };
+    try {
+      msg = JSON.parse(text);
+    } catch {
+      return false;
+    }
+    if (!msg || typeof msg !== "object" || msg.type !== "response" || typeof msg.id !== "number") return false;
+    const p = outgoing.get(msg.id);
+    if (!p) return false;
+    outgoing.delete(msg.id);
+    if (msg.ok === false) p.reject(new Error(msg.error ? String(msg.error) : "server refused the request"));
+    else p.resolve(msg.result);
+    return true;
+  };
+  const failOutgoing = (reason: string): void => {
+    for (const [id, p] of outgoing) { p.reject(new Error(reason)); outgoing.delete(id); }
+  };
+
+  // The control server's registry, cached for the switcher's source options.
+  let deviceList: SwitcherDeviceOption[] | null = null;
+  const refreshDeviceList = async (): Promise<void> => {
+    try {
+      const result = (await serverRequest("devices.list")) as SwitcherDeviceOption[];
+      deviceList = Array.isArray(result) ? result : [];
+    } catch {
+      // No registry (yet); the next refresh retries
+    }
+  };
 
   const pushObsEvent = (eventType: string, eventIntent: number, eventData?: Record<string, unknown>): void =>
     send(JSON.stringify({
@@ -714,6 +764,12 @@ async function main(): Promise<void> {
   const buildStatus = (): Record<string, unknown> => ({
     role: "obs",
     setupRequired: false,
+    // The switcher's metric source options — the registered devices, by role
+    // (empty until the first registry query succeeds)
+    switcherMetricSources: {
+      encoder: (deviceList ?? []).filter((d) => d.role === "encoder" || d.role === "combined"),
+      relay: (deviceList ?? []).filter((d) => d.role === "relay" || d.role === "combined"),
+    },
     state: { obs: { connected: obs.identified, url: scrubUrl(obsUrl) } },
     modules: {
       relay: { enabled: false },
@@ -837,7 +893,8 @@ async function main(): Promise<void> {
   function clearTimers(): void {
     if (pingTimer) clearInterval(pingTimer);
     if (statusTimer) clearInterval(statusTimer);
-    pingTimer = statusTimer = null;
+    if (registryTimer) clearInterval(registryTimer);
+    pingTimer = statusTimer = registryTimer = null;
   }
 
   function connect(): void {
@@ -864,6 +921,10 @@ async function main(): Promise<void> {
         ...(remoteToken ? { token: remoteToken } : {}),
       }));
       pushStatus();
+      // Keep the device registry fresh for the switcher's source options
+      deviceList = null;
+      void refreshDeviceList().then(pushStatus);
+      registryTimer = setInterval(() => void refreshDeviceList().then(pushStatus), PING_INTERVAL_MS);
       pingTimer = setInterval(() => {
         if (Date.now() - lastSeen > LIVENESS_TIMEOUT_MS) {
           console.warn("[obs-client] no traffic from server — dropping connection");
@@ -881,6 +942,7 @@ async function main(): Promise<void> {
     ws.addEventListener("message", (ev) => {
       touch();
       const text = textOf((ev as unknown as { data: string | ArrayBuffer }).data);
+      if (settleOutgoing(text)) return; // a reply to our own outgoing request
       // Only requests (objects with a `method`) are answered
       try {
         const msg: unknown = JSON.parse(text);
@@ -893,6 +955,7 @@ async function main(): Promise<void> {
 
     ws.addEventListener("close", (ev) => {
       clearTimers();
+      failOutgoing("disconnected from control server");
       if (sock === ws) sock = null;
       if (stopped) return;
       console.warn(`[obs-client] disconnected (${ev.code}${ev.reason ? `: ${ev.reason}` : ""}); retrying in ${backoff / 1000}s`);

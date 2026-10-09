@@ -11,24 +11,15 @@
 /** The switcher's state machine states — each maps to a scene. */
 export type SwitcherState = "NORMAL" | "LOW" | "OFFLINE";
 
-/** The enabled flag plus which module instance a source reads from. */
+/** The enabled flag plus which registered device a source reads metrics from. */
 export interface SwitcherSourceConfig {
 	enabled: boolean;
-	moduleId: string;
-}
-
-/** Maps the switcher's expected keys to the combined module's exposed keys. */
-export interface SwitcherFieldMap {
-	bitrate: string;
-	rtt: string;
-	connected: string;
-	streaming: string;
+	deviceId: string;
 }
 
 export interface LowBitrateSwitcherSources {
 	encoder: SwitcherSourceConfig;
 	relay: SwitcherSourceConfig;
-	combined: SwitcherSourceConfig & { fieldMap: SwitcherFieldMap };
 }
 
 /** What the switcher does when its obs-controller is disconnected. */
@@ -89,17 +80,37 @@ export interface LowBitrateSwitcherConfig {
 	logToFile: boolean;
 }
 
+/** One registered device the switcher may read (a metric source option). */
+export interface SwitcherDeviceOption {
+	/** Device uuid — the value a source persists in `deviceId`. */
+	id: string;
+	hostname?: string;
+	role?: string;
+	online: boolean;
+}
+
+/**
+ * The registered devices each switcher source slot can read from — part of
+ * the obs-controller's configuration surface (exposed in the status, rendered
+ * as the source selects in the switcher card). The encoder slot lists
+ * encoder/combined devices, the relay slot relay/combined ones.
+ */
+export interface SwitcherMetricSources {
+	encoder: SwitcherDeviceOption[];
+	relay: SwitcherDeviceOption[];
+}
+
+/** Source options before the first registry query (nothing is listed yet). */
+export function defaultSwitcherMetricSources(): SwitcherMetricSources {
+	return { encoder: [], relay: [] };
+}
+
 /** Factory defaults for the low-bitrate switcher; a fresh device starts with it idle. */
 export function defaultLowBitrateSwitcherConfig(): LowBitrateSwitcherConfig {
 	return {
 		sources: {
-			encoder: { enabled: false, moduleId: "encoder" },
-			relay: { enabled: false, moduleId: "relay" },
-			combined: {
-				enabled: false,
-				moduleId: "encoder-relay",
-				fieldMap: { bitrate: "bitrate", rtt: "rtt", connected: "connected", streaming: "streaming" },
-			},
+			encoder: { enabled: false, deviceId: "" },
+			relay: { enabled: false, deviceId: "" },
 		},
 		obsController: { moduleId: "obs-controller", failBehaviour: "pause" },
 		switcher: {
@@ -142,20 +153,9 @@ export function normalizeSwitcherConfig(raw: unknown): LowBitrateSwitcherConfig 
 		const s = asObject(sources[key]) ?? {};
 		const b = asBool(s.enabled);
 		if (b !== undefined) out.sources[key].enabled = b;
-		const id = asNonEmptyString(s.moduleId);
-		if (id) out.sources[key].moduleId = id;
+		const id = asNonEmptyString(s.deviceId);
+		if (id) out.sources[key].deviceId = id;
 	}
-	const combined = asObject(sources.combined) ?? {};
-	const cb = asBool(combined.enabled);
-	if (cb !== undefined) out.sources.combined.enabled = cb;
-	const cid = asNonEmptyString(combined.moduleId);
-	if (cid) out.sources.combined.moduleId = cid;
-	const fm = asObject(combined.fieldMap) ?? {};
-	for (const k of ["bitrate", "rtt", "connected", "streaming"] as const) {
-		const f = asNonEmptyString(fm[k]);
-		if (f) out.sources.combined.fieldMap[k] = f;
-	}
-
 	// OBS controller
 	const oc = asObject(r.obsController) ?? {};
 	const ocId = asNonEmptyString(oc.moduleId);

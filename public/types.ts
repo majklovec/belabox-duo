@@ -191,24 +191,15 @@ export interface SwitcherMetrics {
 	streaming: boolean | null;
 }
 
-/** The enabled flag plus which module instance a source reads from. */
+/** The enabled flag plus which registered device a source reads metrics from. */
 export interface SwitcherSourceConfig {
 	enabled: boolean;
-	moduleId: string;
-}
-
-/** Maps the switcher's expected keys to the combined module's exposed keys. */
-export interface SwitcherFieldMap {
-	bitrate: string;
-	rtt: string;
-	connected: string;
-	streaming: string;
+	deviceId: string;
 }
 
 export interface LowBitrateSwitcherSources {
 	encoder: SwitcherSourceConfig;
 	relay: SwitcherSourceConfig;
-	combined: SwitcherSourceConfig & { fieldMap: SwitcherFieldMap };
 }
 
 /** What the switcher does when its obs-controller is disconnected. */
@@ -270,13 +261,32 @@ export interface LowBitrateSwitcherConfig {
 }
 
 /**
- * Which sources are active after resolution (combined takes precedence over
- * encoder/relay). Used by the status so the card can show what feeds the engine.
+ * Which sources are active after resolution. Used by the status so the card
+ * can show what feeds the engine.
  */
 export interface SwitcherActiveSources {
 	encoder: string | null;
 	relay: string | null;
-	combined: string | null;
+}
+
+/** One registered device the switcher may read (a metric source option). */
+export interface SwitcherDeviceOption {
+	/** Device uuid — the value a source persists in `deviceId`. */
+	id: string;
+	hostname?: string;
+	role?: string;
+	online: boolean;
+}
+
+/**
+ * The registered devices each switcher source slot can read from (part of the
+ * obs-controller's configuration surface, provided by the module itself). The
+ * renderer shows a select per slot fed by this list: the encoder slot lists
+ * encoder/combined devices, the relay slot relay/combined ones.
+ */
+export interface SwitcherMetricSources {
+	encoder: SwitcherDeviceOption[];
+	relay: SwitcherDeviceOption[];
 }
 
 /** The module's live state, merged into the status payload and pushed per change. */
@@ -325,6 +335,8 @@ export interface Status {
 	ceracoder: CeraConfig | null;
 	/** Live state of the low-bitrate switcher (null when the module is stopped). */
 	lowBitrateSwitcher?: SwitcherStatus | null;
+	/** Metric source options of the low-bitrate switcher (null on older builds). */
+	switcherMetricSources?: SwitcherMetricSources | null;
 	/** Module system: enabled flags + non-secret settings (secrets come back as `{configured}`). */
 	modules: ModulesView;
 }
