@@ -21,9 +21,9 @@ import {
 	type ObsRequestBatch,
 } from "../../obs-client";
 import type { MCore, Mctx } from "./types";
-import { startSwitcher, stopSwitcher, switcherServices } from "./switcher";
+import { bindSwitcherCore, startSwitcher, stopSwitcher, switcherServices } from "./switcher";
 
-/** Core bag, filled at start (a module may not import the core directly). */
+/** Core bag, filled at bind (discovery) and re-filled at start (a module may not import the core directly). */
 let core: MCore;
 
 // op5 events forwarded to the UI; the ones an operator dashboard reacts to.
@@ -132,6 +132,10 @@ export default {
 		switcher: z.unknown().optional(),
 	}).passthrough(),
 	secretFields: ["obsPassword"],
+	bind(c: MCore) {
+		core = c;
+		bindSwitcherCore(c);
+	},
 	async start(ctx: Mctx) {
 		core = ctx.core;
 		await teardown();

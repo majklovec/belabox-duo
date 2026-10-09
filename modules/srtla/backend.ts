@@ -17,14 +17,14 @@ import {
 
 const RESTART_DELAY_MS = 2_000;
 
-/** Core bag, filled at start (a module may not import the core directly). */
+/** Core bag, filled at bind (discovery) and re-filled at start (a module may not import the core directly). */
 let core: SrtlaCore;
 
 const sc = () => core.srtlaControl;
 
-// The module is imported before start binds `core`, so the supervisor is built
-// lazily on first use (the original created it at import; behaviour is
-// identical because start is the first entry point that touches it).
+// The core bag is bound at discovery (bind) and re-filled at start, so the
+// supervisor can be built at any time — even for a never-started module,
+// where it simply reports a stopped state.
 type Sup = InstanceType<SrtlaCore["Supervisor"]>;
 let sup: Sup | undefined;
 
@@ -225,6 +225,9 @@ export default {
 	title: "SRTLA",
 	configSchema: z.object({}).passthrough(),
 	secretFields: [] as string[],
+	bind(c: SrtlaCore) {
+		core = c;
+	},
 	async start(ctx: Mctx) {
 		core = ctx.core;
 	},

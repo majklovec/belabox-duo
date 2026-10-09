@@ -1,10 +1,13 @@
 /*
  * Core bag — every service a backend module may need, aggregated into one
- * object the registry passes to modules via `ctx.core`.
+ * object the registry hands to modules: at discovery via `bind()` (the bag
+ * is process-scoped — process config, state, exec — so a module's lazy
+ * objects stay constructible even when the module is not started) and
+ * again at start via `ctx.core` (alongside the start-scoped ctx fields).
  *
  * This is the single dependency edge from a module into the core. A module
  * never imports from `../../src/*`: it reads what it needs from the bag it
- * was handed at start (and the registry fills `moduleById` after discovery).
+ * was handed (and the registry fills `moduleById` after discovery).
  * The bag is intentionally broad-and-structural: a module types only the
  * fields it uses, locally.
  */

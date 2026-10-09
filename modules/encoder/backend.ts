@@ -38,7 +38,7 @@ import {
 	type EncoderCore,
 } from "./types";
 
-/** Core bag, filled at start (a module may not import the core directly). */
+/** Core bag, filled at bind (discovery) and re-filled at start (a module may not import the core directly). */
 let core: EncoderCore;
 /** Resolved pipelines root (deferred: `core` is bound at start, not at import). */
 const pipelinesRoot = (): string => resolve(core.config.PIPELINES_DIR);
@@ -437,7 +437,9 @@ let instance: Encoder | null = null;
 /**
  * The device's encoder (see loadEncoder()); created lazily so the first
  * access — from a method, the status build, or stream orchestration — works
- * without a separate startup call.
+ * without a separate startup call. The core bag is bound at module
+ * discovery, so construction works even when the module is disabled
+ * (the instance simply reports a stopped state).
  */
 function encoder(): Encoder {
 	if (!instance) instance = core.config.IS_CERA ? new Ceracoder(core.config.ENCODER_BIN) : new Belacoder(core.config.ENCODER_BIN);
@@ -473,6 +475,9 @@ export default {
 	title: "Encoder",
 	configSchema: z.object({}).passthrough(),
 	secretFields: [] as string[],
+	bind(c: EncoderCore) {
+		core = c;
+	},
 	async start(_ctx: Mctx) {
 		core = _ctx.core;
 	},

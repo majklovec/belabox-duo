@@ -42,8 +42,13 @@ interface SrtlaCap {
 	};
 }
 
-/** Core bag, set in startSwitcher (a module may not import the core directly). */
+/** Core bag, set at bind (discovery) and re-filled at startSwitcher (a module may not import the core directly). */
 let core: MCore;
+
+/** Bind the process core before startSwitcher (called from the host module's bind). */
+export function bindSwitcherCore(c: MCore): void {
+	core = c;
+}
 
 /** The module's obs client, as handed in by the (hosting) backend at start. */
 let getClient: (() => ObsClient | null) | null = null;
@@ -259,7 +264,7 @@ export const switcherServices = {
  * client's events, starts the poll loop.
  */
 export function startSwitcher(ctx: Mctx, getClientAccessor: () => ObsClient | null): void {
-	core = ctx.core;
+	bindSwitcherCore(ctx.core);
 	getClient = getClientAccessor;
 	attachedTo = null; // the obs client is fresh on every module start
 	cfg = loadSwitcherConfig();

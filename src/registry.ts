@@ -36,6 +36,13 @@ interface ModuleRegistration {
 	secretFields: string[];
 	start(ctx: { config: Record<string, unknown>; emit: (e: string, d: unknown) => void; log: (s: string, m: string) => void; core: unknown }): Promise<void>;
 	stop(): Promise<void>;
+	/**
+	 * Bind the process-scoped core bag at discovery, before start: a module's
+	 * lazy objects (encoder instance, srtla supervisor) must be constructible
+	 * and inspectable even when the module is disabled, so the bag — built
+	 * from process config/state, not the module slice — is not start-scoped.
+	 */
+	bind?(core: unknown): void;
 	methods: readonly string[];
 	events: readonly string[];
 	/** ids of modules this one must have started first (topological order). */
@@ -105,6 +112,9 @@ function validate(mod: unknown, file: string): asserts mod is ModuleRegistration
 		if (typeof m.start !== "function" || typeof m.stop !== "function") {
 			throw new Error(`module ${id}: start/stop must be methods`);
 		}
+		if (m.bind !== undefined && typeof m.bind !== "function") {
+			throw new Error(`module ${id}: bind must be a method`);
+		}
 		if (!Array.isArray(m.methods) || !Array.isArray(m.events) || typeof m.dispatch !== "function") {
 			throw new Error(`module ${id}: methods/events must be arrays and dispatch a method`);
 		}
@@ -156,6 +166,11 @@ const core = buildModuleCore((id) => {
 	return mod ? { id: mod.id, status: mod.status } : undefined;
 });
 
+// Bind the process-scoped bag into every module before start (see bind?):
+// the lazy objects a capability builds must work — reporting "stopped" — for
+// modules whose start never ran, not crash on an unbound core.
+for (const mod of ALL_MODULES) mod.bind?.(core);
+
 /** The core's door to a module's persisted settings slice (config key mapping). */
 const moduleConfig = (id: string): Record<string, unknown> => {
 	const m = state.settings.modules as Record<string, Record<string, unknown>> | undefined;
@@ -163,9 +178,6 @@ const moduleConfig = (id: string): Record<string, unknown> => {
 	const slice = m?.[key];
 	return slice ? { ...slice } : {};
 };
-
-/** Modules whose `start()` ran; only these get stopped (`stop()` assumes a bound `core`). */
-const started = new Set<string>();
 
 /** Start every registered, settings-enabled module. */
 export async function startModules(): Promise<void> {
@@ -179,15 +191,13 @@ export async function startModules(): Promise<void> {
 			emit: (event, data) => pushModuleEvent(event, data, mod.id),
 			log: (section, message) => logEvent("info", section, message),
 		});
-		started.add(mod.id);
 	}
 }
 
-/** Stop the modules that were started (skipping never-started ones whose `core` is unbound). */
+/** Stop every non-hub module (unstarted ones are no-ops: their `stop()` sees a bound core and a stopped process). */
 export async function stopModules(): Promise<void> {
 	for (const mod of ALL_MODULES) {
-		if (mod.hub || !started.has(mod.id)) continue;
-		started.delete(mod.id);
+		if (mod.hub) continue;
 		await mod.stop();
 	}
 }
@@ -196,10 +206,8 @@ export async function stopModules(): Promise<void> {
 export async function restartRegisteredModule(id: string): Promise<void> {
 	const mod = ALL_MODULES.find((m) => m.id === id);
 	if (!mod) return;
-	started.delete(id);
 	await mod.stop();
 	if (moduleConfig(id).enabled === true) {
-		started.add(id);
 		await mod.start({
 			config: moduleConfig(id),
 			core,

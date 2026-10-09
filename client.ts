@@ -74,7 +74,7 @@ async function main(): Promise<void> {
         // Before stopRemote so the control server still receives it
         logEvent("info", "Service", t("log.stopped_signal", signal));
         stopRemote();
-        stopRegistryModules();   // modules/<id>/backend.ts stop()s (started modules only)
+        stopRegistryModules();   // modules/<id>/backend.ts stop()s (no-ops for modules that never started)
         await stopInterfaceMonitor();
         await flushLog();
         process.exit(0);

@@ -8,7 +8,7 @@
 import { z } from "zod";
 import type { Mctx, ModemInfo, ModemsCore } from "./types";
 
-/** Core bag, filled at start (a module may not import the core directly). */
+/** Core bag, filled at bind (discovery) and re-filled at start (a module may not import the core directly). */
 let core: ModemsCore;
 
 const mmcli = (...args: string[]) => core.run("mmcli", args, true);
@@ -82,6 +82,9 @@ export default {
 	title: "Modems",
 	configSchema: z.object({}).passthrough(),
 	secretFields: [] as string[],
+	bind(c: ModemsCore) {
+		core = c;
+	},
 	async start(ctx: Mctx) {
 		core = ctx.core;
 	},
