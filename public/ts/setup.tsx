@@ -375,12 +375,14 @@ function wizard(): m.Children {
 	];
 }
 
-const App = () => (
-	<Page title={t("setup.title")} headerRight={connectionBadge(state.connected)}>
-		<Card>
-			{state.loaded ? wizard() : muted(t("setup.loading"), "p")}
-		</Card>
-	</Page>
-);
+const App: m.Component = {
+	view: () => (
+		<Page title={t("setup.title")} headerRight={connectionBadge(state.connected)}>
+			<Card>
+				{state.loaded ? wizard() : muted(t("setup.loading"), "p")}
+			</Card>
+		</Page>
+	),
+};
 
 void mountPage(() => t("setup.title"), App);

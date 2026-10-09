@@ -55,35 +55,37 @@ function headerRight(): m.Children[] {
 	];
 }
 
-const App = () => {
-	const status = st.status;
-	const role = status?.role;
-	const hasEncoder = !!status && role !== "relay";
-	const hasRelay = !!status && role !== "encoder";
-	// A dedicated OBS box (role "obs") is a preview/scene deck only — the
-	// SRT/streaming cards would be inactive there.
-	const obsOnly = !!status && role === "obs";
-	const obsOn = status?.modules["obs-controller"]?.enabled === true;
-	// The obs card also carries its low-bitrate switcher (a second card under it)
-	const children = [
-		!obsOnly && hasEncoder && moduleCard("encoder", status),
-		!obsOnly && hasRelay && [moduleCard("srtla", status), interfacesCard(status), moduleCard("modems", status)],
-		obsOn && moduleCard("obs-controller", status),
-	];
-	return (
-		<Page
-			title={(
-				<TitleWithBack href={st.device ? "../../" : undefined} backLabel={t("dev.all_devices_title")}>
-					{`${t("dev.title")} `}
-					{st.device && muted(st.device.hostname || st.device.id)}
-				</TitleWithBack>
-			)}
-			headerRight={headerRight()}
-		>
-			{children}
-			<LogCardView />
-		</Page>
-	);
+const App: m.Component = {
+	view: () => {
+		const status = st.status;
+		const role = status?.role;
+		const hasEncoder = !!status && role !== "relay";
+		const hasRelay = !!status && role !== "encoder";
+		// A dedicated OBS box (role "obs") is a preview/scene deck only — the
+		// SRT/streaming cards would be inactive there.
+		const obsOnly = !!status && role === "obs";
+		const obsOn = status?.modules["obs-controller"]?.enabled === true;
+		// The obs card also carries its low-bitrate switcher (a second card under it)
+		const children = [
+			!obsOnly && hasEncoder && moduleCard("encoder", status),
+			!obsOnly && hasRelay && [moduleCard("srtla", status), interfacesCard(status), moduleCard("modems", status)],
+			obsOn && moduleCard("obs-controller", status),
+		];
+		return (
+			<Page
+				title={(
+					<TitleWithBack href={st.device ? "../../" : undefined} backLabel={t("dev.all_devices_title")}>
+						{`${t("dev.title")} `}
+						{st.device && muted(st.device.hostname || st.device.id)}
+					</TitleWithBack>
+				)}
+				headerRight={headerRight()}
+			>
+				{children}
+				<LogCardView />
+			</Page>
+		);
+	},
 };
 
 // Refresh relative times ("12s ago") and stats staleness without waiting for a push

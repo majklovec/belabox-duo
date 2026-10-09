@@ -105,30 +105,32 @@ const columnHeaders = (): m.Children[] => [
 	[icon("relay"), ` ${t("setup.step.relay")}`],
 ];
 
-const App = () => {
-	const headers = columnHeaders();
-	return (
-		<Page title={t("mgmt.title")} nav={serverNav("devices")} headerRight={connBadge()}>
-			<Card>
-				<table class={css({width: "100%", fontSize: "0.875rem", lineHeight: "1.25rem"})}>
-					<thead>
-						<tr>
-							{headers.map((h, i) => <th key={i} class={css({paddingInline: "0.75rem", paddingBlock: "0.5rem", textAlign: "left", fontWeight: "500"})}>{h}</th>)}
-						</tr>
-					</thead>
-					<tbody class={css({"& td": {paddingInline: "0.75rem", paddingBlock: "0.5rem"}})}>
-						{state.devices?.length
-							? state.devices.map(row)
-							: <tr>
-									<td colspan={headers.length}>
-										{muted(state.devices ? t("mgmt.none") : t("mgmt.loading"), "span")}
-									</td>
-							 </tr>}
-					</tbody>
-				</table>
-			</Card>
-		</Page>
-	);
+const App: m.Component = {
+	view: () => {
+		const headers = columnHeaders();
+		return (
+			<Page title={t("mgmt.title")} nav={serverNav("devices")} headerRight={connBadge()}>
+				<Card>
+					<table class={css({width: "100%", fontSize: "0.875rem", lineHeight: "1.25rem"})}>
+						<thead>
+							<tr>
+								{headers.map((h, i) => <th key={i} class={css({paddingInline: "0.75rem", paddingBlock: "0.5rem", textAlign: "left", fontWeight: "500"})}>{h}</th>)}
+							</tr>
+						</thead>
+						<tbody class={css({"& td": {paddingInline: "0.75rem", paddingBlock: "0.5rem"}})}>
+							{state.devices?.length
+								? state.devices.map(row)
+								: <tr>
+										<td colspan={headers.length}>
+											{muted(state.devices ? t("mgmt.none") : t("mgmt.loading"), "span")}
+										</td>
+									</tr>}
+						</tbody>
+					</table>
+				</Card>
+			</Page>
+		);
+	},
 };
 
 void mountPage(() => t("mgmt.title"), App);

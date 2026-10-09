@@ -14,9 +14,11 @@ export type Child = m.Vnode | string | number | false | null | undefined;
 /** Mount a page component into #app, setting the document title first. */
 /** Wait for the PO catalogs to load, then mount. Title is a thunk so it
  * translates with the loaded catalogs (t() returns the raw key before ready). */
-/** A component for `m.mount`: `m.Component` objects and plain function
- * (JSX) components — mithril's renderer handles both. */
-export type Mountable = m.Component | ((v?: m.Vnode) => m.Vnode | m.Children);
+/** A component for `m.mount`. Must be an object (`{ view }`) component:
+ * mithril's renderer only initialises the mounted root via its `view`, so a
+ * plain function (JSX) root crashes in `initComponent` (callHook on
+ * `state.view` reads `.apply` of undefined). */
+export type Mountable = m.Component;
 
 export async function mountPage(title: () => string, component: Mountable): Promise<void> {
 	await i18nReady;

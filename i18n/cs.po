@@ -522,7 +522,7 @@ msgid "kickstats.title"
 msgstr "Název"
 
 msgid "kickstats.viewers"
-msgstr "diváci"
+msgstr "diváků"
 
 msgid "kickstats.waiting"
 msgstr "Čeká na první dotaz…"

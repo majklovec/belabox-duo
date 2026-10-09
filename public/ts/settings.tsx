@@ -213,14 +213,16 @@ function repositoriesCard(): m.Vnode {
 	);
 }
 
-const App = () => (
-	<Page
-		title={<TitleWithBack href="../" backLabel={t("set.back")}>{t("set.title")}</TitleWithBack>}
-		headerRight={connectionBadge(state.connected)}
-	>
-		{settingsCard()}
-		{repositoriesCard()}
-	</Page>
-);
+const App: m.Component = {
+	view: () => (
+		<Page
+			title={<TitleWithBack href="../" backLabel={t("set.back")}>{t("set.title")}</TitleWithBack>}
+			headerRight={connectionBadge(state.connected)}
+		>
+			{settingsCard()}
+			{repositoriesCard()}
+		</Page>
+	),
+};
 
 void mountPage(() => t("set.title"), App);
