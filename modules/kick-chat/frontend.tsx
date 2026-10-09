@@ -19,7 +19,10 @@ function channelOf(w: ServerDashboardWidget): string {
 function badge(w: ServerDashboardWidget, live: ChannelLive): m.Vnode {
 	const channel = channelOf(w);
 	if (!channel) return badgeEl(t("dash.widget_not_configured"), "warn");
-	return badgeEl(live.connected === false ? t("dev.badge.offline") : t("dev.badge.online"), live.connected === false ? "off" : "on");
+	return badgeEl(
+		live.connected === false ? t("dev.badge.offline") : t("dev.badge.online"),
+		live.connected === false ? "off" : "on",
+	);
 }
 
 /** One piece of a parsed chat line: a text run or an embedded Kick emote. */
@@ -47,38 +50,43 @@ const failedEmotes = new Set<string>();
 /** A message body: text runs plus `img` emotes sized to the line's font. */
 function lineSegments(text: string): m.Children {
 	return parseSegments(text).map((s, i) =>
-		s.kind === "text"
-			? m("span", { key: i }, s.value)
-			: failedEmotes.has(s.id)
-				? m("span.chat-emote-name", { key: i }, s.name)
-				: m("img.chat-emote", {
-						key: i,
-						src: `https://files.kick.com/emotes/${s.id}/fullsize`,
-						alt: s.name,
-						loading: "lazy",
-						onerror: () => {
-							failedEmotes.add(s.id);
-							m.redraw();
-						},
-					}),
+		s.kind === "text" ? (
+			<span key={i}>{s.value}</span>
+		) : failedEmotes.has(s.id) ? (
+			<span class={"chat-emote-name"} key={i}>
+				{s.name}
+			</span>
+		) : (
+			<img
+				class={"chat-emote"}
+				key={i}
+				src={`https://files.kick.com/emotes/${s.id}/fullsize`}
+				alt={s.name}
+				loading={"lazy"}
+				onerror={() => {
+					failedEmotes.add(s.id);
+					m.redraw();
+				}}
+			/>
+		),
 	);
 }
 
 /** The card body: the chat feed (newest first). */
 function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 	const channel = channelOf(w);
-	if (!channel) return m("p.muted", t("dash.widget_not_configured"));
-	const msgs = (live.chat ?? []).map((c) =>
-		m(
-			"div.kick-chat-line",
-			{ key: String(c.id) },
-			c.username
-				? m("span.chat-user", { style: c.color ? `color:${c.color}` : undefined }, c.username)
-				: null,
-			m("span.chat-text", lineSegments(c.text ?? "")),
-		),
-	);
-	return msgs.length ? m("div.kick-chat-feed", msgs) : m("p.muted", t("kickchat.empty"));
+	if (!channel) return <p class={"muted"}>{t("dash.widget_not_configured")}</p>;
+	const msgs = (live.chat ?? []).map((c) => (
+		<div class={"kick-chat-line"} key={String(c.id)}>
+			{c.username ? (
+				<span class={"chat-user"} style={c.color ? `color:${c.color}` : undefined}>
+					{c.username}
+				</span>
+			) : null}
+			<span class={"chat-text"}>{lineSegments(c.text ?? "")}</span>
+		</div>
+	));
+	return msgs.length ? <div class={"kick-chat-feed"}>{msgs}</div> : <p class={"muted"}>{t("kickchat.empty")}</p>;
 }
 
 const kickChatModule: ChannelWidgetModule<ServerDashboardWidget> = {

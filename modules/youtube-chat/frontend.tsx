@@ -19,24 +19,31 @@ function channelOf(w: ServerDashboardWidget): string {
 function badge(w: ServerDashboardWidget, live: ChannelLive): m.Vnode {
 	const channel = channelOf(w);
 	if (!channel) return badgeEl(t("dash.widget_not_configured"), "warn");
-	return badgeEl(live.connected === false ? t("dev.badge.offline") : t("dev.badge.online"), live.connected === false ? "off" : "on");
+	return badgeEl(
+		live.connected === false ? t("dev.badge.offline") : t("dev.badge.online"),
+		live.connected === false ? "off" : "on",
+	);
 }
 
 /** The card body: the chat feed (newest first). */
 function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 	const channel = channelOf(w);
-	if (!channel) return m("p.muted", t("dash.widget_not_configured"));
-	const msgs = (live.chat ?? []).map((c) =>
-		m(
-			"div.youtube-chat-line",
-			{ key: String(c.id) },
-			c.username
-				? m("span.chat-user", { style: c.color ? `color:${c.color}` : undefined }, c.username)
-				: null,
-			m("span.chat-text", c.text ?? ""),
-		),
+	if (!channel) return <p class={"muted"}>{t("dash.widget_not_configured")}</p>;
+	const msgs = (live.chat ?? []).map((c) => (
+		<div class={"youtube-chat-line"} key={String(c.id)}>
+			{c.username ? (
+				<span class={"chat-user"} style={c.color ? `color:${c.color}` : undefined}>
+					{c.username}
+				</span>
+			) : null}
+			<span class={"chat-text"}>{c.text ?? ""}</span>
+		</div>
+	));
+	return msgs.length ? (
+		<div class={"youtube-chat-feed"}>{msgs}</div>
+	) : (
+		<p class={"muted"}>{t("youtubechat.empty")}</p>
 	);
-	return msgs.length ? m("div.youtube-chat-feed", msgs) : m("p.muted", t("youtubechat.empty"));
 }
 
 const youtubeChatModule: ChannelWidgetModule<ServerDashboardWidget> = {

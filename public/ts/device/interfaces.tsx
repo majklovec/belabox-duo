@@ -13,10 +13,11 @@ const LINK_COLUMNS = 7;
 /** Signal-quality meter with its percentage. */
 export function signal(quality?: number): Child {
 	if (quality === undefined) return "—";
-	return m(
-		"span",
-		m("meter", { min: 0, max: 100, low: 30, high: 60, optimum: 100, value: quality }),
-		` ${quality}%`,
+	return (
+		<span>
+			<meter min={0} max={100} low={30} high={60} optimum={100} value={quality} />
+			{` ${quality}%`}
+		</span>
 	);
 }
 
@@ -24,28 +25,31 @@ function linkState(l: SrtlaLinkStats): m.Vnode {
 	if (l.timed_out) return badge(t("dev.link_timed_out"), "off");
 	if (!l.connected) return badge(t("dev.control_connecting"), "warn");
 	if (l.stall_gated) return badge(t("dev.link_stalled"), "warn");
-	if (l.weak) return m("span", { title: l.weak_reason ?? "" }, badge(t("dev.link_weak"), "warn"));
+	if (l.weak) return <span title={l.weak_reason ?? ""}>{badge(t("dev.link_weak"), "warn")}</span>;
 	return badge(l.sole_carrier ? t("dev.link_sole") : t("dev.link_up"), "on");
 }
 
 function linkCells(l: SrtlaLinkStats | undefined, total: number): m.Vnode[] {
-	const cell = (child: Child, cls = "", title?: string): m.Vnode =>
-		m("td", { class: `link-col ${cls}`.trim(), title }, child);
+	const cell = (child: Child, cls = "", title?: string): m.Vnode => (
+		<td class={`link-col ${cls}`.trim()} title={title}>
+			{child}
+		</td>
+	);
 	if (!l) return Array.from({ length: LINK_COLUMNS }, () => cell("—", "muted"));
 	const share = total ? l.bitrate_bytes_per_sec / total : 0;
 	return [
 		cell(linkState(l), "", l.label ?? ""),
 		cell(
-			m(
-				"span",
-				m("meter.share", {
-					min: 0,
-					max: 1,
-					value: share,
-					title: t("dev.link_share_title", Math.round(share * 100), Math.round(l.rtt_min_ms)),
-				}),
-				formatBitrate(l.bitrate_bytes_per_sec),
-			),
+			<span>
+				<meter
+					class={"share"}
+					min={0}
+					max={1}
+					value={share}
+					title={t("dev.link_share_title", Math.round(share * 100), Math.round(l.rtt_min_ms))}
+				/>
+				{formatBitrate(l.bitrate_bytes_per_sec)}
+			</span>,
 			"num",
 		),
 		cell(l.connected ? `${Math.round(l.rtt_ms)} ms` : "—", "num", t("dev.link_min_rtt", Math.round(l.rtt_min_ms))),
@@ -61,23 +65,27 @@ function linkCells(l: SrtlaLinkStats | undefined, total: number): m.Vnode[] {
 }
 
 function header(): m.Vnode {
-	const th = (text: string, title?: string) => m("th.link-col", { title }, text);
-	return m(
-		"thead",
-		m(
-			"tr",
-			m("th", t("dev.th.bond")),
-			m("th", t("dev.th.interface")),
-			m("th", t("dev.signal")),
-			m("th", t("dev.th.network")),
-			th(t("dev.th.link")),
-			th(t("mgmt.th_bitrate")),
-			th("RTT"),
-			th(t("dev.th.in_flight"), t("dev.th.in_flight_title")),
-			th(t("dev.th.naks")),
-			th(t("dev.th.loss")),
-			th(t("dev.th.quality")),
-		),
+	const th = (text: string, title?: string) => (
+		<th class={"link-col"} title={title}>
+			{text}
+		</th>
+	);
+	return (
+		<thead>
+			<tr>
+				<th>{t("dev.th.bond")}</th>
+				<th>{t("dev.th.interface")}</th>
+				<th>{t("dev.signal")}</th>
+				<th>{t("dev.th.network")}</th>
+				{th(t("dev.th.link"))}
+				{th(t("mgmt.th_bitrate"))}
+				{th("RTT")}
+				{th(t("dev.th.in_flight"), t("dev.th.in_flight_title"))}
+				{th(t("dev.th.naks"))}
+				{th(t("dev.th.loss"))}
+				{th(t("dev.th.quality"))}
+			</tr>
+		</thead>
 	);
 }
 
@@ -94,48 +102,52 @@ export function interfacesCard(status: Status): m.Vnode {
 			.join(" · ");
 		const network = [i.operatorName, i.accessTech].filter(Boolean).join(" · ");
 		const busyKey = `iface:${i.iface}`;
-		return m(
-			"tr",
-			{ key: i.iface, class: selected.has(i.iface) ? "selected" : "" },
-			m(
-				"td",
-				m("input", {
-					type: "checkbox",
-					checked: selected.has(i.iface),
-					disabled: busy.has(busyKey),
-					title: t("dev.include_in_bond"),
-					onchange: () => void act(busyKey, "modems.toggle", { iface: i.iface }),
-				}),
-			),
-			m(
-				"td",
-				i.iface,
-				i.speed ? m("small.muted", ` · ${formatSpeed(i.speed)}`) : null,
-				sub ? m("span.iface-sub.muted", sub) : null,
-			),
-			m("td", signal(i.signalQuality)),
-			m("td", network || "—"),
-			linkCells(links.get(i.ip), total),
+		return (
+			<tr key={i.iface} class={selected.has(i.iface) ? "selected" : ""}>
+				<td>
+					<input
+						type={"checkbox"}
+						checked={selected.has(i.iface)}
+						disabled={busy.has(busyKey)}
+						title={t("dev.include_in_bond")}
+						onchange={() => void act(busyKey, "modems.toggle", { iface: i.iface })}
+					/>
+				</td>
+				<td>
+					{i.iface}
+					{i.speed ? <small class={"muted"}>{` · ${formatSpeed(i.speed)}`}</small> : null}
+					{sub ? <span class={"iface-sub muted"}>{sub}</span> : null}
+				</td>
+				<td>{signal(i.signalQuality)}</td>
+				<td>{network || "—"}</td>
+				{linkCells(links.get(i.ip), total)}
+			</tr>
 		);
 	});
 
-	return m(
-		Card,
-		{
-			title: t("dev.card.interfaces"),
-			headActions: [
+	return (
+		<Card
+			title={t("dev.card.interfaces")}
+			headActions={[
 				stale && badge(t("dev.stale", since(st.statsAt)), "warn"),
 				button(t("ui.reconfigure"), {
 					disabled: busy.has("reconfigure"),
 					onclick: () => void act("reconfigure", "reconfigure"),
 				}),
-			],
-		},
-		m(
-			"table",
-			{ class: live ? "" : "no-stats" },
-			header(),
-			rows.length ? rows : m("tr", m("td", { colspan: 4 + LINK_COLUMNS, class: "muted" }, t("dev.no_interfaces"))),
-		),
+			]}
+		>
+			<table class={live ? "" : "no-stats"}>
+				{header()}
+				{rows.length ? (
+					rows
+				) : (
+					<tr>
+						<td colspan={4 + LINK_COLUMNS} class={"muted"}>
+							{t("dev.no_interfaces")}
+						</td>
+					</tr>
+				)}
+			</table>
+		</Card>
 	);
 }

@@ -5,7 +5,6 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "jsx": "react",
-    "jsxFactory": "m",
-    "jsxFragmentFactory": "m.Fragment"
+    "jsxFactory": "m"
   }
 }

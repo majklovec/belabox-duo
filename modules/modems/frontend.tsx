@@ -25,26 +25,29 @@ function modemPanel(modem: ModemInfo): m.Vnode {
 		});
 	const connected = modem.state === "connected";
 	const name = [modem.manufacturer, modem.model].filter(Boolean).join(" ") || t("dev.modem_fallback");
-	return m(
-		"article.modem",
-		{ key: modem.index },
-		m("h3", m("span", `#${modem.index} ${name}`), badge(modem.state, stateKind(modem.state))),
-		definitionList([
-			[t("dev.signal"), signal(modem.signalQuality)],
-			[t("dev.operator"), modem.operatorName],
-			[t("dev.tech"), modem.accessTech],
-			[t("dev.registration"), modem.registrationState],
-			[t("dev.power"), modem.powerState],
-			[t("dev.imei"), modem.imei],
-		]),
-		actions(
-			control(t("ui.enable"), "modems.enable"),
-			control(t("ui.disable"), "modems.disable"),
-			connected
-				? control(t("ui.disconnect"), "modems.disconnect")
-				: control(t("ui.connect"), "modems.connect"),
-			control(t("ui.reset"), "modems.reset", "danger"),
-		),
+	return (
+		<article class={"modem"} key={modem.index}>
+			<h3>
+				<span>{`#${modem.index} ${name}`}</span>
+				{badge(modem.state, stateKind(modem.state))}
+			</h3>
+			{definitionList([
+				[t("dev.signal"), signal(modem.signalQuality)],
+				[t("dev.operator"), modem.operatorName],
+				[t("dev.tech"), modem.accessTech],
+				[t("dev.registration"), modem.registrationState],
+				[t("dev.power"), modem.powerState],
+				[t("dev.imei"), modem.imei],
+			])}
+			{actions(
+				control(t("ui.enable"), "modems.enable"),
+				control(t("ui.disable"), "modems.disable"),
+				connected
+					? control(t("ui.disconnect"), "modems.disconnect")
+					: control(t("ui.connect"), "modems.connect"),
+				control(t("ui.reset"), "modems.reset", "danger"),
+			)}
+		</article>
 	);
 }
 
@@ -54,12 +57,15 @@ const modemsModule: BridgedModule = {
 	title: "Modems",
 	defaultSize: { w: 4, h: 4 },
 	minSize: { w: 3, h: 3 },
-	component: (status: Status) =>
-		m(
-			Card,
-			{ title: t("dev.card.modems"), class: "mod-modems" },
-			status.modems.length ? m("div.grid", status.modems.map(modemPanel)) : m("p.muted", t("dev.no_modems")),
-		),
+	component: (status: Status) => (
+		<Card title={t("dev.card.modems")} class={"mod-modems"}>
+			{status.modems.length ? (
+				<div class={"grid"}>{status.modems.map(modemPanel)}</div>
+			) : (
+				<p class={"muted"}>{t("dev.no_modems")}</p>
+			)}
+		</Card>
+	),
 };
 
 export default modemsModule;

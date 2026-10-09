@@ -173,7 +173,7 @@ const assets = new Map<string, Blob>();
 {
     // One build for all pages: shared code (mithril, UI components) lands in common chunks.
     // Regenerate the frontend module manifest (REFACTOR-modules.md §4.1) so any
-    // new modules/<id>/frontend.ts is in the bundle before we build it.
+    // new modules/<id>/frontend.tsx is in the bundle before we build it.
     await Bun.$`bun scripts/gen-modules.ts`.quiet();
     const result = await Bun.build({
         entrypoints: PAGES.map((name) => new URL(`./public/${name}.html`, import.meta.url).pathname),

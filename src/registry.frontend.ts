@@ -4,10 +4,10 @@
  *
  * Modules are discovered through a build-time generated manifest
  * (`modules/.generated.frontend.ts`, emitted by `scripts/gen-modules.ts`): one
- * static import per frontend.ts inside a modules subdirectory, in sorted path
+ * static import per frontend.tsx inside a modules subdirectory, in sorted path
  * order, default-exporting the array. The browser bundle therefore never uses
  * Glob and every module is statically resolved (see REFACTOR-modules.md §4.1).
- * Adding a module directory with a `frontend.ts` default export registers it
+ * Adding a module directory with a `frontend.tsx` default export registers it
  * here — no frontend-registry edits (regeneration happens automatically).
  *
  * Frontend-only file: the server never imports it (it mounts the device store

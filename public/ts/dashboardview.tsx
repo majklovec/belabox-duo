@@ -63,7 +63,6 @@ async function toggleFullscreen(): Promise<void> {
 	}
 }
 
-
 // ---------------------------------------------------------------------- save
 
 function scheduleSave(): void {
@@ -127,7 +126,13 @@ async function resync(prefer?: ServerDashboard): Promise<void> {
 		fresh = (res?.ok ? ((await res.json().catch(() => null)) as { dashboard?: ServerDashboard }) : null)?.dashboard;
 	}
 	if (fresh) {
-		state.dash = { ...state.dash!, widgets: fresh.widgets, version: fresh.version, name: fresh.name, columns: fresh.columns };
+		state.dash = {
+			...state.dash!,
+			widgets: fresh.widgets,
+			version: fresh.version,
+			name: fresh.name,
+			columns: fresh.columns,
+		};
 		syncConnectionsFor(state.dash);
 	}
 	state.saveState = "idle";
@@ -153,7 +158,10 @@ function removeWidget(widget: ServerDashboardWidget): void {
 function hideWidget(widget: ServerDashboardWidget): void {
 	const dash = state.dash;
 	if (!dash) return;
-	state.dash = { ...dash, widgets: dash.widgets.map((w) => (w.id === widget.id ? { ...w, visible: !w.visible } : w)) };
+	state.dash = {
+		...dash,
+		widgets: dash.widgets.map((w) => (w.id === widget.id ? { ...w, visible: !w.visible } : w)),
+	};
 	scheduleSave();
 }
 
@@ -209,61 +217,90 @@ function onDashboardsChanged(data: { id: string; widgets: ServerDashboardWidget[
 const App: m.Component = {
 	view() {
 		if (state.notFound) {
-			return m(Page, { title: t("dash.title"), nav: serverNav("dashboards") }, m("p.muted", t("dash.not_found")));
+			return (
+				<Page title={t("dash.title")} nav={serverNav("dashboards")}>
+					<p class={"muted"}>{t("dash.not_found")}</p>
+				</Page>
+			);
 		}
 		const dash = state.dash;
-		return m(
-			Page,
-			{
-				title: m(TitleWithBack, {
-					href: "/dashboards/",
-					backLabel: t("dash.back"),
-				}, dash?.name ?? t("dash.title")),
-				nav: dash
-					? m("button.dash-edittoggle", {
-						type: "button",
-						"aria-pressed": state.editMode,
-						onclick: () => setEdit(!state.editMode),
-					}, state.editMode ? t("dash.done") : t("dash.edit"))
-					: undefined,
-				headerRight: [
+		return (
+			<Page
+				title={
+					<TitleWithBack href={"/dashboards/"} backLabel={t("dash.back")}>
+						{dash?.name ?? t("dash.title")}
+					</TitleWithBack>
+				}
+				nav={
+					dash ? (
+						<button
+							class={"dash-edittoggle"}
+							type={"button"}
+							aria-pressed={state.editMode}
+							onclick={() => setEdit(!state.editMode)}
+						>
+							{state.editMode ? t("dash.done") : t("dash.edit")}
+						</button>
+					) : undefined
+				}
+				headerRight={[
 					dash
 						? [
-							m("span.dash-save.dash-save-" + state.saveState, state.saveState === "idle" ? "" : t(state.saveState === "saving" ? "dash.saving" : state.saveState === "saved" ? "dash.saved" : "dash.save_error")),
-							m("button.icon-link.dash-fullscreen", {
-								type: "button",
-								title: t(document.fullscreenElement ? "dash.exit_fullscreen" : "dash.fullscreen"),
-								"aria-label": t(document.fullscreenElement ? "dash.exit_fullscreen" : "dash.fullscreen"),
-								"aria-pressed": !!document.fullscreenElement,
-								disabled: !document.fullscreenEnabled,
-								onclick: () => void toggleFullscreen(),
-							}, actionIcon(document.fullscreenElement ? "exitFullscreen" : "fullscreen")),
-						]
+								<span class={["dash-save", "dash-save-" + state.saveState].filter(Boolean).join(" ")}>
+									{state.saveState === "idle"
+										? ""
+										: t(
+												state.saveState === "saving"
+													? "dash.saving"
+													: state.saveState === "saved"
+														? "dash.saved"
+														: "dash.save_error",
+											)}
+								</span>,
+								<button
+									class={"icon-link dash-fullscreen"}
+									type={"button"}
+									title={t(document.fullscreenElement ? "dash.exit_fullscreen" : "dash.fullscreen")}
+									aria-label={t(
+										document.fullscreenElement ? "dash.exit_fullscreen" : "dash.fullscreen",
+									)}
+									aria-pressed={!!document.fullscreenElement}
+									disabled={!document.fullscreenEnabled}
+									onclick={() => void toggleFullscreen()}
+								>
+									{actionIcon(document.fullscreenElement ? "exitFullscreen" : "fullscreen")}
+								</button>,
+							]
 						: null,
-				],
-			},
-			dash
-				? [
-					state.toast ? m("div.dash-toast", state.toast) : null,
-					state.editMode
-						? m(
-							"div.dash-add-bar",
-							m("button.dash-add", {
-								type: "button",
-								onclick: () => { location.href = `/dashboards/add/${encodeURIComponent(dash.id)}/`; },
-							}, `+ ${t("dash.add_widget")}`),
-						)
-						: null,
-					m(GridDashboard, {
-						widgets: dash.widgets,
-						columns: colsOf(dash),
-						editMode: state.editMode,
-						actions,
-						onLayout,
-					}),
-					dash.widgets.length ? null : m("p.dash-empty.muted", t("dash.no_widgets")),
-				]
-				: m("p.muted", t("mgmt.loading")),
+				]}
+			>
+				{dash ? (
+					[
+						state.toast ? <div class={"dash-toast"}>{state.toast}</div> : null,
+						state.editMode ? (
+							<div class={"dash-add-bar"}>
+								<button
+									class={"dash-add"}
+									type={"button"}
+									onclick={() => {
+										location.href = `/dashboards/add/${encodeURIComponent(dash.id)}/`;
+									}}
+								>{`+ ${t("dash.add_widget")}`}</button>
+							</div>
+						) : null,
+						<GridDashboard
+							widgets={dash.widgets}
+							columns={colsOf(dash)}
+							editMode={state.editMode}
+							actions={actions}
+							onLayout={onLayout}
+						/>,
+						dash.widgets.length ? null : <p class={"dash-empty muted"}>{t("dash.no_widgets")}</p>,
+					]
+				) : (
+					<p class={"muted"}>{t("mgmt.loading")}</p>
+				)}
+			</Page>
 		);
 	},
 };
@@ -275,7 +312,10 @@ void (async () => {
 	state.editMode = match?.[1] === "edit";
 	const id = match?.[2] ?? "";
 	const res = await fetch(`/api/dashboards/${encodeURIComponent(id)}`, { cache: "no-store" }).catch(() => null);
-	const body = (res?.ok ? await res.json().catch(() => null) : null) as { ok?: boolean; dashboard?: ServerDashboard } | null;
+	const body = (res?.ok ? await res.json().catch(() => null) : null) as {
+		ok?: boolean;
+		dashboard?: ServerDashboard;
+	} | null;
 	if (body?.ok && body.dashboard) state.dash = body.dashboard;
 	else state.notFound = true;
 	setWidgetConfigSaver(() => scheduleSave());

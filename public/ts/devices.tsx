@@ -55,7 +55,14 @@ function streamState(d: DeviceSummary): Child {
 function bitrate(d: DeviceSummary): Child {
 	const live = d.online && d.bitrate !== undefined ? formatBitrate(d.bitrate) : null;
 	const max = d.maxBitrate !== undefined ? t("dev.max_value", formatBitrate(d.maxBitrate * 125)) : null;
-	if (live && max) return m("span", live, " / ", m("span.muted", max));
+	if (live && max)
+		return (
+			<span>
+				{live}
+				{" / "}
+				<span class={"muted"}>{max}</span>
+			</span>
+		);
 	return live ?? max ?? "—";
 }
 
@@ -63,37 +70,38 @@ function row(d: DeviceSummary): m.Vnode {
 	const { srtla: s, encoder: e } = d;
 	// A new vnode per cell: mithril cannot patch one vnode object into two slots
 	const stoppedBadge = () => badge(t("dev.badge.stopped"), "warn");
-	return m(
-		"tr",
-		{ key: d.id },
-		// The dot wears the device's header color and beats while the link is up;
-		// the uuid is stable, the hostname is the display name (shown when present)
-		m(
-			"td",
-			m(
-				"a.device",
-				{ href: `d/${encodeURIComponent(d.id)}/`, title: d.id },
-				m("span.device-dot", {
-					class: d.online ? "online" : "",
-					style: d.color ? `background:${d.color};color:${d.color}` : "",
-				}),
-				d.hostname || d.id,
-			),
-		),
-		m("td.muted", d.role ? roleTag(d.role) : "—"),
-		m("td", d.online ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off")),
-		m("td", d.online ? since(d.connectedAt) : t("mgmt.last_seen", since(d.lastSeen))),
-		m("td", streamState(d)),
-		m("td", bitrate(d)),
-		m("td", d.online && d.totalLinks !== undefined ? `${d.activeLinks ?? 0}/${d.totalLinks}` : "—"),
-		m(
-			"td",
-			hasEncoder(d) && e ? (e.running ? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on") : stoppedBadge()) : "—",
-		),
-		m(
-			"td",
-			d.role !== "encoder" && s ? (s.running ? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on") : stoppedBadge()) : "—",
-		),
+	return (
+		<tr key={d.id}>
+			<td>
+				<a class={"device"} href={`d/${encodeURIComponent(d.id)}/`} title={d.id}>
+					<span
+						class={["device-dot", d.online ? "online" : ""].filter(Boolean).join(" ")}
+						style={d.color ? `background:${d.color};color:${d.color}` : ""}
+					/>
+					{d.hostname || d.id}
+				</a>
+			</td>
+			<td class={"muted"}>{d.role ? roleTag(d.role) : "—"}</td>
+			<td>{d.online ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off")}</td>
+			<td>{d.online ? since(d.connectedAt) : t("mgmt.last_seen", since(d.lastSeen))}</td>
+			<td>{streamState(d)}</td>
+			<td>{bitrate(d)}</td>
+			<td>{d.online && d.totalLinks !== undefined ? `${d.activeLinks ?? 0}/${d.totalLinks}` : "—"}</td>
+			<td>
+				{hasEncoder(d) && e
+					? e.running
+						? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on")
+						: stoppedBadge()
+					: "—"}
+			</td>
+			<td>
+				{d.role !== "encoder" && s
+					? s.running
+						? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on")
+						: stoppedBadge()
+					: "—"}
+			</td>
+		</tr>
 	);
 }
 
@@ -112,30 +120,31 @@ const columnHeaders = (): m.Children[] => [
 const App: m.Component = {
 	view: () => {
 		const headers = columnHeaders();
-		return m(
-			Page,
-			{ title: t("mgmt.title"), nav: serverNav("devices"), headerRight: connBadge() },
-			m(
-				Card,
-				{  },
-				m(
-					"table",
-					m("thead", m("tr", headers.map((h) => m("th", h)))),
-					m(
-						"tbody",
-						state.devices?.length
-							? state.devices.map(row)
-							: m(
-									"tr",
-									m(
-										"td",
-										{ colspan: headers.length, class: "muted" },
-										state.devices ? t("mgmt.none") : t("mgmt.loading"),
-									),
-								),
-					),
-				),
-			),
+		return (
+			<Page title={t("mgmt.title")} nav={serverNav("devices")} headerRight={connBadge()}>
+				<Card>
+					<table>
+						<thead>
+							<tr>
+								{headers.map((h) => (
+									<th>{h}</th>
+								))}
+							</tr>
+						</thead>
+						<tbody>
+							{state.devices?.length ? (
+								state.devices.map(row)
+							) : (
+								<tr>
+									<td colspan={headers.length} class={"muted"}>
+										{state.devices ? t("mgmt.none") : t("mgmt.loading")}
+									</td>
+								</tr>
+							)}
+						</tbody>
+					</table>
+				</Card>
+			</Page>
 		);
 	},
 };

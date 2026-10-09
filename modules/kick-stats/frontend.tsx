@@ -26,7 +26,6 @@ function badge(w: ServerDashboardWidget, live: ChannelLive): m.Vnode {
 	return badgeEl(s.isLive ? t("dev.badge.online") : t("dev.badge.offline"), s.isLive ? "on" : "off");
 }
 
-
 /** Stream duration, whole minutes ("1 h 23 min"). */
 function durationMinutes(fromMs: number, toMs: number): string {
 	const mins = Math.max(0, Math.floor((toMs - fromMs) / 60_000));
@@ -38,27 +37,56 @@ function durationMinutes(fromMs: number, toMs: number): string {
 /** The card body: stream info on top, the viewers line chart below. */
 function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 	const channel = channelOf(w);
-	if (!channel) return m("p.muted", t("dash.widget_not_configured"));
+	if (!channel) return <p class={"muted"}>{t("dash.widget_not_configured")}</p>;
 	const s = live.stats;
-	if (!s) return m("p.muted", t("kickstats.waiting"));
+	if (!s) return <p class={"muted"}>{t("kickstats.waiting")}</p>;
 	const now = s.at;
-	return m("div.kick-stats", [
-		m("div.kick-stats-top", [
-			m("span.big", [m("span.kick-viewers", (s.viewers ?? 0).toLocaleString()), ` ${t("kickstats.viewers")}`]),
-			s.isLive ? badgeEl(t("kickstats.live"), "on") : badgeEl(t("kickstats.offline"), "off"),
-		]),
-		s.title ? m("p.kick-title", s.title) : null,
-		m("div.kick-stats-meta", [
-			s.category ? m("span", s.category) : null,
-			s.startTime ? m("span.muted", `${t("kickstats.start")} ${new Date(s.startTime).toLocaleString()}`) : null,
-			(s.isLive && s.startTime) ? m("span.muted", `${t("kickstats.duration")} ${durationMinutes(s.startTime, now)}`) : null,
-		]),
-		m("div.kick-spark", [
-			(s.series && s.series.length >= 2)
-				? m(LineChart, { points: s.series, title: `${channel} — ${t("kickstats.chart")}`, key: `c${s.series.length}` })
-				: m("span.muted", t("kickstats.spark_pending")),
-		]),
-	]);
+	return (
+		<div class={"kick-stats"}>
+			{[
+				<div class={"kick-stats-top"}>
+					{[
+						<span class={"big"}>
+							{[
+								<span class={"kick-viewers"}>{(s.viewers ?? 0).toLocaleString()}</span>,
+								` ${t("kickstats.viewers")}`,
+							]}
+						</span>,
+						s.isLive ? badgeEl(t("kickstats.live"), "on") : badgeEl(t("kickstats.offline"), "off"),
+					]}
+				</div>,
+				s.title ? <p class={"kick-title"}>{s.title}</p> : null,
+				<div class={"kick-stats-meta"}>
+					{[
+						s.category ? <span>{s.category}</span> : null,
+						s.startTime ? (
+							<span
+								class={"muted"}
+							>{`${t("kickstats.start")} ${new Date(s.startTime).toLocaleString()}`}</span>
+						) : null,
+						s.isLive && s.startTime ? (
+							<span
+								class={"muted"}
+							>{`${t("kickstats.duration")} ${durationMinutes(s.startTime, now)}`}</span>
+						) : null,
+					]}
+				</div>,
+				<div class={"kick-spark"}>
+					{[
+						s.series && s.series.length >= 2 ? (
+							<LineChart
+								points={s.series}
+								title={`${channel} — ${t("kickstats.chart")}`}
+								key={`c${s.series.length}`}
+							/>
+						) : (
+							<span class={"muted"}>{t("kickstats.spark_pending")}</span>
+						),
+					]}
+				</div>,
+			]}
+		</div>
+	);
 }
 
 const kickStatsModule: ChannelWidgetModule<ServerDashboardWidget> = {

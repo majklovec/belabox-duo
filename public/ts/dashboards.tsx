@@ -65,58 +65,92 @@ function deleteDashboard(id: string): void {
 }
 
 function list(): m.Vnode {
-	return m(
-		"table.dash-table",
-		m("thead", m("tr", m("th", t("dash.name")), m("th", t("dash.widgets")), m("th"))),
-		m(
-			"tbody",
-			state.dashboards.map((d) =>
-				m(
-					"tr",
-					{ key: d.id },
-					m("td.dash-name", m("a.dash-row-link", { href: `/dashboards/view/${encodeURIComponent(d.id)}/` }, d.name)),
-					m("td.muted", `${d.widgets.length} ${d.widgets.length === 1 ? t("dash.widget") : t("dash.widgets").toLowerCase()}`),
-					m(
-						"td.actions-cell",
-						m("div.dash-row-actions", [
-							m("a.icon-link", { href: `/dashboards/view/${encodeURIComponent(d.id)}/`, title: t("dash.view"), "aria-label": t("dash.view") }, actionIcon("view")),
-							m("a.icon-link", { href: `/dashboards/edit/${encodeURIComponent(d.id)}/`, title: t("dash.edit"), "aria-label": t("dash.edit") }, actionIcon("edit")),
-							button(actionIcon("delete"), { class: "icon-link dash-delete", title: t("dash.delete"), "aria-label": t("dash.delete"), onclick: () => deleteDashboard(d.id) }),
-						]),
-					),
-				),
-			),
-		),
+	return (
+		<table class={"dash-table"}>
+			<thead>
+				<tr>
+					<th>{t("dash.name")}</th>
+					<th>{t("dash.widgets")}</th>
+					<th />
+				</tr>
+			</thead>
+			<tbody>
+				{state.dashboards.map((d) => (
+					<tr key={d.id}>
+						<td class={"dash-name"}>
+							<a class={"dash-row-link"} href={`/dashboards/view/${encodeURIComponent(d.id)}/`}>
+								{d.name}
+							</a>
+						</td>
+						<td
+							class={"muted"}
+						>{`${d.widgets.length} ${d.widgets.length === 1 ? t("dash.widget") : t("dash.widgets").toLowerCase()}`}</td>
+						<td class={"actions-cell"}>
+							<div class={"dash-row-actions"}>
+								{[
+									<a
+										class={"icon-link"}
+										href={`/dashboards/view/${encodeURIComponent(d.id)}/`}
+										title={t("dash.view")}
+										aria-label={t("dash.view")}
+									>
+										{actionIcon("view")}
+									</a>,
+									<a
+										class={"icon-link"}
+										href={`/dashboards/edit/${encodeURIComponent(d.id)}/`}
+										title={t("dash.edit")}
+										aria-label={t("dash.edit")}
+									>
+										{actionIcon("edit")}
+									</a>,
+									button(actionIcon("delete"), {
+										class: "icon-link dash-delete",
+										title: t("dash.delete"),
+										"aria-label": t("dash.delete"),
+										onclick: () => deleteDashboard(d.id),
+									}),
+								]}
+							</div>
+						</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
 	);
 }
 
 function createToolbar(): m.Vnode {
-	return m(
-		"div.dash-toolbar",
-		m("span.dash-empty-text", t("dash.create_new")),
-		input(state, "newName", { placeholder: t("dash.new_placeholder") }) as m.Vnode,
-		button(t("dash.create"), { onclick: createDashboard, disabled: state.saving || !state.newName.trim() }),
+	return (
+		<div class={"dash-toolbar"}>
+			<span class={"dash-empty-text"}>{t("dash.create_new")}</span>
+			{input(state, "newName", { placeholder: t("dash.new_placeholder") }) as m.Vnode}
+			{button(t("dash.create"), { onclick: createDashboard, disabled: state.saving || !state.newName.trim() })}
+		</div>
 	);
 }
 
 function dashboardsCard(): m.Vnode {
-	return m(
-		Card,
-		{  },
-		state.dashboards.length ? [list(), createToolbar()] : m("div.dash-empty", m("p.muted", t("dash.empty")), createToolbar()),
+	return (
+		<Card>
+			{state.dashboards.length ? (
+				[list(), createToolbar()]
+			) : (
+				<div class={"dash-empty"}>
+					<p class={"muted"}>{t("dash.empty")}</p>
+					{createToolbar()}
+				</div>
+			)}
+		</Card>
 	);
 }
 
 const App: m.Component = {
-	view: () =>
-		m(
-			Page,
-			{
-				title: t("dash.title"),
-				nav: serverNav("dashboards"),
-			},
-			dashboardsCard(),
-		),
+	view: () => (
+		<Page title={t("dash.title")} nav={serverNav("dashboards")}>
+			{dashboardsCard()}
+		</Page>
+	),
 };
 
 void refresh();

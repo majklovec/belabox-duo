@@ -35,20 +35,20 @@ async function setAutostart(enabled: boolean): Promise<void> {
 function headerRight(): m.Children[] {
 	const status = st.status;
 	return [
-		m(
-			"label.check",
-			{ title: t("dev.autostart_title") },
-			m("input", {
-				type: "checkbox",
-				checked: status?.state.autostart ?? false,
-				disabled: !status || st.autostartBusy,
-				onchange: (e: Event) => void setAutostart((e.target as HTMLInputElement).checked),
-			}),
-			` ${t("ui.autostart")}`,
-		),
-		status && m("span.badge", roleTag(status.role)),
+		<label class={"check"} title={t("dev.autostart_title")}>
+			<input
+				type={"checkbox"}
+				checked={status?.state.autostart ?? false}
+				disabled={!status || st.autostartBusy}
+				onchange={(e: Event) => void setAutostart((e.target as HTMLInputElement).checked)}
+			/>
+			{` ${t("ui.autostart")}`}
+		</label>,
+		status && <span class={"badge"}>{roleTag(status.role)}</span>,
 		connBadge(),
-		m("a.icon-link", { href: "settings/", title: t("set.title"), "aria-label": t("set.title") }, gearIcon()),
+		<a class={"icon-link"} href={"settings/"} title={t("set.title")} aria-label={t("set.title")}>
+			{gearIcon()}
+		</a>,
 	];
 }
 
@@ -68,20 +68,21 @@ const App: m.Component = {
 			!obsOnly && hasRelay && [moduleCard("srtla", status), interfacesCard(status), moduleCard("modems", status)],
 			obsOn && moduleCard("obs-controller", status),
 		];
-		return m(
-			Page,
-			{
-				title: m(TitleWithBack, {
-					href: st.device ? "../../" : undefined,
-					backLabel: t("dev.all_devices_title"),
-				}, [
-					`${t("dev.title")} `,
-					st.device && m("span.muted", st.device.hostname || st.device.id),
-				]),
-				headerRight: headerRight(),
-			},
-			children,
-			m(LogCard),
+		return (
+			<Page
+				title={
+					<TitleWithBack href={st.device ? "../../" : undefined} backLabel={t("dev.all_devices_title")}>
+						{[
+							`${t("dev.title")} `,
+							st.device && <span class={"muted"}>{st.device.hostname || st.device.id}</span>,
+						]}
+					</TitleWithBack>
+				}
+				headerRight={headerRight()}
+			>
+				{children}
+				<LogCard />
+			</Page>
 		);
 	},
 };

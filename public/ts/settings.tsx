@@ -141,87 +141,104 @@ function settingsCard(): m.Vnode {
 		: state.settings.hasRemoteToken
 			? t("set.token_ph_configured")
 			: t("set.token_ph_missing");
-	return m(
-		Card,
-		m("p.muted", t("set.description")),
-		form(
-			{ onSubmit: save },
-			field(t("set.hostname"), input(draft, "hostname", { pattern: HOSTNAME_PATTERN })),
-			field(
-				t("set.role"),
-				select(
-					draft,
-					"role",
-					options([
-						["", t("set.role_keep")],
-						["relay", t("role.relay")],
-						["encoder", t("role.encoder")],
-						["combined", t("role.combined")],
-						["obs", t("role.obs")],
-						["custom", t("role.custom")],
-					]),
+	return (
+		<Card>
+			<p class={"muted"}>{t("set.description")}</p>
+			{form(
+				{ onSubmit: save },
+				field(t("set.hostname"), input(draft, "hostname", { pattern: HOSTNAME_PATTERN })),
+				field(
+					t("set.role"),
+					select(
+						draft,
+						"role",
+						options([
+							["", t("set.role_keep")],
+							["relay", t("role.relay")],
+							["encoder", t("role.encoder")],
+							["combined", t("role.combined")],
+							["obs", t("role.obs")],
+							["custom", t("role.custom")],
+						]),
+					),
 				),
-			),
-			brk(),
-			field(t("set.color"), input(draft, "color", { type: "color" }, setHeaderColor)),
-			brk(),
-			field(t("set.remote_url"), input(draft, "remoteUrl", { placeholder: "wss://control.example/device" })),
-			field(
-				t("set.remote_token"),
-				input(draft, "remoteToken", { type: "password", autocomplete: "off", placeholder: tokenPlaceholder }),
-			),
-			brk(),
-			actions(button(t("set.save"), { type: "submit", disabled: state.saving })),
-		),
-		m("p.muted", { role: "status" }, state.message),
+				brk(),
+				field(t("set.color"), input(draft, "color", { type: "color" }, setHeaderColor)),
+				brk(),
+				field(t("set.remote_url"), input(draft, "remoteUrl", { placeholder: "wss://control.example/device" })),
+				field(
+					t("set.remote_token"),
+					input(draft, "remoteToken", {
+						type: "password",
+						autocomplete: "off",
+						placeholder: tokenPlaceholder,
+					}),
+				),
+				brk(),
+				actions(button(t("set.save"), { type: "submit", disabled: state.saving })),
+			)}
+			<p class={"muted"} role={"status"}>
+				{state.message}
+			</p>
+		</Card>
 	);
 }
 
 function repositoriesCard(): m.Vnode {
-	return m(
-		Card,
-		{ title: t("set.repos") },
-		m("p.muted", t("set.repos_desc")),
-		form(
-			{ onSubmit: addRepository },
-			field(
-				t("set.repo_field"),
-				input(state, "repository", { required: true, pattern: REPO_PATTERN, placeholder: "author/repository" }),
-			),
-			actions(
-				button(t("set.repo_add"), { type: "submit", disabled: state.repoBusy }),
-				button(t("set.repo_update_all"), {
-					class: "secondary",
-					disabled: state.repoBusy,
-					onclick: () => void updateAllRepositories(),
-				}),
-			),
-		),
-		state.repositories.length
-			? state.repositories.map((repository) =>
-					m(
-						"div.card-head",
-						{ key: repository },
-						m("code", repository),
-						button(t("ui.remove"), { class: "danger", onclick: () => void removeRepository(repository) }),
-					),
-				)
-			: m("p.muted", t("set.no_repos")),
-		m("p.muted", { role: "status" }, state.repoMessage),
+	return (
+		<Card title={t("set.repos")}>
+			<p class={"muted"}>{t("set.repos_desc")}</p>
+			{form(
+				{ onSubmit: addRepository },
+				field(
+					t("set.repo_field"),
+					input(state, "repository", {
+						required: true,
+						pattern: REPO_PATTERN,
+						placeholder: "author/repository",
+					}),
+				),
+				actions(
+					button(t("set.repo_add"), { type: "submit", disabled: state.repoBusy }),
+					button(t("set.repo_update_all"), {
+						class: "secondary",
+						disabled: state.repoBusy,
+						onclick: () => void updateAllRepositories(),
+					}),
+				),
+			)}
+			{state.repositories.length ? (
+				state.repositories.map((repository) => (
+					<div class={"card-head"} key={repository}>
+						<code>{repository}</code>
+						{button(t("ui.remove"), { class: "danger", onclick: () => void removeRepository(repository) })}
+					</div>
+				))
+			) : (
+				<p class={"muted"}>{t("set.no_repos")}</p>
+			)}
+			<p class={"muted"} role={"status"}>
+				{state.repoMessage}
+			</p>
+		</Card>
 	);
 }
 
 const App: m.Component = {
-	view: () =>
-		m(
-			Page,
-			{
-				title: [m("a", { href: "../", title: t("set.back") }, "←"), ` ${t("set.title")}`],
-				headerRight: connectionBadge(state.connected),
-			},
-			settingsCard(),
-			repositoriesCard(),
-		),
+	view: () => (
+		<Page
+			title={[
+				<a href={"../"} title={t("set.back")}>
+					{"←"}
+				</a>,
+				` ${t("set.title")}`,
+			]}
+			headerRight={connectionBadge(state.connected)}
+		>
+			{settingsCard()}
+			{repositoriesCard()}
+		</Page>
+	),
 };
 
 void mountPage(() => t("set.title"), App);

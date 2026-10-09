@@ -75,16 +75,16 @@ interface VuFrame {
 
 /** Outline microphone (24×24, strokes with currentColor); muted adds a slash. */
 function micIcon(muted: boolean): m.Vnode {
-	return m(
-		"svg.obs-mic-icon",
-		{ viewBox: "0 0 24 24", "aria-hidden": "true" },
-		[
-			m("rect", { x: "9", y: "3", width: "6", height: "11", rx: "3" }),
-			m("path", { d: "M5 11a7 7 0 0 0 14 0" }),
-			m("path", { d: "M12 18v3" }),
-			m("path", { d: "M8 21h8" }),
-			muted ? m("path", { d: "M4 4 20 20" }) : null,
-		],
+	return (
+		<svg class={"obs-mic-icon"} viewBox={"0 0 24 24"} aria-hidden={"true"}>
+			{[
+				<rect x={"9"} y={"3"} width={"6"} height={"11"} rx={"3"} />,
+				<path d={"M5 11a7 7 0 0 0 14 0"} />,
+				<path d={"M12 18v3"} />,
+				<path d={"M8 21h8"} />,
+				muted ? <path d={"M4 4 20 20"} /> : null,
+			]}
+		</svg>
 	);
 }
 
@@ -148,7 +148,7 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		mirror?.(state);
 	};
 
-	const obsCall = async <T>(type: string, data: Record<string, unknown> = {}): Promise<T | undefined> => {
+	const obsCall = async <T,>(type: string, data: Record<string, unknown> = {}): Promise<T | undefined> => {
 		let res: ObsRequestResult<T> | undefined;
 		try {
 			res = await send<T>(type, data);
@@ -245,13 +245,15 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		ui.lastAttempt = Date.now();
 		m.redraw();
 		const grab = async (name: string) =>
-			(await obsCall<{ imageData: string }>("GetSourceScreenshot", {
-				sourceName: name,
-				imageFormat: "jpg",
-				imageWidth: 640,
-				imageHeight: 360,
-				imageCompressionQuality: 60,
-			}))?.imageData;
+			(
+				await obsCall<{ imageData: string }>("GetSourceScreenshot", {
+					sourceName: name,
+					imageFormat: "jpg",
+					imageWidth: 640,
+					imageHeight: 360,
+					imageCompressionQuality: 60,
+				})
+			)?.imageData;
 		try {
 			// The "Program" virtual output is the canonical capture target; setups where
 			// it rejects the name (code 600) fall back to the current scene, as obs.html does.
@@ -311,13 +313,15 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		pending.add("obs.screenshot");
 		m.redraw();
 		const grab = async (name: string) =>
-			(await obsCall<{ imageData: string }>("GetSourceScreenshot", {
-				sourceName: name,
-				imageFormat: "png",
-				imageWidth: 1920,
-				imageHeight: 1080,
-				imageCompressionQuality: 90,
-			}))?.imageData;
+			(
+				await obsCall<{ imageData: string }>("GetSourceScreenshot", {
+					sourceName: name,
+					imageFormat: "png",
+					imageWidth: 1920,
+					imageHeight: 1080,
+					imageCompressionQuality: 90,
+				})
+			)?.imageData;
 		try {
 			let data: string | undefined;
 			data = await grab("Program");
@@ -431,7 +435,9 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 			case "InputVolumeMeters": {
 				// obs-websocket v5 delivers a per-bus `inputLevelsMul` array — typically
 				// 2D `[[L,R,M],[L,R,M]]` for the two buses; flatten to per-channel levels.
-				const inputs = d.inputs as Array<{ inputName: string; inputLevelsMul: number[] | number[][] }> | undefined;
+				const inputs = d.inputs as
+					| Array<{ inputName: string; inputLevelsMul: number[] | number[][] }>
+					| undefined;
 				if (inputs?.length) {
 					// The row list follows the sources that are actually metering: a scene
 					// change swaps them, so adopt the incoming set — keep current order for
@@ -469,9 +475,7 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 
 	/** Card header extras: connection badge + refresh (host adds the title). */
 	function head(): m.Vnode[] {
-		return [
-			badge(ui.connected ? t("obs.connected") : t("obs.offline"), ui.connected ? "on" : "off"),
-		];
+		return [badge(ui.connected ? t("obs.connected") : t("obs.offline"), ui.connected ? "on" : "off")];
 	}
 
 	function component(): m.Vnode {
@@ -492,174 +496,159 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 				onclick: run,
 			});
 
-		return m(
-			"div",
-			{
-				oncreate: () => {
+		return (
+			<div
+				oncreate={() => {
 					mounts++;
 					if (mounts === 1) {
 						if (startConnected?.()) ui.connected = true;
 						tickTimer = window.setInterval(tick, 500);
 						rafId = requestAnimationFrame(vuLoop);
 					}
-				},
-				onremove: () => {
+				}}
+				onremove={() => {
 					mounts--;
 					if (mounts <= 0) {
 						mounts = 0;
 						destroy();
 					}
-				},
-			},
-			!ui.connected
-				? m("p.muted", t("obs.offline"))
-				: !ui.loaded
-					? m("p.muted", t("obs.waiting"))
-					: [
+				}}
+			>
+				{!ui.connected ? (
+					<p class={"muted"}>{t("obs.offline")}</p>
+				) : !ui.loaded ? (
+					<p class={"muted"}>{t("obs.waiting")}</p>
+				) : (
+					[
 						/* Preview */
-						m(
-							"div.obs-preview-block",
-							m(
-								"div.obs-preview-stage",
-								ui.previewData
-									? m("img", { alt: t("obs.preview"), src: ui.previewData })
-									: m("div.obs-preview-empty", ui.previewFailed ? t("obs.preview_failed") : t("obs.waiting")),
-							),
-							m(
-								"div.obs-preview-bar",
-								m(
-									"select",
-									{
-										disabled: !ui.connected,
-										value: String(ui.previewInterval),
-										onchange: (e: Event) => (ui.previewInterval = Number((e.target as HTMLSelectElement).value)),
-									},
-									[
+						<div class={"obs-preview-block"}>
+							<div class={"obs-preview-stage"}>
+								{ui.previewData ? (
+									<img alt={t("obs.preview")} src={ui.previewData} />
+								) : (
+									<div class={"obs-preview-empty"}>
+										{ui.previewFailed ? t("obs.preview_failed") : t("obs.waiting")}
+									</div>
+								)}
+							</div>
+							<div class={"obs-preview-bar"}>
+								<select
+									disabled={!ui.connected}
+									value={String(ui.previewInterval)}
+									onchange={(e: Event) =>
+										(ui.previewInterval = Number((e.target as HTMLSelectElement).value))
+									}
+								>
+									{[
 										[5_000, "5s"],
 										[10_000, "10s"],
 										[30_000, "30s"],
 										[0, t("obs.manual")],
-									].map(([ms, label]) => m("option", { key: String(ms), value: String(ms) }, label)),
-								),
-								ui.previewInterval > 0 && !ui.previewPaused
-									? m("span.obs-preview-meta", meta())
-									: null,
-								button(ui.previewPaused ? t("obs.resume") : t("obs.pause"), {
+									].map(([ms, label]) => (
+										<option key={String(ms)} value={String(ms)}>
+											{label}
+										</option>
+									))}
+								</select>
+								{ui.previewInterval > 0 && !ui.previewPaused ? (
+									<span class={"obs-preview-meta"}>{meta()}</span>
+								) : null}
+								{button(ui.previewPaused ? t("obs.resume") : t("obs.pause"), {
 									class: "secondary",
 									onclick: () => (ui.previewPaused = !ui.previewPaused),
-								}),
-								button(t("obs.preview_now"), {
+								})}
+								{button(t("obs.preview_now"), {
 									class: "secondary",
 									disabled: ui.inFlight || ui.previewPaused,
 									onclick: () => void capturePreview(),
-								}),
-								// button(t("obs.screenshot"), {
-								// 	class: "secondary",
-								// 	disabled: pending.has("obs.screenshot"),
-								// 	onclick: () => void screenshot(),
-								// }),
-							),
-						),
+								})}
+							</div>
+						</div>,
 						/* Scenes + output actions */
-						m(
-							"div.obs-deck",
-							m(
-								"div.obs-deck-col",
-								m("h3.obs-section", t("obs.scenes")),
-								m(
-									"div.obs-scene-deck",
-									ui.scenes.length
-										? ui.scenes.map((name) =>
+						<div class={"obs-deck"}>
+							<div class={"obs-deck-col"}>
+								<h3 class={"obs-section"}>{t("obs.scenes")}</h3>
+								<div class={"obs-scene-deck"}>
+									{ui.scenes.length ? (
+										ui.scenes.map((name) =>
 											button(name, {
 												class: ui.scene === name ? "active" : "secondary",
 												disabled: !ui.connected || pending.has("obs.scene"),
-												onclick: () => press("obs.scene", "SetCurrentProgramScene", { sceneName: name }),
+												onclick: () =>
+													press("obs.scene", "SetCurrentProgramScene", { sceneName: name }),
 											}),
-										  )
-										: m("span.muted", t("obs.no_scenes")),
-								),
-							),
-							m(
-								"div.obs-deck-col",
-								m("h3.obs-section", t("obs.output")),
-								m(
-									"div.obs-actions",
-									actionBtn(
+										)
+									) : (
+										<span class={"muted"}>{t("obs.no_scenes")}</span>
+									)}
+								</div>
+							</div>
+							<div class={"obs-deck-col"}>
+								<h3 class={"obs-section"}>{t("obs.output")}</h3>
+								<div class={"obs-actions"}>
+									{actionBtn(
 										"obs.stream",
 										ui.streaming ? t("obs.stop_stream") : t("obs.start_stream"),
 										ui.streaming,
 										"obs-action-stream",
 										() => press("obs.stream", ui.streaming ? "StopStream" : "StartStream"),
-									),
-									actionBtn(
+									)}
+									{actionBtn(
 										"obs.record",
 										ui.recording ? t("obs.stop_record") : t("obs.start_record"),
 										ui.recording,
 										"obs-action-record",
 										() => press("obs.record", ui.recording ? "StopRecord" : "StartRecord"),
-									),
-									// actionBtn(
-									// 	"obs.studio",
-									// 	t("obs.studio"),
-									// 	ui.studio,
-									// 	"obs-action-studio",
-									// 	() =>
-									// 		toggle(
-									// 			"obs.studio",
-									// 			"GetStudioModeEnabled",
-									// 			{},
-									// 			(r) => r.studioModeEnabled === true,
-									// 			"SetStudioModeEnabled",
-									// 			(next) => ({ studioModeEnabled: next }),
-									// 			(next) => {
-									// 				ui.studio = next;
-									// 			},
-									// 		),
-									// ),
-								),
-							),
-						),
+									)}
+								</div>
+							</div>
+						</div>,
 						/* Audio — one meter row per input, each with its own mic mute toggle. */
-						m(
-							"div.obs-deck",
-							m("h3.obs-section", t("obs.audio")),
-							m(
-								"div.obs-audio",
-								ui.vuInputs.length
-									? ui.vuInputs.map((name) => {
+						<div class={"obs-deck"}>
+							<h3 class={"obs-section"}>{t("obs.audio")}</h3>
+							<div class={"obs-audio"}>
+								{ui.vuInputs.length ? (
+									ui.vuInputs.map((name) => {
 										const muted = ui.vuMuted.get(name) === true;
 										const muteKey = `obs.mute.${name}`;
-										return m(
-											"div.obs-audio-row",
-											{ key: name },
-											button(micIcon(muted), {
-												class: muted ? "obs-mic muted" : "obs-mic",
-												title: t(muted ? "obs.unmute" : "obs.mute"),
-												disabled: !ui.connected || pending.has(muteKey),
-												onclick: () =>
-													toggle(
-														muteKey,
-														"GetInputMute",
-														{ inputName: name },
-														(r) => r.inputMuted === true,
-														"SetInputMute",
-														(next) => ({ inputName: name, inputMuted: next }),
-														(next) => {
-															ui.vuMuted.set(name, next);
-														},
-													),
-											}),
-											m("span.obs-audio-name", { title: name }, name),
-											m("canvas.obs-vu", {
-												oncreate: (v) => vuCanvases.set(name, v.dom as HTMLCanvasElement),
-												onremove: () => vuCanvases.delete(name),
-											}),
+										return (
+											<div class={"obs-audio-row"} key={name}>
+												{button(micIcon(muted), {
+													class: muted ? "obs-mic muted" : "obs-mic",
+													title: t(muted ? "obs.unmute" : "obs.mute"),
+													disabled: !ui.connected || pending.has(muteKey),
+													onclick: () =>
+														toggle(
+															muteKey,
+															"GetInputMute",
+															{ inputName: name },
+															(r) => r.inputMuted === true,
+															"SetInputMute",
+															(next) => ({ inputName: name, inputMuted: next }),
+															(next) => {
+																ui.vuMuted.set(name, next);
+															},
+														),
+												})}
+												<span class={"obs-audio-name"} title={name}>
+													{name}
+												</span>
+												<canvas
+													class={"obs-vu"}
+													oncreate={(v) => vuCanvases.set(name, v.dom as HTMLCanvasElement)}
+													onremove={() => vuCanvases.delete(name)}
+												/>
+											</div>
 										);
 									})
-									: m("span.muted", t("obs.no_inputs")),
-							),
-						),
-					],
+								) : (
+									<span class={"muted"}>{t("obs.no_inputs")}</span>
+								)}
+							</div>
+						</div>,
+					]
+				)}
+			</div>
 		);
 	}
 
@@ -680,7 +669,6 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 
 	return { component, head, handleEvent, state, destroy };
 }
-
 
 // ----------------------------------------------------------------------
 // Device page binding — the module registry renders this one instance
@@ -709,17 +697,17 @@ function switcherEnableToggle(status: Status | undefined): m.Vnode | null {
 	const on = status.modules["obs-controller"].switcherEnabled === true;
 	return checkField(
 		t("lowbs.enable_switcher"),
-		m("input", {
-			type: "checkbox",
-			class: "obs-switcher-toggle",
-			checked: on,
-			onchange: (e: Event) => {
+		<input
+			type={"checkbox"}
+			class={"obs-switcher-toggle"}
+			checked={on}
+			onchange={(e: Event) => {
 				void card.act("obs-switcher-enable", "modules.configure", {
 					id: "obs-controller",
 					config: { switcherEnabled: (e.target as HTMLInputElement).checked },
 				});
-			},
-		}),
+			}}
+		/>,
 	);
 }
 
@@ -732,7 +720,13 @@ const obsControllerModule: BridgedModule = {
 	// Two cards: the OBS panel (its head carries the switcher toggle) plus the
 	// low-bitrate switcher card, which only renders while the toggle is on.
 	component: (status?: Status) => [
-		m(Card, { title: t("obs.card"), class: "mod-obs-controller", headActions: [...panel.head(), switcherEnableToggle(status)] }, panel.component()),
+		<Card
+			title={t("obs.card")}
+			class={"mod-obs-controller"}
+			headActions={[...panel.head(), switcherEnableToggle(status)]}
+		>
+			{panel.component()}
+		</Card>,
 		status ? switcherCard(status) : null,
 	],
 	handleEvent: (event, data) => {
@@ -740,5 +734,5 @@ const obsControllerModule: BridgedModule = {
 		handleSwitcherEvent(event, data);
 	},
 };
-	
+
 export default obsControllerModule;

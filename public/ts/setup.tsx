@@ -206,25 +206,30 @@ async function complete(): Promise<void> {
 }
 
 // -- One fieldset per step -----------------------------------------------------
-const step = (key: StepKey, heading: string, desc: string, ...children: m.Children[]) =>
-	m("fieldset.wizard-step", { "data-step": key }, m("h2.wiz-heading", heading), m("p.wiz-desc", desc), children);
+const step = (key: StepKey, heading: string, desc: string, ...children: m.Children[]) => (
+	<fieldset class={"wizard-step"} data-step={key}>
+		<h2 class={"wiz-heading"}>{heading}</h2>
+		<p class={"wiz-desc"}>{desc}</p>
+		{children}
+	</fieldset>
+);
 
-const roleCard = (value: Role, name: string, tagline: string): m.Vnode =>
-	m(
-		"label.role-card",
-		m("input", {
-			type: "radio",
-			name: "role",
-			value,
-			required: true,
-			checked: f.role === value,
-			onchange: () => (f.role = value),
-		}),
-		roleCardIcon(value),
-		m("span.role-name", name),
-		m("span.role-tagline", tagline),
-		m("img", { src: `/img/${value}.svg`, alt: "", "aria-hidden": "true" }),
-	);
+const roleCard = (value: Role, name: string, tagline: string): m.Vnode => (
+	<label class={"role-card"}>
+		<input
+			type={"radio"}
+			name={"role"}
+			value={value}
+			required={true}
+			checked={f.role === value}
+			onchange={() => (f.role = value)}
+		/>
+		{roleCardIcon(value)}
+		<span class={"role-name"}>{name}</span>
+		<span class={"role-tagline"}>{tagline}</span>
+		<img src={`/img/${value}.svg`} alt={""} aria-hidden={"true"} />
+	</label>
+);
 
 const check = (key: "bitrateOverlay" | "srtlaQuality" | "autostart", label: string) =>
 	checkField(null, [checkbox(f, key), ` ${label}`]);
@@ -284,12 +289,11 @@ function stepBody(key: StepKey): m.Vnode {
 				field(t("dev.field.max_bitrate"), input(f, "maxBitrate", BITRATE)),
 				field(
 					t("dev.field.audio_source"),
-					select(f, "audioSource", options(state.audioSources.map((a) => [a.id, a.name])), { required: true }),
+					select(f, "audioSource", options(state.audioSources.map((a) => [a.id, a.name])), {
+						required: true,
+					}),
 				),
-				field(
-					t("dev.field.audio_codec"),
-					select(f, "audioCodec", audioCodecOptions()),
-				),
+				field(t("dev.field.audio_codec"), select(f, "audioCodec", audioCodecOptions())),
 				field(t("dev.field.audio_delay"), input(f, "delay", numberAttrs(-2000, 2000))),
 				// Combined devices stream into their own srtla_send: no target to configure
 				standalone && [
@@ -319,10 +323,7 @@ function stepBody(key: StepKey): m.Vnode {
 					input(f, "srtlaRemoteHost", { placeholder: "rec.example.com", required: needsReceiver }),
 				),
 				field(t("dev.field.remote_port"), input(f, "srtlaRemotePort", { ...PORT, required: needsReceiver })),
-				field(
-					t("dev.scheduler"),
-					select(f, "srtlaMode", schedulerOptions()),
-				),
+				field(t("dev.scheduler"), select(f, "srtlaMode", schedulerOptions())),
 				check("srtlaQuality", t("dev.quality_scoring")),
 			);
 		}
@@ -337,18 +338,15 @@ function wizard(): m.Children {
 	const last = current === steps.length - 1;
 	const stage = (i: number) => (i < current ? "done" : i === current ? "current" : "upcoming");
 	return [
-		m(
-			"ol.wizard-stepper",
-			steps.map((s, i) =>
-				m(
-					"li",
-					{ key: s.key, class: `wiz-item ${stage(i)}`, "data-step": s.key },
-					m("span.wiz-dot", i < current ? "✓" : String(i + 1)),
-					m("span.wiz-title", t(s.title)),
-					m("span.wiz-sub", t(s.sub)),
-				),
-			),
-		),
+		<ol class={"wizard-stepper"}>
+			{steps.map((s, i) => (
+				<li key={s.key} class={`wiz-item ${stage(i)}`} data-step={s.key}>
+					<span class={"wiz-dot"}>{i < current ? "✓" : String(i + 1)}</span>
+					<span class={"wiz-title"}>{t(s.title)}</span>
+					<span class={"wiz-sub"}>{t(s.sub)}</span>
+				</li>
+			))}
+		</ol>,
 		form(
 			{ id: "setup-form", onSubmit: complete },
 			stepBody(steps[current].key),
@@ -359,17 +357,18 @@ function wizard(): m.Children {
 				button(t("setup.save"), { type: "submit", hidden: !last, disabled: state.saving }),
 			),
 		),
-		m("p.muted", { role: "status" }, state.message),
+		<p class={"muted"} role={"status"}>
+			{state.message}
+		</p>,
 	];
 }
 
 const App: m.Component = {
-	view: () =>
-		m(
-			Page,
-			{ title: t("setup.title"), headerRight: connectionBadge(state.connected) },
-			m("section.card", state.loaded ? wizard() : m("p.muted", t("setup.loading"))),
-		),
+	view: () => (
+		<Page title={t("setup.title")} headerRight={connectionBadge(state.connected)}>
+			<section class={"card"}>{state.loaded ? wizard() : <p class={"muted"}>{t("setup.loading")}</p>}</section>
+		</Page>
+	),
 };
 
 void mountPage(() => t("setup.title"), App);

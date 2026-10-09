@@ -20,7 +20,7 @@ const WIDGET_IDS = ["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "yo
 /**
  * The frontend registry cannot be imported outside the browser graph (it
  * mounts the device store at module init), so its discovery is checked from
- * the files: every modules/<id>/frontend.ts must default-export a
+ * the files: every modules/<id>/frontend.tsx must default-export a
  * registration whose `id` matches its directory and whose `kind` splits the
  * set into device cards (matching the backend registry) and widgets.
  */
@@ -30,7 +30,7 @@ function scanFrontends(): { dir: string; id: string; kind: string }[] {
 	const out: { dir: string; id: string; kind: string }[] = [];
 	for (const dir of readdirSync(modulesDir, { withFileTypes: true })) {
 		if (!dir.isDirectory()) continue;
-		const file = join(modulesDir, dir.name, "frontend.ts");
+		const file = join(modulesDir, dir.name, "frontend.tsx");
 		let src: string;
 		try {
 			src = readFileSync(file, "utf8");
@@ -44,9 +44,9 @@ function scanFrontends(): { dir: string; id: string; kind: string }[] {
 		const body = decl ? src.slice((decl.index ?? 0) + decl[0].length) : src;
 		const id = body.match(/\bid:\s*"([^"]+)"/)?.[1];
 		const kind = body.match(/\bkind:\s*"([^"]+)"/)?.[1];
-		expect(id, `${dir}/frontend.ts has no id` as string).toBeTypeOf("string");
-		expect(kind, `${dir}/frontend.ts has no kind` as string).toBeTypeOf("string");
-		expect(src, `${dir}/frontend.ts has no default export` as string).toContain("export default");
+		expect(id, `${dir}/frontend.tsx has no id` as string).toBeTypeOf("string");
+		expect(kind, `${dir}/frontend.tsx has no kind` as string).toBeTypeOf("string");
+		expect(src, `${dir}/frontend.tsx has no default export` as string).toContain("export default");
 		out.push({ dir: dir.name, id: id as string, kind: kind as string });
 	}
 	return out;
@@ -74,7 +74,7 @@ describe("module registries", () => {
 
 	test("frontend discovery: directory name matches registration id", () => {
 		for (const fe of scanFrontends()) {
-			expect(fe.dir, `${fe.dir}/frontend.ts declares id ${fe.id}`).toBe(fe.id);
+			expect(fe.dir, `${fe.dir}/frontend.tsx declares id ${fe.id}`).toBe(fe.id);
 		}
 	});
 

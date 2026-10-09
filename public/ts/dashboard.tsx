@@ -24,7 +24,12 @@ import { createCardHost, type DeviceCard } from "./device/store";
  * (`deviceCardBody`). The obs panel is the one documented exception: its
  * transport types are module-owned and irreducible to a generic `Panel`
  * signature without the core re-declaring them (§6 "no shared types"). */
-import { createObsPanel, type ObsEvent, type ObsPanel, type ObsRequestResult } from "../../modules/obs-controller/frontend";
+import {
+	createObsPanel,
+	type ObsEvent,
+	type ObsPanel,
+	type ObsRequestResult,
+} from "../../modules/obs-controller/frontend";
 import { deviceCardBody, getFrontendModule, widgetModule } from "../../src/registry.frontend";
 import { WIDGET_MODULE_IDS } from "../../public/types";
 import { t } from "./i18n";
@@ -100,7 +105,8 @@ function ensureKickConn(): void {
 			youtubeChat?: Record<string, { connected?: boolean; messages?: KickChatMessage[] }>;
 		};
 		for (const [channel, stats] of Object.entries(snap.stats ?? {})) if (stats) live(channel).stats = stats;
-		for (const [channel, c] of Object.entries(snap.chat ?? {})) live(channel).chat = (c.messages ?? []).slice(0, KICK_CHAT_CAP);
+		for (const [channel, c] of Object.entries(snap.chat ?? {}))
+			live(channel).chat = (c.messages ?? []).slice(0, KICK_CHAT_CAP);
 		fillChatMap(tiktokLive, snap.tiktokChat);
 		fillChatMap(twitchLive, snap.twitchChat);
 		fillChatMap(youtubeLive, snap.youtubeChat);
@@ -137,7 +143,10 @@ function ensureKickConn(): void {
 }
 
 /** Warm-start one chat platform's live map from the snapshot fragment. */
-function fillChatMap(liveMap: Map<string, ChannelChatLive>, frag?: Record<string, { connected?: boolean; messages?: KickChatMessage[] }>): void {
+function fillChatMap(
+	liveMap: Map<string, ChannelChatLive>,
+	frag?: Record<string, { connected?: boolean; messages?: KickChatMessage[] }>,
+): void {
 	for (const [channel, c] of Object.entries(frag ?? {})) {
 		let l = liveMap.get(channel);
 		if (!l) {
@@ -204,8 +213,7 @@ function applyDeviceList(list: DeviceSummary[]): void {
 	m.redraw();
 }
 
-export const deviceById = (deviceId: string): DeviceSummary | undefined =>
-	devices.list?.find((d) => d.id === deviceId);
+export const deviceById = (deviceId: string): DeviceSummary | undefined => devices.list?.find((d) => d.id === deviceId);
 
 export const deviceLabel = (d: DeviceSummary): string => d.hostname || d.id;
 
@@ -299,8 +307,7 @@ export function syncConnectionsFor(dash: ServerDashboard | undefined): void {
 			conn.card.onReconnect();
 			const kinds = (dash?.widgets ?? []).map((w) => w.type);
 			if (kinds.includes("obs")) {
-				rpc
-					.call("obs.request", { requestType: "GetVersion" })
+				rpc.call("obs.request", { requestType: "GetVersion" })
 					.then(() => {
 						live.obsConnected = true;
 						m.redraw();
@@ -318,29 +325,35 @@ const connectionFor = (deviceId: string): Connection | undefined => connections.
 // ---------------------------------------------------------------------- widgets
 
 function srtlaTable(s: SrtlaStats): m.Vnode {
-	return srtlaLinksRows(s).length
-		? m(
-				"table.dash-table",
-				m("tbody", srtlaLinksRows(s).map(([label, value], i) => m("tr", { key: i }, m("th", label), m("td", value)))),
-			)
-		: m("p.muted", t("dev.badge.no_links"));
+	return srtlaLinksRows(s).length ? (
+		<table class={"dash-table"}>
+			<tbody>
+				{srtlaLinksRows(s).map(([label, value], i) => (
+					<tr key={i}>
+						<th>{label}</th>
+						<td>{value}</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+	) : (
+		<p class={"muted"}>{t("dev.badge.no_links")}</p>
+	);
 }
 
 function srtlaLinksRows(s: SrtlaStats): [string, Child][] {
 	return (s.links ?? []).map((l) => [
 		l.label ?? l.ip,
-		m(
-			"span",
-			l.connected ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off"),
-			" ",
-			m("span.muted", `${formatBitrate(l.bitrate_bytes_per_sec)} · ${l.rtt_ms} ms`),
-		),
+		<span>
+			{l.connected ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off")}{" "}
+			<span class={"muted"}>{`${formatBitrate(l.bitrate_bytes_per_sec)} · ${l.rtt_ms} ms`}</span>
+		</span>,
 	]);
 }
 
 function statusWidget(deviceId: string, conn: Connection | undefined): m.Children {
 	const d = deviceById(deviceId);
-	if (!d) return m("p.muted", t("dash.widget_missing"));
+	if (!d) return <p class={"muted"}>{t("dash.widget_missing")}</p>;
 	const rows: [string, Child][] = [
 		[t("mgmt.th.role"), d.role ? roleTag(d.role) : "—"],
 		[t("mgmt.th.status"), d.online ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off")],
@@ -364,7 +377,7 @@ function statusWidget(deviceId: string, conn: Connection | undefined): m.Childre
 
 function statsWidget(_deviceId: string, conn: Connection | undefined): m.Children {
 	const s = conn?.live.srtla;
-	if (!s) return m("p.muted", conn ? t("dash.widget_waiting") : t("dev.badge.offline"));
+	if (!s) return <p class={"muted"}>{conn ? t("dash.widget_waiting") : t("dev.badge.offline")}</p>;
 	return srtlaTable(s);
 }
 
@@ -372,29 +385,30 @@ function statsWidget(_deviceId: string, conn: Connection | undefined): m.Childre
  * the wrapper keeps the module's CSS scope. */
 function relayWidget(deviceId: string, conn: Connection | undefined): m.Children {
 	const status = conn?.card.st.status;
-	if (!deviceById(deviceId)) return m("p.muted", t("dash.widget_missing"));
-	if (!status) return m("p.muted", conn ? t("dash.widget_waiting") : t("dev.badge.offline"));
-	return m("div.mod-srtla", deviceCardBody("srtla", conn!.card, status));
+	if (!deviceById(deviceId)) return <p class={"muted"}>{t("dash.widget_missing")}</p>;
+	if (!status) return <p class={"muted"}>{conn ? t("dash.widget_waiting") : t("dev.badge.offline")}</p>;
+	return <div class={"mod-srtla"}>{deviceCardBody("srtla", conn!.card, status)}</div>;
 }
 
 function encoderWidget(deviceId: string, conn: Connection | undefined): m.Children {
 	const status = conn?.card.st.status;
-	if (!deviceById(deviceId)) return m("p.muted", t("dash.widget_missing"));
-	if (!status) return m("p.muted", conn ? t("dash.widget_waiting") : t("dev.badge.offline"));
-	return m("div.mod-encoder", deviceCardBody("encoder", conn!.card, status));
+	if (!deviceById(deviceId)) return <p class={"muted"}>{t("dash.widget_missing")}</p>;
+	if (!status) return <p class={"muted"}>{conn ? t("dash.widget_waiting") : t("dev.badge.offline")}</p>;
+	return <div class={"mod-encoder"}>{deviceCardBody("encoder", conn!.card, status)}</div>;
 }
 
 /** Combined device: encoder card stacked over its SRTLA receiver card. */
 function combinedWidget(deviceId: string, conn: Connection | undefined): m.Children {
 	const status = conn?.card.st.status;
-	if (!deviceById(deviceId)) return m("p.muted", t("dash.widget_missing"));
-	if (!status) return m("p.muted", conn ? t("dash.widget_waiting") : t("dev.badge.offline"));
-	return m(
-		"div.mod-combined",
-		[
-			m("div.mod-encoder", deviceCardBody("encoder", conn!.card, status)),
-			m("div.mod-srtla", deviceCardBody("srtla", conn!.card, status)),
-		],
+	if (!deviceById(deviceId)) return <p class={"muted"}>{t("dash.widget_missing")}</p>;
+	if (!status) return <p class={"muted"}>{conn ? t("dash.widget_waiting") : t("dev.badge.offline")}</p>;
+	return (
+		<div class={"mod-combined"}>
+			{[
+				<div class={"mod-encoder"}>{deviceCardBody("encoder", conn!.card, status)}</div>,
+				<div class={"mod-srtla"}>{deviceCardBody("srtla", conn!.card, status)}</div>,
+			]}
+		</div>
 	);
 }
 
@@ -413,7 +427,7 @@ function obsPanelFor(w: ServerDashboardWidget, conn: Connection): ObsPanel {
 	let panel = obsPanels.get(w.id)?.panel;
 	if (!panel) {
 		panel = createObsPanel({
-			send: <T = Record<string, unknown>>(type: string, data?: Record<string, unknown>) =>
+			send: <T = Record<string, unknown>,>(type: string, data?: Record<string, unknown>) =>
 				conn.rpc.call<ObsRequestResult<T> | undefined>("obs.request", {
 					requestType: type,
 					requestId: crypto.randomUUID(),
@@ -437,10 +451,10 @@ function obsPanelFor(w: ServerDashboardWidget, conn: Connection): ObsPanel {
 /** The full control panel (preview, scenes, output actions, VU meter), not just the status rows. */
 function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Children {
 	const d = deviceById(w.deviceId);
-	if (!conn || !d?.online) return m("p.muted", t("dev.badge.offline"));
+	if (!conn || !d?.online) return <p class={"muted"}>{t("dev.badge.offline")}</p>;
 	// The dashboard widget card is shared by all widget types, so scope the module CSS
 	// with the same .mod-obs-controller class the device page's card root gets.
-	return m("div.mod-obs-controller", obsPanelFor(w, conn).component());
+	return <div class={"mod-obs-controller"}>{obsPanelFor(w, conn).component()}</div>;
 }
 
 /** The status badge shown next to the widget title in the card head. */
@@ -510,7 +524,9 @@ export function setWidgetConfigSaver(fn: ((w: ServerDashboardWidget) => void) | 
 
 /** Registered by the page owning the grid; called when the server broadcasts
  * a `dashboards.changed` event (this dashboard was saved elsewhere). */
-let dashboardChangedSink: ((data: { id: string; widgets: ServerDashboardWidget[]; version: number } | null) => void) | null = null;
+let dashboardChangedSink:
+	| ((data: { id: string; widgets: ServerDashboardWidget[]; version: number } | null) => void)
+	| null = null;
 export function setDashboardChangedSink(
 	fn: ((data: { id: string; widgets: ServerDashboardWidget[]; version: number } | null) => void) | null,
 ): void {
@@ -527,37 +543,48 @@ function configEditorForm(w: ServerDashboardWidget): m.Vnode {
 	const fields = widgetModule(w.type)?.configFields ?? [];
 	const key = widgetKey(w);
 	const s = widgetConfigState.get(key) ?? { editing: true, values: { ...(w.config ?? {}) } };
-	return m("div.dash-config-form", [
-		...fields.map((name) =>
-			m("label", { key: name }, [
-				m("span", t(`dash.widget_${name}`)),
-				m("input.dash-config-input", {
-					value: s.values[name] ?? "",
-					placeholder: t(`dash.widget_${name}`),
-					oninput: (e: Event) => {
-						s.values[name] = (e.target as HTMLInputElement).value;
-					},
-				}),
-			]),
-		),
-		m("div.dash-config-actions", { key: "actions" }, [
-			button(t("ui.save"), {
-				onclick: (e: Event) => {
-					e.preventDefault();
-					w.config = Object.fromEntries(fields.map((name) => [name, (s.values[name] ?? "").trim()]));
-					widgetConfigState.delete(key);
-					widgetConfigSaver?.(w);
-					m.redraw();
-				},
-			}),
-			button(t("ui.cancel"), {
-				onclick: () => {
-					widgetConfigState.delete(widgetKey(w));
-					m.redraw();
-				},
-			}),
-		]),
-	]);
+	return (
+		<div class={"dash-config-form"}>
+			{[
+				...fields.map((name) => (
+					<label key={name}>
+						{[
+							<span>{t(`dash.widget_${name}`)}</span>,
+							<input
+								class={"dash-config-input"}
+								value={s.values[name] ?? ""}
+								placeholder={t(`dash.widget_${name}`)}
+								oninput={(e: Event) => {
+									s.values[name] = (e.target as HTMLInputElement).value;
+								}}
+							/>,
+						]}
+					</label>
+				)),
+				<div class={"dash-config-actions"} key={"actions"}>
+					{[
+						button(t("ui.save"), {
+							onclick: (e: Event) => {
+								e.preventDefault();
+								w.config = Object.fromEntries(
+									fields.map((name) => [name, (s.values[name] ?? "").trim()]),
+								);
+								widgetConfigState.delete(key);
+								widgetConfigSaver?.(w);
+								m.redraw();
+							},
+						}),
+						button(t("ui.cancel"), {
+							onclick: () => {
+								widgetConfigState.delete(widgetKey(w));
+								m.redraw();
+							},
+						}),
+					]}
+				</div>,
+			]}
+		</div>
+	);
 }
 
 const widgetKey = (w: ServerDashboardWidget): string => w.id || `${w.type}:${w.name}`;
@@ -578,10 +605,19 @@ function widgetVersion(w: ServerDashboardWidget): m.Vnode | null {
 	if (isIndependent(w.type)) return null;
 	const d = deviceById(w.deviceId);
 	const version = connectionFor(w.deviceId)?.live.device?.version ?? d?.version;
-	if (version) return m("span.dash-widget-version", { title: version }, version);
+	if (version)
+		return (
+			<span class={"dash-widget-version"} title={version}>
+				{version}
+			</span>
+		);
 	// A device that answers (hello without a version field) runs a pre-version
 	// build: its widget data (pipelines, stats) simply does not exist yet there.
-	return d?.online ? m("span.dash-widget-version stale", { title: t("dash.version_stale") }, "old app") : null;
+	return d?.online ? (
+		<span class={"dash-widget-version stale"} title={t("dash.version_stale")}>
+			{"old app"}
+		</span>
+	) : null;
 }
 
 /** Live body for a widget, given its device connection. */
@@ -589,11 +625,16 @@ function bodyFor(w: ServerDashboardWidget): m.Children {
 	const deviceId = effectiveDeviceId(w);
 	const conn = connectionFor(deviceId);
 	switch (w.type) {
-		case "stats": return statsWidget(deviceId, conn);
-		case "relay": return relayWidget(deviceId, conn);
-		case "encoder": return encoderWidget(deviceId, conn);
-		case "combined": return combinedWidget(deviceId, conn);
-		case "obs": return obsWidget(w, conn);
+		case "stats":
+			return statsWidget(deviceId, conn);
+		case "relay":
+			return relayWidget(deviceId, conn);
+		case "encoder":
+			return encoderWidget(deviceId, conn);
+		case "combined":
+			return combinedWidget(deviceId, conn);
+		case "obs":
+			return obsWidget(w, conn);
 		case "kick-stats":
 		case "kick-chat": {
 			const channel = widgetChannel(w);
@@ -603,9 +644,13 @@ function bodyFor(w: ServerDashboardWidget): m.Children {
 		case "twitch-chat":
 		case "youtube-chat": {
 			const channel = widgetChannel(w);
-			return widgetModule(w.type)?.body(w, channel ? chatLiveFor(w.type).get(channel) ?? { chat: [] } : {}) as m.Children;
+			return widgetModule(w.type)?.body(
+				w,
+				channel ? chatLiveFor(w.type).get(channel) ?? { chat: [] } : {},
+			) as m.Children;
 		}
-		default: return statusWidget(deviceId, conn);
+		default:
+			return statusWidget(deviceId, conn);
 	}
 }
 
@@ -631,13 +676,20 @@ export function widgetSize(type: WidgetType): { default: GridSize; min: GridSize
 	const mod = WIDGET_TYPE_MODULE[type] ? getFrontendModule(WIDGET_TYPE_MODULE[type]!) : undefined;
 	if (mod) return { default: mod.defaultSize, min: mod.minSize, max: mod.maxSize };
 	switch (type) {
-		case "combined": return { default: { w: 6, h: 10 }, min: { w: 4, h: 8 } };
-		case "kick-stats": return { default: { w: 3, h: 3 }, min: { w: 3, h: 3 } };
-		case "kick-chat": return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
-		case "tiktok-chat": return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
-		case "twitch-chat": return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
-		case "youtube-chat": return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
-		default: return { default: { w: 4, h: 4 }, min: { w: 3, h: 3 } };
+		case "combined":
+			return { default: { w: 6, h: 10 }, min: { w: 4, h: 8 } };
+		case "kick-stats":
+			return { default: { w: 3, h: 3 }, min: { w: 3, h: 3 } };
+		case "kick-chat":
+			return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
+		case "tiktok-chat":
+			return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
+		case "twitch-chat":
+			return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
+		case "youtube-chat":
+			return { default: { w: 3, h: 8 }, min: { w: 3, h: 4 } };
+		default:
+			return { default: { w: 4, h: 4 }, min: { w: 3, h: 3 } };
 	}
 }
 
@@ -653,48 +705,61 @@ export function widgetInner(w: ServerDashboardWidget, editMode: boolean, actions
 	const key = widgetKey(w);
 	const isKick = isIndependent(w.type);
 	const editing = isKick && editMode && (widgetConfigState.get(key)?.editing ?? false);
-	return m("div.dash-widget", { key, class: editing ? "is-editing" : undefined }, [
-		m("div.dash-widget-head", [
-			m("span.dash-grip", [
-				editMode ? m("span.dash-grip-icon", "⠿") : null,
-				m("span.dash-widget-title", widgetTitle(w)),
-				// The status badge sits right next to the title (hidden while the config form is open).
-				editing ? null : [widgetVersion(w), m("span.dash-widget-badge", widgetBadge(w))],
-			]),
-			editMode
-				? m("span.dash-widget-actions", [
-						isKick
-							? m("button.icon-btn.dash-widget-config", {
-									title: t("dash.widget_settings"),
-									"aria-label": t("dash.widget_settings"),
-									onclick: (e: Event) => {
-										e.stopPropagation();
-										const s = widgetConfigState.get(key) ?? { editing: false, values: { ...(w.config ?? {}) } };
-										s.editing = !s.editing;
-										widgetConfigState.set(key, s);
-										m.redraw();
-									},
-								}, editing ? "✓" : "⚙")
-							: null,
-						// m("button.icon-btn.dash-widget-eye", {
-						// 	title: t("dash.hide"),
-						// 	"aria-label": t("dash.hide"),
-						// 	onclick: (e: Event) => {
-						// 		e.stopPropagation();
-						// 		actions.hide(w);
-						// 	},
-						// }, "👁"),
-						m("button.icon-btn.dash-widget-remove", {
-							title: t("dash.remove"),
-							"aria-label": t("dash.remove"),
-							onclick: (e: Event) => {
-								e.stopPropagation();
-								actions.remove(w);
-							},
-						}, "×"),
-					])
-				: null,
-		]),
-		m("div.dash-widget-body", editing ? configEditorForm(w) : bodyFor(w)),
-	]);
+	return (
+		<div key={key} class={["dash-widget", editing ? "is-editing" : undefined].filter(Boolean).join(" ")}>
+			{[
+				<div class={"dash-widget-head"}>
+					{[
+						<span class={"dash-grip"}>
+							{[
+								editMode ? <span class={"dash-grip-icon"}>{"⠿"}</span> : null,
+								<span class={"dash-widget-title"}>{widgetTitle(w)}</span>,
+								// The status badge sits right next to the title (hidden while the config form is open).
+								editing
+									? null
+									: [widgetVersion(w), <span class={"dash-widget-badge"}>{widgetBadge(w)}</span>],
+							]}
+						</span>,
+						editMode ? (
+							<span class={"dash-widget-actions"}>
+								{[
+									isKick ? (
+										<button
+											class={"icon-btn dash-widget-config"}
+											title={t("dash.widget_settings")}
+											aria-label={t("dash.widget_settings")}
+											onclick={(e: Event) => {
+												e.stopPropagation();
+												const s = widgetConfigState.get(key) ?? {
+													editing: false,
+													values: { ...(w.config ?? {}) },
+												};
+												s.editing = !s.editing;
+												widgetConfigState.set(key, s);
+												m.redraw();
+											}}
+										>
+											{editing ? "✓" : "⚙"}
+										</button>
+									) : null,
+									<button
+										class={"icon-btn dash-widget-remove"}
+										title={t("dash.remove")}
+										aria-label={t("dash.remove")}
+										onclick={(e: Event) => {
+											e.stopPropagation();
+											actions.remove(w);
+										}}
+									>
+										{"×"}
+									</button>,
+								]}
+							</span>
+						) : null,
+					]}
+				</div>,
+				<div class={"dash-widget-body"}>{editing ? configEditorForm(w) : bodyFor(w)}</div>,
+			]}
+		</div>
+	);
 }

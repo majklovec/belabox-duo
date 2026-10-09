@@ -6,6 +6,7 @@ import { LOG_MAX, type LogEntry, type LogEvent, label } from "../../../src/logMe
 import { Card } from "../components/ui";
 import { t } from "../i18n";
 import { type Level, levelIcon } from "../icons";
+import type { MithrilJSXComponent } from "../jsx";
 
 const LEVEL_KEY: Record<Level, string> = {
 	info: "log.level.info",
@@ -54,32 +55,30 @@ function sorted(): LogEntry[] {
 function time(at: number): m.Vnode {
 	const date = new Date(at);
 	const today = date.toDateString() === new Date().toDateString();
-	return m(
-		"time",
-		{ datetime: date.toISOString(), title: date.toLocaleString() },
-		today ? date.toLocaleTimeString() : date.toLocaleString(),
+	return (
+		<time datetime={date.toISOString()} title={date.toLocaleString()}>
+			{today ? date.toLocaleTimeString() : date.toLocaleString()}
+		</time>
 	);
 }
 
-export const LogCard: m.Component = {
-	view: () =>
-		m(
-			Card,
-			{ title: t("dev.card.log") },
-			m(
-				"code#log",
-				sorted().map((e) =>
-					m(
-						"li",
-						{ key: keyOf(e), class: `log-${e.level}` },
-						levelIcon(e.level),
-						time(e.at),
-						m("span.log-level", t(LEVEL_KEY[e.level])),
-						m("span.log-section", label(e.section)),
-						m("span.log-message", e.message),
-						m("span.log-count", (e.count ?? 1) > 1 ? `×${e.count}` : null),
-					),
-				),
-			),
-		),
+const LogCardComponent: m.Component = {
+	view: () => (
+		<Card title={t("dev.card.log")}>
+			<code id="log">
+				{sorted().map((e) => (
+					<li key={keyOf(e)} class={`log-${e.level}`}>
+						{levelIcon(e.level)}
+						{time(e.at)}
+						<span class={"log-level"}>{t(LEVEL_KEY[e.level])}</span>
+						<span class={"log-section"}>{label(e.section)}</span>
+						<span class={"log-message"}>{e.message}</span>
+						<span class={"log-count"}>{(e.count ?? 1) > 1 ? `×${e.count}` : null}</span>
+					</li>
+				))}
+			</code>
+		</Card>
+	),
 };
+
+export const LogCard = LogCardComponent as MithrilJSXComponent;
