@@ -19,7 +19,7 @@ import {
 import { since } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
 import { card, type DeviceCard } from "../../public/ts/device/store";
-import type { BrowserModule } from "../types";
+import type { BridgedModule } from "./types";
 
 type SrtlaOptions = Status["state"]["srtlaOptions"];
 
@@ -139,10 +139,14 @@ export function srtlaCardBody(host: DeviceCard, status: Status): m.Vnode {
 	);
 }
 
-export const srtlaModule: BrowserModule = {
+const srtlaModule: BridgedModule = {
 	id: "srtla",
+	kind: "device-card",
 	title: "SRTLA",
 	defaultSize: { w: 4, h: 4 },
 	minSize: { w: 3, h: 3 },
 	component: (status: Status) => srtlaCardBody(card, status),
+	cardBody: (host, status) => srtlaCardBody(host as DeviceCard, status as Status),
 };
+
+export default srtlaModule;

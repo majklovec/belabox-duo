@@ -4,8 +4,7 @@
 // per-widget transport state.
 import m from "mithril";
 import type { ServerDashboardWidget } from "../../public/types";
-import { ChannelWidgetModule } from "../widgets";
-import type { ChannelLive } from "../types";
+import { ChannelWidgetModule, type ChannelLive } from "./types";
 import { badge as badgeEl } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import "./styles.css";
@@ -40,10 +39,13 @@ function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 	return msgs.length ? m("div.twitch-chat-feed", msgs) : m("p.muted", t("twitchchat.empty"));
 }
 
-export const twitchChatModule: ChannelWidgetModule<ServerDashboardWidget> = {
+const twitchChatModule: ChannelWidgetModule<ServerDashboardWidget> = {
 	id: "twitch-chat",
+	kind: "widget",
 	configFields: ["channel"] as const,
 	channelOf,
 	body,
 	badge,
 };
+
+export default twitchChatModule;

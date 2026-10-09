@@ -12,8 +12,7 @@
  * `kick.chat` push. The rolling history keeps reconnections from re-sending,
  * and the `seen` set dedupes message ids across reconnects.
  */
-import { eventFrame, type ChatLive } from "../types";
-import type { ChannelSpecs, PublishFn } from "../widgets";
+import { eventFrame, type ChatLive, type ChannelSpecs, type PublishFn } from "./types";
 
 /** Kick's public Pusher chat app (protocol 7, anonymous join). */
 const PUSHER_URL =
@@ -277,3 +276,18 @@ export class ChatChannelManager {
 		state.reconnectTimer = setTimeout(() => this.#connect(state), delay);
 	}
 }
+
+/** Widget registration (the backend registry's hub wiring); the core reaches
+ * this module only through it, no per-module imports in the core. */
+export default {
+	id: "kick-chat",
+	kind: "widget" as const,
+	title: "Kick Chat",
+	hub: {
+		widgetType: "kick-chat",
+		snapshotKey: "chat",
+		configFields: KICK_CHAT_CONFIG_FIELDS,
+		channelSpec: chatSpecFromConfig,
+		create: (publish: PublishFn): ChatChannelManager => new ChatChannelManager(publish),
+	},
+};

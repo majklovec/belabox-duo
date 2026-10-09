@@ -7,51 +7,61 @@
  *
  * Config lives in state.settings.modules["obs-controller"].switcher. The obs
  * module's start/stop owns this sub-component's lifecycle (backend.ts).
+ *
+ * Self-contained: inter-module access flows through the capability bus
+ * (capability names, never module ids); the only core edge is the bag.
  */
 import { randomUUID } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import { LOG_FILE } from "../../src/config";
-import { logEvent } from "../../src/eventlog";
-import { ApiError } from "../../src/params";
-import { state } from "../../src/state";
 import { OBS_DISCONNECTED_EVENT, type ObsClient } from "../../obs-client";
-import { encoderModule, encoderServices } from "../encoder/backend";
-import { modemsModule } from "../modems/backend";
-import { srtlaModule, srtlaServices } from "../srtla/backend";
 import {
 	defaultLowBitrateSwitcherConfig,
-	type DeviceModule,
 	type LowBitrateSwitcherConfig,
-	type ModuleContext,
+	type MCore,
+	type Mctx,
 	type SwitcherActiveSources,
 	type SwitcherMetrics,
 	type SwitcherStatus,
-} from "../types";
+} from "./types";
 import { normalizeSwitcherConfig, SwitcherEngine, type ObsSnapshot } from "./switcher-engine";
-import { obsControllerModule } from "./backend";
 
 const SECTION = "LowBitrateSwitcher";
 
-/** The persisted config slice (never the factory defaults once a device has stored settings). */
-export function loadSwitcherConfig(): LowBitrateSwitcherConfig {
-	const stored = state.settings.modules?.["obs-controller"]?.switcher;
-	return normalizeSwitcherConfig(stored) ?? defaultLowBitrateSwitcherConfig();
+/** Capability shapes the switcher reads through the bus (minimally typed). */
+interface EncoderCap {
+	encoder(): { status(): { running: boolean } };
+}
+interface SrtlaCap {
+	latestStats(): {
+		at: number;
+		stats?: {
+			links: { connected: boolean; bitrate_bytes_per_sec: number; rtt_ms: number }[];
+		} | null;
+	};
 }
 
-let cfg: LowBitrateSwitcherConfig = loadSwitcherConfig();
+/** Core bag, set in startSwitcher (a module may not import the core directly). */
+let core: MCore;
+
+/** The module's obs client, as handed in by the (hosting) backend at start. */
+let getClient: (() => ObsClient | null) | null = null;
+
+let cfg: LowBitrateSwitcherConfig = defaultLowBitrateSwitcherConfig();
 let engine: SwitcherEngine | null = null;
 let sources: SwitcherActiveSources = { encoder: null, relay: null, combined: null };
 let scene: string | null = null;
 let streaming = false;
 let fileLogBroken = false;
-const fileLog = join(dirname(LOG_FILE), "lowBitrateSwitcher.log");
 
-/** The module's obs client, as handed in by the (hosting) backend at start. */
-let getClient: (() => ObsClient | null) | null = null;
+/** The persisted config slice (loaded at start, from the core bag's state). */
+export function loadSwitcherConfig(): LowBitrateSwitcherConfig {
+	const stored = core.state.settings.modules?.["obs-controller"]?.switcher;
+	return normalizeSwitcherConfig(stored) ?? defaultLowBitrateSwitcherConfig();
+}
 
-const off = (): ObsSnapshot => ({ connected: false, streaming: streaming, scene });
+const fileLog = (): string => join(dirname(core.config.LOG_FILE), "lowBitrateSwitcher.log");
 
 /** The obs client of the hosting module (null: not started / not running). */
 function obsClient(): ObsClient | null {
@@ -127,15 +137,6 @@ function attachObsEvents(): void {
 
 // ---------------------------------------------------------------------- sources
 
-/**
- * Module lookup by registry id — the module objects are imported directly (not
- * through the registry) so no import cycle with registry.backend forms; the
- * lookup is lazy (inside the function) so backend.ts <-> switcher.ts mutual
- * imports stay TDZ-safe under ESM.
- */
-const moduleById = (id: string): DeviceModule | undefined =>
-	[encoderModule, srtlaModule, modemsModule, obsControllerModule].find((m) => m.id === id);
-
 /** `relay` is the persisted id for the srtla module; accept both. */
 const relayModuleId = (id: string): string => (id === "relay" ? "srtla" : id);
 
@@ -144,23 +145,23 @@ function resolveSources(): SwitcherActiveSources {
 	const out: SwitcherActiveSources = { encoder: null, relay: null, combined: null };
 	const combinedCfg = cfg.sources.combined;
 	if (combinedCfg.enabled) {
-		if (moduleById(combinedCfg.moduleId)) {
+		if (core.moduleById(combinedCfg.moduleId)) {
 			out.combined = combinedCfg.moduleId;
 			return out; // combined takes precedence over the individual sources
 		}
-		logEvent("warn", SECTION, `combined source module "${combinedCfg.moduleId}" not found; falling back to encoder/relay`);
+		core.logEvent("warn", SECTION, `combined source module "${combinedCfg.moduleId}" not found; falling back to encoder/relay`);
 	}
 	if (cfg.sources.encoder.enabled) {
-		if (moduleById(cfg.sources.encoder.moduleId)) out.encoder = cfg.sources.encoder.moduleId;
-		else logEvent("warn", SECTION, `encoder source module "${cfg.sources.encoder.moduleId}" not found; source skipped`);
+		if (core.moduleById(cfg.sources.encoder.moduleId)) out.encoder = cfg.sources.encoder.moduleId;
+		else core.logEvent("warn", SECTION, `encoder source module "${cfg.sources.encoder.moduleId}" not found; source skipped`);
 	}
 	if (cfg.sources.relay.enabled) {
 		const id = relayModuleId(cfg.sources.relay.moduleId);
-		if (moduleById(id)) out.relay = cfg.sources.relay.moduleId;
-		else logEvent("warn", SECTION, `relay source module "${cfg.sources.relay.moduleId}" not found; source skipped`);
+		if (core.moduleById(id)) out.relay = cfg.sources.relay.moduleId;
+		else core.logEvent("warn", SECTION, `relay source module "${cfg.sources.relay.moduleId}" not found; source skipped`);
 	}
 	if (!out.encoder && !out.relay && !out.combined) {
-		logEvent("warn", SECTION, "no active source is configured; switcher idle");
+		core.logEvent("warn", SECTION, "no active source is configured; switcher idle");
 	}
 	return out;
 }
@@ -173,7 +174,7 @@ function mergeField<T>(cur: T | null, next: T | null): T | null {
 /** One merged sample of the resolved sources; null when none is available. */
 async function collectMetrics(): Promise<SwitcherMetrics | null> {
 	if (sources.combined) {
-		const mod = moduleById(sources.combined);
+		const mod = core.moduleById(sources.combined);
 		if (!mod?.status) return null;
 		const frag = (await mod.status()) as Record<string, Record<string, unknown>>;
 		const rec = frag[sources.combined] ?? frag[Object.keys(frag)[0]] ?? {};
@@ -195,14 +196,14 @@ async function collectMetrics(): Promise<SwitcherMetrics | null> {
 	let streamingField: boolean | null = null;
 
 	if (sources.encoder) {
-		const enc = encoderServices.encoder().status();
+		const enc = core.requireCapability<EncoderCap>("stream.encoder").encoder().status();
 		any = true;
 		connected = mergeField(connected, enc.running);
 		streamingField = mergeField(streamingField, enc.running);
 		// belacoder exposes no live bitrate; its triggers are skipped
 	}
 	if (sources.relay) {
-		const stat = srtlaServices.latestStats()?.stats ?? null;
+		const stat = core.requireCapability<SrtlaCap>("stream.srtla").latestStats().stats ?? null;
 		if (stat) {
 			any = true;
 			const links = stat.links.filter((l) => l.connected);
@@ -218,11 +219,12 @@ async function collectMetrics(): Promise<SwitcherMetrics | null> {
 // ------------------------------------------------------------------------ logging
 
 function moduleLog(level: "info" | "warn" | "error", message: string): void {
-	logEvent(level, SECTION, message);
+	core.logEvent(level, SECTION, message);
 	if (cfg.logToFile && !fileLogBroken) {
 		const line = `${JSON.stringify({ at: Date.now(), level, message })}\n`;
-		mkdir(dirname(fileLog), { recursive: true })
-			.then(() => appendFile(fileLog, line))
+		const path = fileLog();
+		mkdir(dirname(path), { recursive: true })
+			.then(() => appendFile(path, line))
 			.catch(() => {
 				fileLogBroken = true;
 			});
@@ -232,15 +234,15 @@ function moduleLog(level: "info" | "warn" | "error", message: string): void {
 // ------------------------------------------------------------------------ services
 
 /**
- * The switcher services consumed by the obs module (backend.ts) and the core
- * (modules.configure in methods.ts) — the obs module is the only door.
+ * The switcher services consumed by the hosting obs module (backend.ts) —
+ * the module stays the only door to its sub-component.
  */
 export const switcherServices = {
 	/** Apply a modules.configure switcher slice (the caller saves); 400 on invalid input. */
 	configure(config: Record<string, unknown>): void {
 		const next = normalizeSwitcherConfig(config);
-		if (!next) throw new ApiError("invalid switcher config", 400);
-		const obs = state.settings.modules?.["obs-controller"];
+		if (!next) throw new core.ApiError("invalid switcher config", 400);
+		const obs = core.state.settings.modules?.["obs-controller"];
 		if (!obs) return;
 		cfg = next;
 		obs.switcher = next;
@@ -254,13 +256,14 @@ export const switcherServices = {
 /**
  * Start the sub-component (called from the obs module's start when the OBS-level
  * `switcherEnabled` parameter is on): resolves the sources, attaches to the obs
- * client's events, starts the poll loop. `ctx` only pushes events; `getClient`
- * is the hosting module's client accessor.
+ * client's events, starts the poll loop.
  */
-export function startSwitcher(ctx: ModuleContext, getClient: () => ObsClient | null): void {
-	sources = resolveSources();
+export function startSwitcher(ctx: Mctx, getClientAccessor: () => ObsClient | null): void {
+	core = ctx.core;
+	getClient = getClientAccessor;
 	attachedTo = null; // the obs client is fresh on every module start
-	getClient = getClient;
+	cfg = loadSwitcherConfig();
+	sources = resolveSources();
 	attachObsEvents();
 	engine = new SwitcherEngine(cfg, {
 		obs: obsSnapshot,

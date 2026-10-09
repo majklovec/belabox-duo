@@ -10,7 +10,7 @@ import m from "mithril";
 import type { ServerDashboard, ServerDashboardWidget, WidgetType } from "../types";
 import { Page, button, field, fieldGroup, input, serverNav } from "./components/ui";
 import { devices, independentTypes, isIndependent, typeLabel, refreshDevices, widgetSize, widgetTypesFor } from "./dashboard";
-import { widgetModule } from "../../modules/registry.frontend";
+import { widgetModule } from "../../src/registry.frontend";
 import { t } from "./i18n";
 import { mountPage } from "./util";
 

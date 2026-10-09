@@ -25,7 +25,7 @@ import {
 import { t } from "../../public/ts/i18n";
 import { optionalNumber, since } from "../../public/ts/util";
 import { card, type DeviceCard } from "../../public/ts/device/store";
-import type { BrowserModule } from "../types";
+import type { BridgedModule } from "./types";
 
 // ----------------------------------------------------------------------
 // ceracoder bitrate control
@@ -210,10 +210,14 @@ export function encoderCardBody(host: DeviceCard, status: Status): m.Vnode {
 }
 
 
-export const encoderModule: BrowserModule = {
+const encoderModule: BridgedModule = {
 	id: "encoder",
+	kind: "device-card",
 	title: "Encoder",
 	defaultSize: { w: 6, h: 5 },
 	minSize: { w: 4, h: 4 },
 	component: (status: Status) => encoderCardBody(card, status),
+	cardBody: (host, status) => encoderCardBody(host as DeviceCard, status as Status),
 };
+
+export default encoderModule;

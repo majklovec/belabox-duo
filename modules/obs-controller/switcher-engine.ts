@@ -12,7 +12,7 @@ import {
 	type SwitcherState,
 	type SwitcherStatus,
 	type SwitcherActiveSources,
-} from "../types";
+} from "./types";
 
 /** One OBS sample as the engine sees it (from the selected controller). */
 export interface ObsSnapshot {

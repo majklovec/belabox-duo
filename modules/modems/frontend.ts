@@ -5,8 +5,8 @@ import { actions, badge, button, Card, definitionList } from "../../public/ts/co
 import { t } from "../../public/ts/i18n";
 import { signal } from "../../public/ts/device/interfaces";
 import { act, busy, st } from "../../public/ts/device/store";
-import type { ModemInfo } from "./backend";
-import type { BrowserModule } from "../types";
+import type { ModemInfo } from "../../public/types";
+import type { BridgedModule } from "./types";
 
 function modemAction(method: string, index: number): void {
 	if (method === "modems.reset" && !confirm(t("dev.reset_confirm", index))) return;
@@ -48,8 +48,9 @@ function modemPanel(modem: ModemInfo): m.Vnode {
 	);
 }
 
-export const modemsModule: BrowserModule = {
+const modemsModule: BridgedModule = {
 	id: "modems",
+	kind: "device-card",
 	title: "Modems",
 	defaultSize: { w: 4, h: 4 },
 	minSize: { w: 3, h: 3 },
@@ -60,3 +61,5 @@ export const modemsModule: BrowserModule = {
 			status.modems.length ? m("div.grid", status.modems.map(modemPanel)) : m("p.muted", t("dev.no_modems")),
 		),
 };
+
+export default modemsModule;

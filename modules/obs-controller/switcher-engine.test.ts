@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import {
     defaultLowBitrateSwitcherConfig,
     type LowBitrateSwitcherConfig,
+} from "../../src/switcher";
+import {
     type SwitcherMetrics,
     type SwitcherActiveSources,
-} from "../types";
+} from "./types";
 import {
     determineState,
     normalizeSwitcherConfig,

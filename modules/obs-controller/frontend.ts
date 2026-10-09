@@ -15,7 +15,7 @@ import { badge, button, Card, checkField } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import { card, obsRequest, st } from "../../public/ts/device/store";
 import type { Status } from "../../public/types";
-import type { BrowserModule } from "../types";
+import type { BridgedModule } from "./types";
 import { handleSwitcherEvent, switcherCard } from "./switcher-frontend";
 
 // ----------------------------------------------------------------------
@@ -723,8 +723,9 @@ function switcherEnableToggle(status: Status | undefined): m.Vnode | null {
 	);
 }
 
-export const obsControllerModule: BrowserModule = {
+const obsControllerModule: BridgedModule = {
 	id: "obs-controller",
+	kind: "device-card",
 	title: "OBS",
 	defaultSize: { w: 6, h: 13 },
 	minSize: { w: 4, h: 4 },
@@ -740,3 +741,4 @@ export const obsControllerModule: BrowserModule = {
 	},
 };
 	
+export default obsControllerModule;

@@ -4,8 +4,7 @@
 // chart of viewer counts collected by the server-side poller.
 import m from "mithril";
 import type { ServerDashboardWidget } from "../../public/types";
-import { ChannelWidgetModule } from "../widgets";
-import type { ChannelLive, StatsSample } from "../types";
+import { ChannelWidgetModule, type ChannelLive, type StatsSample } from "./types";
 import { badge as badgeEl } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import { KICK_STATS_CONFIG_FIELDS } from "./backend";
@@ -62,10 +61,13 @@ function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 	]);
 }
 
-export const kickStatsModule: ChannelWidgetModule<ServerDashboardWidget> = {
+const kickStatsModule: ChannelWidgetModule<ServerDashboardWidget> = {
 	id: "kick-stats",
+	kind: "widget",
 	configFields: KICK_STATS_CONFIG_FIELDS,
 	channelOf,
 	body,
 	badge,
 };
+
+export default kickStatsModule;

@@ -48,8 +48,9 @@ import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
-import { callModule, encoderServices, moduleStatuses, modemServices, obsServices, restartRegisteredModule, srtlaServices } from "../modules/registry.backend";
-import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo, SrtlaState, SwitcherStatus } from "../modules/types";
+import { callModule, moduleStatuses, restartRegisteredModule } from "./registry";
+import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo, SrtlaState, SwitcherStatus } from "../public/types";
+import { encoderServices, modemServices, obsServices, srtlaServices } from "./services";
 import {
 	ApiError,
 	checkColor,
@@ -325,30 +326,8 @@ async function updateSettings(p: Params): Promise<object> {
  * registry; methods.ts never imports concrete modules). Extended as each
  * module migrates (see TODO.md).
  */
-const METHOD_OWNER: Record<string, string> = {
-	"encoder.status": "encoder",
-	"encoder.start": "encoder",
-	"encoder.stop": "encoder",
-	"encoder.bitrate": "encoder",
-	"ceracoder.set": "encoder",
-	"srtla.status": "srtla",
-	"srtla.start": "srtla",
-	"srtla.stop": "srtla",
-	"srtla.reload": "srtla",
-	"srtla.stats": "srtla",
-	"srtla.options": "srtla",
-	"modems.enable": "modems",
-	"modems.disable": "modems",
-	"modems.reset": "modems",
-	"modems.connect": "modems",
-	"modems.disconnect": "modems",
-	"obs.request": "obs-controller",
-	"obs.requestBatch": "obs-controller",
-	"obs.setEventSubscriptions": "obs-controller",
-};
-
 const moduleDispatch = (method: string, params: Record<string, unknown>): Promise<unknown> =>
-	callModule(METHOD_OWNER[method]!, method, params);
+	callModule(method, params);
 
 const modemAction =
 	(action: string, fn: (index: number) => Promise<boolean>): Method =>

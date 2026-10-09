@@ -59,11 +59,11 @@ import { startApiServer } from "./src/api";
 import { argv, HAS_RELAY, REMOTE_URL, ROLE } from "./src/config";
 import { flushLog, logEvent } from "./src/eventlog";
 import { i18nReady, t } from "./src/i18n";
-import { encoderServices, startModules as startRegistryModules, stopModules as stopRegistryModules } from "./modules/registry.backend";
+import { startModules as startRegistryModules, stopModules as stopRegistryModules } from "./src/registry";
 import { startRemote, stopRemote } from "./src/remote";
+import { encoderServices, srtlaServices } from "./src/services";
 import { runAutostart } from "./src/stream";
 import { reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
-import { srtlaServices } from "./modules/registry.backend";
 
 async function main(): Promise<void> {
     await i18nReady;

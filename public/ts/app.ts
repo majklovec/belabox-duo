@@ -4,7 +4,7 @@ import m from "mithril";
 import { badge, Page, TitleWithBack } from "./components/ui";
 import { interfacesCard } from "./device/interfaces";
 import { LogCard } from "./device/log";
-import { moduleCard } from "../../modules/registry.frontend";
+import { moduleCard } from "../../src/registry.frontend";
 import { act, connectDevice, st } from "./device/store";
 import { t } from "./i18n";
 import { gearIcon, roleTag } from "./icons";

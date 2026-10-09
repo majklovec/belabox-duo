@@ -73,7 +73,7 @@ import type { DeviceInfo, DeviceSummary, ServerDashboard, ServerDashboardWidget,
 import { arg, argFail, flag, intArg } from "./src/args";
 import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
 import { i18nReady, isLanguage, type Language, translate } from "./src/i18n";
-import { initWidgetHub, syncWidgetHub, widgetConfigFields, widgetHubSnapshot } from "./modules/registry.backend";
+import { initWidgetHub, syncWidgetHub, widgetConfigFields, widgetHubSnapshot } from "./src/registry";
 import { LOG_MAX, type LogEntry, type LogEvent, type LogLevel } from "./src/logMessages";
 import { parseJsonObject, textOf } from "./src/util";
 import { COLOR_RE, isRole, type Role } from "./src/validate";
@@ -171,7 +171,10 @@ type PageName = (typeof PAGES)[number];
 const pages = {} as Record<PageName, string>;
 const assets = new Map<string, Blob>();
 {
-    // One build for all pages: shared code (mithril, UI components) lands in common chunks
+    // One build for all pages: shared code (mithril, UI components) lands in common chunks.
+    // Regenerate the frontend module manifest (REFACTOR-modules.md §4.1) so any
+    // new modules/<id>/frontend.ts is in the bundle before we build it.
+    await Bun.$`bun scripts/gen-modules.ts`.quiet();
     const result = await Bun.build({
         entrypoints: PAGES.map((name) => new URL(`./public/${name}.html`, import.meta.url).pathname),
         target: "browser",

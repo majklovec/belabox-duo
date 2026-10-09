@@ -1,13 +1,17 @@
 /*
  * Modems module (backend): ModemManager (mmcli) integration — enumeration,
  * per-modem details, network interface lookup and control actions.
+ *
+ * Self-contained: the only dependency edge into the core is the bag handed in
+ * at `start` (run comes from there, never imported).
  */
-import { run } from "../../src/exec";
-import type { DeviceModule, ModemInfo, ModuleContext } from "../types";
+import { z } from "zod";
+import type { Mctx, ModemInfo, ModemsCore } from "./types";
 
-export type { ModemInfo } from "../types";
+/** Core bag, filled at start (a module may not import the core directly). */
+let core: ModemsCore;
 
-const mmcli = (...args: string[]) => run("mmcli", args, true);
+const mmcli = (...args: string[]) => core.run("mmcli", args, true);
 
 /** `mmcli -m <n>` labels of the plain-text fields we keep. */
 const DETAIL_FIELDS = {
@@ -24,7 +28,7 @@ const DETAIL_FIELDS = {
 	accessTech: "access tech",
 } as const satisfies Record<string, string>;
 
-export async function detectModems(): Promise<ModemInfo[]> {
+async function detectModems(): Promise<ModemInfo[]> {
 	const list = [...(await mmcli("-L")).matchAll(/Modem\/(\d+)\s+(.*)$/gm)];
 	// Query the details of all modems in parallel; list order is preserved.
 	return Promise.all(list.map(([, index, label]) => modemDetails(Number(index), label.trim())));
@@ -44,22 +48,22 @@ async function modemDetails(index: number, label: string): Promise<ModemInfo> {
 	return info;
 }
 
-export async function modemNetworkIface(modem: ModemInfo): Promise<string | null> {
+async function modemNetworkIface(modem: ModemInfo): Promise<string | null> {
 	for (const [, bearer] of (await mmcli("-m", String(modem.index), "-b")).matchAll(/Bearer\/(\d+)/g)) {
 		const iface = (await mmcli("-b", bearer)).match(/interface:\s*(\S+)/);
 		if (iface) return iface[1];
 	}
-	const wwan = (await run("ip", ["-o", "-4", "addr", "show"], true)).match(/wwan\d+/g);
+	const wwan = (await core.run("ip", ["-o", "-4", "addr", "show"], true)).match(/wwan\d+/g);
 	if (!wwan) return null;
 	return wwan.find((n) => n === `wwan${modem.index}`) ?? wwan[0];
 }
 
-export async function setModemEnabled(idx: number, enabled: boolean): Promise<boolean> {
+async function setModemEnabled(idx: number, enabled: boolean): Promise<boolean> {
 	await mmcli("-m", String(idx), enabled ? "-e" : "-d");
 	return true;
 }
 
-export async function resetModem(idx: number): Promise<boolean> {
+async function resetModem(idx: number): Promise<boolean> {
 	if (await mmcli("-m", String(idx), "--reset")) return true;
 	await setModemEnabled(idx, false);
 	await Bun.sleep(2000);
@@ -67,22 +71,24 @@ export async function resetModem(idx: number): Promise<boolean> {
 	return true;
 }
 
-export const connectModem = async (idx: number) => (await mmcli("-m", String(idx), "--simple-connect=apn=internet")).length > 0;
-
-export const disconnectModem = async (idx: number) => (await mmcli("-m", String(idx), "--simple-disconnect")).length > 0;
+const connectModem = async (idx: number) => (await mmcli("-m", String(idx), "--simple-connect=apn=internet")).length > 0;
+const disconnectModem = async (idx: number) => (await mmcli("-m", String(idx), "--simple-disconnect")).length > 0;
 
 const methods = ["modems.enable", "modems.disable", "modems.reset", "modems.connect", "modems.disconnect"] as const;
 
-export const modemsModule: DeviceModule = {
+export default {
+	kind: "device",
 	id: "modems",
 	title: "Modems",
-	configSchema: null,
-	secretFields: [],
-	async start(_ctx: ModuleContext) {},
+	configSchema: z.object({}).strict(),
+	secretFields: [] as string[],
+	async start(ctx: Mctx) {
+		core = ctx.core;
+	},
 	async stop() {},
 	methods,
-	events: [],
-	async dispatch(method, params) {
+	events: [] as string[],
+	async dispatch(method: string, params: Record<string, unknown>) {
 		const index = Number(params["index"]);
 		switch (method) {
 			case "modems.enable":
@@ -100,5 +106,11 @@ export const modemsModule: DeviceModule = {
 	},
 	async status() {
 		return { modems: await detectModems() };
+	},
+	services: {
+		capabilities: {
+			"modem.detect": detectModems,
+			"modem.interface": modemNetworkIface,
+		},
 	},
 };

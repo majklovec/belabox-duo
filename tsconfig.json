@@ -3,6 +3,9 @@
     "noEmit": true,
     "types": ["node"],
     "resolveJsonModule": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "jsx": "react",
+    "jsxFactory": "m",
+    "jsxFragmentFactory": "m.Fragment"
   }
 }

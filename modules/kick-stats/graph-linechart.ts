@@ -1,5 +1,5 @@
 import m from "mithril";
-import type { StatsSample } from "../types";
+import type { StatsSample } from "./types";
 // ---------------------------------------------------------------------------
 // Line chart
 //

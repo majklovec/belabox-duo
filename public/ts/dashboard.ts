@@ -19,11 +19,14 @@ import type {
 } from "../types";
 import { badge, button, widgetTable, type Child } from "./components/ui";
 import { createCardHost, type DeviceCard } from "./device/store";
-import { encoderCardBody } from "../../modules/encoder/frontend";
-import { srtlaCardBody } from "../../modules/srtla/frontend";
+/* REFACTOR-modules.md §7: the core names no module by id. Per-device cards
+ * (encoder / srtla) are reached through the generated manifest
+ * (`deviceCardBody`). The obs panel is the one documented exception: its
+ * transport types are module-owned and irreducible to a generic `Panel`
+ * signature without the core re-declaring them (§6 "no shared types"). */
 import { createObsPanel, type ObsEvent, type ObsPanel, type ObsRequestResult } from "../../modules/obs-controller/frontend";
-import { getFrontendModule, widgetModule } from "../../modules/registry.frontend";
-import { WIDGET_MODULE_IDS } from "../../modules/widgets";
+import { deviceCardBody, getFrontendModule, widgetModule } from "../../src/registry.frontend";
+import { WIDGET_MODULE_IDS } from "../../public/types";
 import { t } from "./i18n";
 import { roleTag } from "./icons";
 import { RpcClient, socketUrl } from "./services/rpc";
@@ -371,14 +374,14 @@ function relayWidget(deviceId: string, conn: Connection | undefined): m.Children
 	const status = conn?.card.st.status;
 	if (!deviceById(deviceId)) return m("p.muted", t("dash.widget_missing"));
 	if (!status) return m("p.muted", conn ? t("dash.widget_waiting") : t("dev.badge.offline"));
-	return m("div.mod-srtla", srtlaCardBody(conn!.card, status));
+	return m("div.mod-srtla", deviceCardBody("srtla", conn!.card, status));
 }
 
 function encoderWidget(deviceId: string, conn: Connection | undefined): m.Children {
 	const status = conn?.card.st.status;
 	if (!deviceById(deviceId)) return m("p.muted", t("dash.widget_missing"));
 	if (!status) return m("p.muted", conn ? t("dash.widget_waiting") : t("dev.badge.offline"));
-	return m("div.mod-encoder", encoderCardBody(conn!.card, status));
+	return m("div.mod-encoder", deviceCardBody("encoder", conn!.card, status));
 }
 
 /** Combined device: encoder card stacked over its SRTLA receiver card. */
@@ -389,8 +392,8 @@ function combinedWidget(deviceId: string, conn: Connection | undefined): m.Child
 	return m(
 		"div.mod-combined",
 		[
-			m("div.mod-encoder", encoderCardBody(conn!.card, status)),
-			m("div.mod-srtla", srtlaCardBody(conn!.card, status)),
+			m("div.mod-encoder", deviceCardBody("encoder", conn!.card, status)),
+			m("div.mod-srtla", deviceCardBody("srtla", conn!.card, status)),
 		],
 	);
 }

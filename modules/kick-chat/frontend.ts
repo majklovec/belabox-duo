@@ -3,8 +3,7 @@
 // control server's dashboard websocket); no per-widget transport state.
 import m from "mithril";
 import type { ServerDashboardWidget } from "../../public/types";
-import { ChannelWidgetModule } from "../widgets";
-import type { ChannelLive } from "../types";
+import { ChannelWidgetModule, type ChannelLive } from "./types";
 import { badge as badgeEl } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import { KICK_CHAT_CONFIG_FIELDS } from "./backend";
@@ -82,10 +81,13 @@ function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 	return msgs.length ? m("div.kick-chat-feed", msgs) : m("p.muted", t("kickchat.empty"));
 }
 
-export const kickChatModule: ChannelWidgetModule<ServerDashboardWidget> = {
+const kickChatModule: ChannelWidgetModule<ServerDashboardWidget> = {
 	id: "kick-chat",
+	kind: "widget",
 	configFields: KICK_CHAT_CONFIG_FIELDS,
 	channelOf,
 	body,
 	badge,
 };
+
+export default kickChatModule;

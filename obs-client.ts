@@ -47,8 +47,11 @@ import { ApiError, optionalStringList, requireString } from "./src/params";
 import { errorMessage, scrubUrl, textOf } from "./src/util";
 import { REMOTE_URL_RE } from "./src/validate";
 import { APP_VERSION } from "./src/version";
-import { type LowBitrateSwitcherConfig, defaultLowBitrateSwitcherConfig } from "./modules/types";
-import { normalizeSwitcherConfig } from "./modules/obs-controller/switcher-engine";
+import {
+	type LowBitrateSwitcherConfig,
+	defaultLowBitrateSwitcherConfig,
+	normalizeSwitcherConfig,
+} from "./src/switcher";
 
 export enum ObsOpCode {
   Hello = 0,

@@ -22,7 +22,7 @@ import {
 import { since } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
 import { card, type DeviceCard } from "../../public/ts/device/store";
-import type { SwitcherStatus } from "../types";
+import type { SwitcherStatus } from "./types";
 
 /** Module ids a source can read from (the relay slot accepts the "srtla" id too). */
 const SOURCE_MODULES: [string, string][] = [

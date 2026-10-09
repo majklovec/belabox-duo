@@ -14,8 +14,7 @@
  * reconnects.
  */
 import { ControlEvent, TikTokLiveConnection, WebcastEvent } from "tiktok-live-connector";
-import { eventFrame, type ChatLive } from "../types";
-import type { ChannelSpecs, PublishFn } from "../widgets";
+import { eventFrame, type ChatLive, type ChannelSpecs, type PublishFn } from "./types";
 
 const HISTORY_CAP = 500;
 const RECONNECT_BASE_MS = 1_000;
@@ -240,3 +239,18 @@ export class ChatChannelManager {
 		state.reconnectTimer = setTimeout(() => this.#connect(state), delay);
 	}
 }
+
+/** Widget registration (the backend registry's hub wiring); the core reaches
+ * this module only through it, no per-module imports in the core. */
+export default {
+	id: "tiktok-chat",
+	kind: "widget" as const,
+	title: "TikTok Chat",
+	hub: {
+		widgetType: "tiktok-chat",
+		snapshotKey: "tiktokChat",
+		configFields: TIKTOK_CHAT_CONFIG_FIELDS,
+		channelSpec: tiktokChatSpecFromConfig,
+		create: (publish: PublishFn): ChatChannelManager => new ChatChannelManager(publish),
+	},
+};

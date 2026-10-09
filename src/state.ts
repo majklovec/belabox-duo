@@ -12,8 +12,8 @@
 import { randomUUID } from "node:crypto";
 
 import { CONFIG_EXISTS, CONFIG_FILE, DRY_RUN, INITIAL_CONFIG } from "./config";
-import { defaultLowBitrateSwitcherConfig, type CeraConfig, type EncoderConfig, type EncoderState, type LowBitrateSwitcherConfig, type SrtlaState } from "../modules/types";
-import { normalizeSwitcherConfig } from "../modules/obs-controller/switcher-engine";
+import type { CeraConfig, EncoderConfig, EncoderState, SrtlaState } from "../public/types";
+import { defaultLowBitrateSwitcherConfig, normalizeSwitcherConfig, type LowBitrateSwitcherConfig } from "./switcher";
 import { writeFileAtomic } from "./files";
 import { asLanguage, DEFAULT_LANGUAGE, type Language, setCurrentLanguage } from "./i18n";
 import type { ModemConfig } from "./routing";
