@@ -3,7 +3,10 @@
     "gen:modules": "bun scripts/gen-modules.ts",
     "predev": "bun scripts/gen-modules.ts",
     "dev": "bun server.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "build:obs-client": "bun build --compile --minify --sourcemap ./obs-client.ts --outfile dist/obs-client",
+    "build:client": "bun build --compile --minify --sourcemap --bytecode ./client.ts --outfile dist/client",
+    "build:server": "bun build --compile --minify --sourcemap --bytecode ./server.ts --outfile dist/server"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
