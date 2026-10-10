@@ -8,11 +8,6 @@ jobs:
   build:
     strategy:
       matrix:
-        # Cap parallelism: 4 simultaneous bun install+compile+download jobs
-        # caused transient CI failures (the failing job changed run-to-run).
-        # Two at a time keeps runner load down without meaningfully slowing
-        # the build.
-        max-parallel: 2
         include:
           # Native builds – profile step is safe
           - os: ubuntu-latest
@@ -50,7 +45,6 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-          cache: true
 
       - name: Install dependencies
         run: bun install
