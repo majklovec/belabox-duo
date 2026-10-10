@@ -19,6 +19,11 @@ dist
 build
 out
 *.tsbuildinfo
+# Compiled release binaries built in the repo root (release workflow)
+obs-client-*
+client-*
+*-prof
+*.order
 
 # ---- Docker ----
 Dockerfile

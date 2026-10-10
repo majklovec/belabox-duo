@@ -13,19 +13,23 @@ jobs:
           - os: ubuntu-latest
             target: bun-linux-x64
             artifact: obs-client-linux-x64
+            client-artifact: client-linux-x64
             native: true
           - os: ubuntu-latest
             target: bun-linux-arm64
             artifact: obs-client-linux-arm64
+            client-artifact: client-linux-arm64
             native: false
           - os: macos-latest
             target: bun-darwin-arm64
             artifact: obs-client-darwin-arm64
+            client-artifact: client-darwin-arm64
             native: true
           # Cross‑compiled from Ubuntu – skip profile generation
           - os: ubuntu-latest
             target: bun-windows-x64
             artifact: obs-client-windows-x64.exe
+            client-artifact: client-windows-x64.exe
             native: false
 
     runs-on: ${{ matrix.os }}
@@ -41,53 +45,97 @@ jobs:
         run: bun install
 
       # ---------------------------------------------------------------
-      # Step 1: build a “profiling” binary WITHOUT bytecode, then run it
-      #         to capture the bytecode order. Only for native targets.
+      # Step 1: build “profiling” binaries WITHOUT bytecode, then run
+      #         them to capture the bytecode order. Only for native
+      #         targets.
       # ---------------------------------------------------------------
-      - name: Build profiling binary (native only)
+      - name: Build profiling binaries (native only)
         if: matrix.native == true
         run: |
-          bun build --compile --minify --sourcemap \
-            --target=${{ matrix.target }} \
-            ./obs-client.ts \
-            --outfile obs-client-prof
+          for app in obs-client client; do
+            bun build --compile --minify --sourcemap \
+              --target=${{ matrix.target }} \
+              ./${app}.ts \
+              --outfile ${app}-prof
+          done
 
-      - name: Record bytecode profile (native only)
+      - name: Record bytecode profiles (native only)
         if: matrix.native == true
-        run: ./obs-client-prof --help
-        env:
-          BUN_BYTECODE_ORDER_OUT: obs-client.order
+        run: |
+          BUN_BYTECODE_ORDER_OUT=obs-client.order ./obs-client-prof --help
+          BUN_BYTECODE_ORDER_OUT=client.order ./client-prof --help
 
       # ---------------------------------------------------------------
       # Step 2: final build with bytecode. For native targets we include
       #         the .order file; for cross‑compiled targets we omit it.
       # ---------------------------------------------------------------
-      - name: Build final binary
+      - name: Build final binaries
         run: |
-          ARGS="--compile --minify --sourcemap --bytecode \
-            --target=${{ matrix.target }} \
-            ./obs-client.ts \
-            --outfile ${{ matrix.artifact }}"
+          for app in obs-client client; do
+            case $app in
+              client) OUTIF=${{ matrix.client-artifact }} ;;
+              *)      OUTIF=${{ matrix.artifact }} ;;
+            esac
 
-          if [ -f obs-client.order ]; then
-            ARGS="$ARGS --bytecode-order=obs-client.order"
-          fi
+            ARGS="--compile --minify --sourcemap --bytecode \
+              --target=${{ matrix.target }} \
+              ./${app}.ts \
+              --outfile $OUTIF"
 
-          bun build $ARGS
+            if [ -f ${app}.order ]; then
+              ARGS="$ARGS --bytecode-order=${app}.order"
+            fi
 
-      - name: Verify binary (native only)
+            bun build $ARGS
+          done
+
+      - name: Verify binaries (native only)
         if: matrix.native == true
         run: |
-          chmod +x ${{ matrix.artifact }}
+          chmod +x ${{ matrix.artifact }} ${{ matrix.client-artifact }}
           ./${{ matrix.artifact }} --help
+          ./${{ matrix.client-artifact }} --help
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          name: ${{ matrix.target }}
+          path: |
+            ${{ matrix.artifact }}
+            ${{ matrix.client-artifact }}
+
+  # -------------------------------------------------------------------
+  # Control server as a Docker image (Dockerfile in the repo root):
+  # ghcr.io/<owner>/<repo>-server:<tag> and :latest
+  # -------------------------------------------------------------------
+  publish-server-docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push server image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/${{ github.repository }}-server:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}-server:latest
 
   release:
-    needs: build
+    needs: [build, publish-server-docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write

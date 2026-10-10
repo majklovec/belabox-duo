@@ -23,15 +23,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy only what is needed to run the server
+# Copy only what is needed to run the server. The server runs unbundled
+# (`bun server.ts`): modules are discovered by a runtime scan of modules/
+# and dynamically imported, the module backends import obs-client.ts, and
+# the web UI is bundled at startup via scripts/gen-modules.ts + Bun.build.
 COPY --from=builder /app/package.json /app/bun.lock ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/server.ts ./
-#COPY --from=builder /app/client.ts ./
+COPY --from=builder /app/obs-client.ts ./
 COPY --from=builder /app/src ./src
+COPY --from=builder /app/modules ./modules
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/i18n ./i18n
-#COPY --from=builder /app/pipeline ./pipeline
+COPY --from=builder /app/scripts ./scripts
 
 # Expose the default control-server port
 EXPOSE 8090
