@@ -39,6 +39,51 @@ const deviceLabel = (d: SwitcherDeviceOption): string => d.hostname ?? d.id;
 const metricSources = (status: Status): SwitcherMetricSources =>
   status.switcherMetricSources ?? { encoder: [], relay: [] };
 
+/** OBS's live scene names (`GetSceneList`); null until the first fetch succeeds. */
+let scenes: string[] | null = null;
+let scenesFetching = false;
+let scenesNextAt = 0;
+const SCENE_REFRESH_MS = 15_000;
+
+/**
+ * Fetch the scene list through the module's obs client, re-rendering on
+ * arrival. Refreshed every 15 s (also the back-off while OBS is
+ * unreachable). A failed fetch simply keeps the last known list.
+ */
+async function loadScenes(host: DeviceCard): Promise<void> {
+  if (scenesFetching || Date.now() < scenesNextAt) return;
+  scenesFetching = true;
+  try {
+    const result = await host.act<{ scenes?: { name: string }[] } | undefined>(
+    	null,
+    	"obs.request",
+    	{ requestType: "GetSceneList", requestId: crypto.randomUUID(), requestData: {} },
+    );
+    const list = result?.scenes
+    	?.map((s) => s.name)
+    	.filter((n): n is string => n !== "");
+    if (list) scenes = list;
+  } catch {
+    // device offline / OBS unreachable — keep the last known list
+  } finally {
+    scenesNextAt = Date.now() + SCENE_REFRESH_MS;
+    scenesFetching = false;
+    m.redraw();
+  }
+}
+
+/**
+ * The scene select's options: OBS's scenes, keeping the persisted value even
+ * if the scene vanished. Optional scene fields get an empty "—" entry.
+ */
+const sceneOptions = (current: string, optional = false): [string, string][] => {
+  const names = scenes ?? [];
+  const out: [string, string][] = names.map((n): [string, string] => [n, n]);
+  if (current && !out.some(([n]) => n === current)) out.push([current, current]);
+  if (optional) out.push(["", "—"]);
+  return out;
+};
+
 /** Flat form over the persisted config; strings for the numeric inputs. */
 interface SwitcherForm {
   autoSwitch: boolean;
@@ -152,6 +197,7 @@ function switcherCardBody(
   if (form === undefined) form = loadForm(status);
   const f = form;
   const sources = metricSources(status);
+  void loadScenes(host);
   const s = live ?? status.lowBitrateSwitcher ?? null;
   const busy = host.busy.has("switcher-save");
   return (
@@ -303,27 +349,81 @@ function switcherCardBody(
             {[
               field(
                 t("lowbs.scene_normal"),
-                input(f, "sceneNormal", { placeholder: "Normal" }),
+                <select
+                  value={f.sceneNormal}
+                  class={"lbs-select"}
+                  onchange={(e: Event) =>
+                    (f.sceneNormal = (
+                      e.target as HTMLSelectElement
+                    ).value)
+                  }
+                >
+                  {options(sceneOptions(f.sceneNormal))}
+                </select>,
               ),
               field(
                 t("lowbs.scene_low"),
-                input(f, "sceneLow", { placeholder: "Low" }),
+                <select
+                  value={f.sceneLow}
+                  class={"lbs-select"}
+                  onchange={(e: Event) =>
+                    (f.sceneLow = (e.target as HTMLSelectElement).value)
+                  }
+                >
+                  {options(sceneOptions(f.sceneLow))}
+                </select>,
               ),
               field(
                 t("lowbs.scene_offline"),
-                input(f, "sceneOffline", { placeholder: "Offline" }),
+                <select
+                  value={f.sceneOffline}
+                  class={"lbs-select"}
+                  onchange={(e: Event) =>
+                    (f.sceneOffline = (
+                      e.target as HTMLSelectElement
+                    ).value)
+                  }
+                >
+                  {options(sceneOptions(f.sceneOffline))}
+                </select>,
               ),
               field(
                 t("lowbs.scene_starting"),
-                input(f, "sceneStarting", { placeholder: "—" }),
+                <select
+                  value={f.sceneStarting}
+                  class={"lbs-select"}
+                  onchange={(e: Event) =>
+                    (f.sceneStarting = (
+                      e.target as HTMLSelectElement
+                    ).value)
+                  }
+                >
+                  {options(sceneOptions(f.sceneStarting, true))}
+                </select>,
               ),
               field(
                 t("lowbs.scene_ending"),
-                input(f, "sceneEnding", { placeholder: "—" }),
+                <select
+                  value={f.sceneEnding}
+                  class={"lbs-select"}
+                  onchange={(e: Event) =>
+                    (f.sceneEnding = (e.target as HTMLSelectElement).value)
+                  }
+                >
+                  {options(sceneOptions(f.sceneEnding, true))}
+                </select>,
               ),
               field(
                 t("lowbs.scene_privacy"),
-                input(f, "scenePrivacy", { placeholder: "—" }),
+                <select
+                  value={f.scenePrivacy}
+                  class={"lbs-select"}
+                  onchange={(e: Event) =>
+                    (f.scenePrivacy = (e.target as HTMLSelectElement).value)
+                  }
+                >
+                  {options(sceneOptions(f.scenePrivacy, true))}
+                </select>,
               ),
             ]}
           </div>,
