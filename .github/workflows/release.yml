@@ -44,6 +44,13 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      # client.ts → src/registry → src/registry.frontend.ts imports the
+      # gitignored modules/.generated.frontend.ts, which only exists after
+      # the generator runs. Emit it before any build so fresh CI checkouts
+      # resolve the import (bun build does not fire prebuild/predev hooks).
+      - name: Generate frontend module manifest
+        run: bun run gen:modules
+
       # ---------------------------------------------------------------
       # Step 1: build “profiling” binaries WITHOUT bytecode, then run
       #         them to capture the bytecode order. Only for native
