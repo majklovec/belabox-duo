@@ -1252,3 +1252,96 @@ msgstr "Changed by someone else — reloaded to latest"
 
 msgid "dash.device"
 msgstr "Device"
+
+msgid "lowbs.title"
+msgstr "Low bitrate switcher"
+
+msgid "lowbs.idle"
+msgstr "idle"
+
+msgid "lowbs.state_normal"
+msgstr "normal"
+
+msgid "lowbs.state_low"
+msgstr "low bitrate"
+
+msgid "lowbs.state_offline"
+msgstr "offline"
+
+msgid "lowbs.row_state"
+msgstr "State"
+
+msgid "lowbs.row_desired"
+msgstr "Desired"
+
+msgid "lowbs.row_retries"
+msgstr "retry %1/%2"
+
+msgid "lowbs.row_scene"
+msgstr "Program scene"
+
+msgid "lowbs.row_updated"
+msgstr "Last update"
+
+msgid "lowbs.enable_switcher"
+msgstr "Low-bitrate switcher"
+
+msgid "lowbs.auto_switch"
+msgstr "Automatic switching"
+
+msgid "lowbs.group_sources"
+msgstr "Metric sources"
+
+msgid "lowbs.source_encoder"
+msgstr "Encoder"
+
+msgid "lowbs.source_relay"
+msgstr "Relay"
+
+msgid "lowbs.group_triggers"
+msgstr "Triggers"
+
+msgid "lowbs.trigger_low_bitrate"
+msgstr "Low bitrate (kbps)"
+
+msgid "lowbs.trigger_offline_bitrate"
+msgstr "Offline bitrate (kbps)"
+
+msgid "lowbs.trigger_rtt"
+msgstr "RTT (ms)"
+
+msgid "lowbs.retry_attempts"
+msgstr "Retry attempts"
+
+msgid "lowbs.poll_interval"
+msgstr "Poll interval (ms)"
+
+msgid "lowbs.group_scenes"
+msgstr "Scenes"
+
+msgid "lowbs.scene_normal"
+msgstr "Normal"
+
+msgid "lowbs.scene_low"
+msgstr "Low bitrate"
+
+msgid "lowbs.scene_offline"
+msgstr "Offline"
+
+msgid "lowbs.scene_starting"
+msgstr "Starting (optional)"
+
+msgid "lowbs.scene_ending"
+msgstr "Ending (optional)"
+
+msgid "lowbs.scene_privacy"
+msgstr "Privacy (optional)"
+
+msgid "lowbs.instantly_recover"
+msgstr "Switch back instantly on recovery"
+
+msgid "lowbs.only_streaming"
+msgstr "Only switch while streaming"
+
+msgid "lowbs.log_to_file"
+msgstr "Write log to file"

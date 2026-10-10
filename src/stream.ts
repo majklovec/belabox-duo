@@ -8,8 +8,8 @@
  *   combined  srtla_send + belacoder with the last stream.start target / config
  */
 import { ROLE } from "./config";
-import type { EncoderConfig } from "../modules/types";
-import { encoderServices, srtlaServices } from "../modules/registry.backend";
+import type { EncoderConfig } from "../public/types";
+import { encoderServices, srtlaServices } from "./services";
 import { logEvent } from "./eventlog";
 import { t } from "./i18n";
 import { saveState, type StreamTarget, state } from "./state";

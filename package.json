@@ -1,15 +1,26 @@
 {
+  "scripts": {
+    "gen:modules": "bun scripts/gen-modules.ts",
+    "predev": "bun scripts/gen-modules.ts",
+    "dev": "bun server.ts",
+    "test": "bun test",
+    "build:obs-client": "bun build --compile --minify --sourcemap ./obs-client.ts --outfile dist/obs-client",
+    "build:client": "bun build --compile --minify --sourcemap --bytecode ./client.ts --outfile dist/client",
+    "build:server": "bun build --compile --minify --sourcemap --bytecode ./server.ts --outfile dist/server"
+  },
   "devDependencies": {
     "@types/bun": "^1.4.2",
     "@types/mithril": "^2.2.9",
     "@types/node": "^26.6.3",
     "@types/ws": "^8.18.2",
+    "bun-plugin-glob-import": "^1.1.1",
     "typescript": "^7.0.2"
   },
   "dependencies": {
     "gridstack": "^11",
     "mithril": "^2.3.8",
     "tiktok-live-connector": "^2.5.0",
-    "youtube-chat-next": "^3.1.0"
+    "youtube-chat-next": "^3.1.0",
+    "zod": "^4.6.5"
   }
 }

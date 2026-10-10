@@ -19,8 +19,7 @@ import { fetchChat, fetchLivePage } from "youtube-chat-next/dist/requests";
 import type { FetchOptions } from "youtube-chat-next/dist/types/yt-response";
 import type { ChatItem } from "youtube-chat-next/dist/types/data";
 import { RateLimitError, ScrapeError } from "youtube-chat-next";
-import { eventFrame, type ChatLive } from "../types";
-import type { ChannelSpecs, PublishFn } from "../widgets";
+import { eventFrame, type ChatLive, type ChannelSpecs, type PublishFn } from "./types";
 
 const HISTORY_CAP = 500;
 const RECONNECT_BASE_MS = 1_000;
@@ -290,3 +289,18 @@ export class ChatChannelManager {
 		state.reconnectTimer = setTimeout(() => this.#connect(state), delay);
 	}
 }
+
+/** Widget registration (the backend registry's hub wiring); the core reaches
+ * this module only through it, no per-module imports in the core. */
+export default {
+	id: "youtube-chat",
+	kind: "widget" as const,
+	title: "YouTube Chat",
+	hub: {
+		widgetType: "youtube-chat",
+		snapshotKey: "youtubeChat",
+		configFields: YOUTUBE_CHAT_CONFIG_FIELDS,
+		channelSpec: youtubeChatSpecFromConfig,
+		create: (publish: PublishFn): ChatChannelManager => new ChatChannelManager(publish),
+	},
+};

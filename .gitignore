@@ -6,3 +6,7 @@ armbian/armbian-build
 armbian/output
 armbian/userpatches/config-example.conf
 pipeline/majklovec
+
+# Generated frontend module manifest — emitted by scripts/gen-modules.ts (predev / prebuild).
+modules/.generated.frontend.ts
+dist/*

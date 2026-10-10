@@ -25,16 +25,17 @@ export const modulesForRole = (role: Role): string[] => {
 			return ["obs-controller"];
 		case "custom":
 			return [];
-		case "combined":
-			return ["relay", "encoder"];
-		default:
-			return [role];
-	}
+	case "relay":
+		return ["relay", "modems"];
+	case "combined":
+		return ["relay", "encoder", "modems"];
+	default:
+		return [role];
+}
 };
 export const isRole = (v: unknown): v is Role => (ROLES as readonly unknown[]).includes(v);
 
-/** Encoder bitrate bounds (kbps). */
-// Single source: modules/types.ts (shared type contract of the module system).
-export { BITRATE_KBPS } from "../modules/types";
+/** Encoder bitrate bounds (kbps). Single source: the wire vocabulary in public/types.ts. */
+export { BITRATE_KBPS } from "../public/types";
 
 export const DEFAULT_COLOR = "#3b82f6";

@@ -59,15 +59,14 @@ import { startApiServer } from "./src/api";
 import { argv, HAS_RELAY, REMOTE_URL, ROLE } from "./src/config";
 import { flushLog, logEvent } from "./src/eventlog";
 import { i18nReady, t } from "./src/i18n";
-import { encoderServices, startModules as startRegistryModules, stopModules as stopRegistryModules } from "./modules/registry.backend";
+import { startModules as startRegistryModules, stopModules as stopRegistryModules } from "./src/registry";
 import { startRemote, stopRemote } from "./src/remote";
+import { srtlaServices } from "./src/services";
 import { runAutostart } from "./src/stream";
 import { reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
-import { srtlaServices } from "./modules/registry.backend";
 
 async function main(): Promise<void> {
     await i18nReady;
-    void encoderServices.loadEncoder();
     console.log(`=== SRTLA Bonding Setup (Bun) — role: ${ROLE} ===\n`);
 
     const shutdown = async (signal: string) => {
@@ -75,17 +74,22 @@ async function main(): Promise<void> {
         // Before stopRemote so the control server still receives it
         logEvent("info", "Service", t("log.stopped_signal", signal));
         stopRemote();
-        stopRegistryModules();   // modules/<id>/backend.ts stop()s
+        stopRegistryModules();   // modules/<id>/backend.ts stop()s (no-ops for modules that never started)
         await stopInterfaceMonitor();
-        await encoderServices.encoder().stop();
-        await srtlaServices.stopSrtla();
         await flushLog();
         process.exit(0);
     };
+
+    logEvent("info", "Service", t("log.started", ROLE));
+
+    // Modules bind their `core` bag at start, and every module capability
+    // (srtla/encoder) reads it — so start them before any service call below.
+    // Signal handlers come after: a signal while modules start hits the default
+    // kill (fine), and keeps shutdown from touching half-bound module `core`.
+    await startRegistryModules();
     process.on("SIGINT",  () => void shutdown("SIGINT"));
     process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
-    logEvent("info", "Service", t("log.started", ROLE));
     if (HAS_RELAY) {
         // 1. Prime routing + write uplinks file
         const result = await reconfigure();
@@ -108,10 +112,7 @@ async function main(): Promise<void> {
     startApiServer();
     if (REMOTE_URL) startRemote();
 
-    // 5. Start enabled modules (modules/ registry)
-    void startRegistryModules();
-
-    // 6. Resume the last stream if autostart is enabled (retries until it succeeds)
+    // 5. Resume the last stream if autostart is enabled (retries until it succeeds)
     runAutostart();
 }
 

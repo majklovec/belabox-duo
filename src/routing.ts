@@ -6,8 +6,8 @@ import { readFile } from "node:fs/promises";
 import { DEBOUNCE_MS, DRY_RUN, UPLINKS_FILE } from "./config";
 import { ip, query } from "./exec";
 import { writeFileAtomic } from "./files";
-import { modemServices } from "../modules/registry.backend";
-import type { ModemInfo } from "../modules/types";
+import type { ModemInfo } from "../public/types";
+import { modemServices } from "./services";
 import { notifyStateChange, saveState, state } from "./state";
 import { errorMessage, readLines } from "./util";
 

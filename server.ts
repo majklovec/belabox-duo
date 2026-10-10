@@ -73,7 +73,7 @@ import type { DeviceInfo, DeviceSummary, ServerDashboard, ServerDashboardWidget,
 import { arg, argFail, flag, intArg } from "./src/args";
 import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
 import { i18nReady, isLanguage, type Language, translate } from "./src/i18n";
-import { initWidgetHub, syncWidgetHub, widgetConfigFields, widgetHubSnapshot } from "./modules/registry.backend";
+import { initWidgetHub, syncWidgetHub, widgetConfigFields, widgetHubSnapshot } from "./src/registry";
 import { LOG_MAX, type LogEntry, type LogEvent, type LogLevel } from "./src/logMessages";
 import { parseJsonObject, textOf } from "./src/util";
 import { COLOR_RE, isRole, type Role } from "./src/validate";
@@ -171,7 +171,10 @@ type PageName = (typeof PAGES)[number];
 const pages = {} as Record<PageName, string>;
 const assets = new Map<string, Blob>();
 {
-    // One build for all pages: shared code (mithril, UI components) lands in common chunks
+    // One build for all pages: shared code (mithril, UI components) lands in common chunks.
+    // Regenerate the frontend module manifest (REFACTOR-modules.md §4.1) so any
+    // new modules/<id>/frontend.tsx is in the bundle before we build it.
+    await Bun.$`bun scripts/gen-modules.ts`.quiet();
     const result = await Bun.build({
         entrypoints: PAGES.map((name) => new URL(`./public/${name}.html`, import.meta.url).pathname),
         target: "browser",
@@ -338,13 +341,23 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
         return;
     }
 
+    if (msg.type === "request") {
+        onDeviceRequest(d, msg);
+        return;
+    }
+
     if (msg.type === "event") {
         if (msg.event === "status") {
             d.statusMsg = text;
             d.status = msg.data as Status;
             d.statusAt = Date.now();
             const role = d.status?.role;
-            if (updateDevice(d, { role: isRole(role) ? role : undefined })) publish(d, deviceEvent(d));
+            // A role change is structural — refresh the list at once for it
+            if (updateDevice(d, { role: isRole(role) ? role : undefined })) {
+                publish(d, deviceEvent(d));
+                publishDeviceList(true);
+                return;
+            }
             publishDeviceList();
         } else if (msg.event === "srtla.stats") {
             d.statsMsg = text;
@@ -373,9 +386,49 @@ function onDeviceMessage(d: Device, raw: string | Buffer): void {
         });
         if (changed) {
             publish(d, deviceEvent(d));
-            publishDeviceList();
+            publishDeviceList(true);
         }
     }
+}
+
+/** Device-initiated request: `devices.list` is answered by the server itself
+ * (the registry); anything else with a `target` is forwarded to that device
+ * like a viewer request, and the response travels back over the origin's socket. */
+function onDeviceRequest(origin: Device, msg: Record<string, unknown>): void {
+	const id = msg.id;
+	if (typeof id !== "number") return;
+	const method = typeof msg.method === "string" ? msg.method : "";
+	if (!method) return;
+	const respond = (payload: string): void => {
+		const ws = origin.ws;
+		if (ws && ws.readyState === WebSocket.OPEN) ws.send(payload);
+	};
+
+	if (method === "devices.list") {
+		respond(JSON.stringify({ type: "response", id, method, ok: true, result: summaries() }));
+		return;
+	}
+
+	const targetId = typeof msg.target === "string" ? msg.target : "";
+	const target = targetId ? devices.get(targetId) : undefined;
+	if (!target?.ws) {
+		respond(errorResponse(id, method, "device offline", 503));
+		return;
+	}
+
+	const originWs = origin.ws;
+	if (!target.ws || !originWs) {
+		respond(errorResponse(id, method, "device offline", 503));
+		return;
+	}
+	const params = msg.params && typeof msg.params === "object" && !Array.isArray(msg.params) ? msg.params : {};
+	const sid = nextRequestId++;
+	const timer = setTimeout(() => {
+		pending.delete(sid);
+		respond(errorResponse(id, method, "device did not respond", 504));
+	}, REQUEST_TIMEOUT_MS);
+	pending.set(sid, { deviceId: target.id, viewer: originWs, clientId: id, method, timer });
+	target.ws.send(JSON.stringify({ id: sid, method, params }));
 }
 
 function onViewerMessage(ws: Socket, deviceId: string, raw: string | Buffer): void {
@@ -658,11 +711,42 @@ function summaries(): DeviceSummary[] {
         .sort((a, b) => Number(b.online) - Number(a.online) || a.id.localeCompare(b.id));
 }
 
-/** Re-broadcast the current list to the live-feed subscribers; the full list
- * is small and identical to what the pages used to poll for. */
-function publishDeviceList(): void {
-    server.publish(devicesTopic, event("devices.changed", summaries()));
+// The per-device push cadence (2 s stats × N devices + 30 s status) would
+// flood the dashboard feed with a full-list re-broadcast even when nothing
+// visible changed — so the list is throttled: at most once per tick (2 s),
+// and only when a visible summary field changed (timestamps excluded —
+// they are refreshed by the slow pass below).
+const LIST_TICK_MS      = 2_000;
+const LIST_SLOW_PASS_MS = 30_000;
+const VOLATILE_KEYS = new Set<PropertyKey>(["lastSeen", "statusAt"]);
+/** JSON of the summary without the per-push volatile timestamps. */
+const stableFingerprint = (list: DeviceSummary[]): string =>
+    JSON.stringify(list.map((d) => Object.fromEntries(Object.entries(d).filter(([k]) => !VOLATILE_KEYS.has(k)))));
+
+let listFingerprint = stableFingerprint([]);
+let listPublishedAt = 0;
+
+function publishDeviceListNow(): void {
+    const list = summaries();
+    listFingerprint = stableFingerprint(list);
+    listPublishedAt = Date.now();
+    server.publish(devicesTopic, event("devices.changed", list));
 }
+
+/** Re-broadcast the list to the live-feed subscribers; the full list is
+ * identical to what the pages fetch from /api/devices. Throttled to at most
+ * one broadcast per tick and skipped when nothing visible changed — except
+ * structural events (connect / disconnect / identity), which pass immediate. */
+function publishDeviceList(immediate = false): void {
+    const now = Date.now();
+    if (!immediate && now - listPublishedAt < LIST_TICK_MS) return;
+    const list = summaries();
+    if (immediate || stableFingerprint(list) !== listFingerprint) publishDeviceListNow();
+}
+
+// A slow pass keeps the volatile time columns (since / last seen) accurate
+// while devices are idle — the list is small, one full snapshot per 30 s.
+setInterval(publishDeviceListNow, LIST_SLOW_PASS_MS);
 
 /** Device connection (`/device`): authenticate by uuid + token, then upgrade. */
 function deviceUpgrade(req: Request, url: URL, srv: Bun.Server<WsData>): Response | undefined {
@@ -762,7 +846,7 @@ const server = Bun.serve({
                 console.log(`[device ${d.id}] connected from ${data.address}`);
                 publish(d, deviceEvent(d));
                 addServerLog(d, "info", translate(d.language, "srv.online", data.address));
-                publishDeviceList();
+                publishDeviceList(true);
                 return;
             }
             // Viewers of never-seen devices must not grow the registry
@@ -799,7 +883,7 @@ const server = Bun.serve({
             failPending((p) => p.deviceId === d.id, "device disconnected", 503);
             publish(d, deviceEvent(d));
             addServerLog(d, "warn", translate(d.language, "srv.offline", why));
-            publishDeviceList();
+            publishDeviceList(true);
         },
     },
 });
@@ -815,7 +899,7 @@ setInterval(() => {
         devices.delete(d.id);
         failPending((p) => p.deviceId === d.id, "device disconnected", 503);
         publish(d, deviceEvent(d));
-        publishDeviceList();
+        publishDeviceList(true);
         console.log(`[device ${d.id}] removed: no heartbeat for >${STALE_DEVICE_MS / 60000} minutes`);
     }
 }, PRUNE_INTERVAL_MS);

@@ -5,8 +5,7 @@
  * pushes `kick.stats` events (tagged with the channel) to dashboard websocket
  * subscribers. One instance serves all stats widgets.
  */
-import { eventFrame, type StatsLive, type StatsSample } from "../types";
-import type { ChannelSpecs, PublishFn } from "../widgets";
+import { eventFrame, type StatsLive, type StatsSample, type ChannelSpecs, type PublishFn } from "./types";
 
 export const KICK_STATS_POLL_MS = 30_000;
 
@@ -140,3 +139,20 @@ export class StatsChannelManager {
 		}
 	}
 }
+
+/**
+ * Widget registration (the backend registry's hub wiring). The core reaches
+ * this module only through it; no per-module imports in the core.
+ */
+export default {
+	id: "kick-stats",
+	kind: "widget" as const,
+	title: "Kick Stats",
+	hub: {
+		widgetType: "kick-stats",
+		snapshotKey: "stats",
+		configFields: KICK_STATS_CONFIG_FIELDS,
+		channelSpec: statsSpecFromConfig,
+		create: (publish: PublishFn): StatsChannelManager => new StatsChannelManager(publish),
+	},
+};

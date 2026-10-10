@@ -3,7 +3,14 @@
  * Studio and forwards its events into the belabox event stream (pushed with a
  * `module: "obs-controller"` tag). The obs.* API methods in methods.ts
  * dispatch their raw requests straight to this client.
+ *
+ * Its live client is exposed to other modules over the capability bus
+ * (the low-bitrate switcher drives scene changes through it — no second
+ * OBS websocket).
+ *
+ * Self-contained: wire types live in public/types; the only core edge is the bag.
  */
+import { z } from "zod";
 import {
 	DEFAULT_EVENT_SUBSCRIPTIONS,
 	EventSubscription,
@@ -13,9 +20,10 @@ import {
 	type ObsRequest,
 	type ObsRequestBatch,
 } from "../../obs-client";
-import { ApiError } from "../../src/params";
-import { state } from "../../src/state";
-import type { DeviceModule, ModuleContext } from "../types";
+import type { MCore, Mctx } from "./types";
+
+/** Core bag, filled at bind (discovery) and re-filled at start (a module may not import the core directly). */
+let core: MCore;
 
 // op5 events forwarded to the UI; the ones an operator dashboard reacts to.
 // OBS v5 output events carry no "Current" prefix — they are StreamStateChanged /
@@ -67,13 +75,13 @@ let obsClient: ObsClient | null = null;
 
 /** The live client, or a 409 asking the operator to enable the module. */
 const requiredClient = (): ObsClient => {
-	if (!obsClient) throw new ApiError("The obs-controller module is not running", 409);
+	if (!obsClient) throw new core.ApiError("The obs-controller module is not running", 409);
 	return obsClient;
 };
 
 /**
  * obs-controller services consumed by the core (the method dispatcher in
- * methods.ts) — the registry is the core's only door into module code.
+ * methods.ts) — exposed through the capability bus under "obs".
  */
 export const obsServices = {
 	/** The live client (null when the module is not running). */
@@ -82,9 +90,12 @@ export const obsServices = {
 	subscriptionMask(names: string[]): number {
 		return names.reduce((acc, name) => acc | (EVENT_SUBSCRIPTION_LOOKUP[name.toUpperCase()] ?? EventSubscription.None), 0);
 	},
-	/** Apply persisted config fields (url / password / sceneEvents / enabled); caller saves the state. */
+	/**
+	 * Apply persisted config fields (url / password / sceneEvents / enabled);
+	 * caller saves the state. Only fields present in `config` are touched.
+	 */
 	configure(config: Record<string, unknown>): void {
-		const obs = state.settings.modules?.["obs-controller"];
+		const obs = core.state.settings.modules?.["obs-controller"];
 		if (!obs) return;
 		if (typeof config.enabled === "boolean") obs.enabled = config.enabled;
 		if (typeof config.obsUrl === "string") obs.obsUrl = config.obsUrl;
@@ -93,17 +104,32 @@ export const obsServices = {
 	},
 };
 
-const forward = (name: string, emit: ModuleContext["emit"]) =>
+const forward = (name: string, emit: Mctx["emit"]) =>
 	(_data: Record<string, unknown>, event: ObsEvent) =>
 		emit("obs.event", { eventType: name, eventIntent: event.eventIntent, eventData: event.eventData });
 
-export const obsControllerModule: DeviceModule = {
+async function teardown(): Promise<void> {
+	obsClient?.disconnect();
+	obsClient = null;
+}
+
+export default {
+	kind: "device",
 	id: "obs-controller",
 	title: "OBS",
-	configSchema: null,
+	configSchema: z.object({
+		enabled: z.boolean().optional(),
+		obsUrl: z.string().optional(),
+		obsPassword: z.string().optional(),
+		sceneEvents: z.boolean().optional(),
+	}).passthrough(),
 	secretFields: ["obsPassword"],
-	async start(ctx: ModuleContext) {
-		await obsControllerModule.stop();
+	bind(c: MCore) {
+		core = c;
+	},
+	async start(ctx: Mctx) {
+		core = ctx.core;
+		await teardown();
 		const cfg = ctx.config;
 		if (cfg["enabled"] !== true) return;
 		if (typeof cfg["obsUrl"] !== "string" || !cfg["obsUrl"]) {
@@ -127,12 +153,11 @@ export const obsControllerModule: DeviceModule = {
 		obsClient.on(OBS_DISCONNECTED_EVENT, () => ctx.emit("obs.event", { disconnected: true }));
 	},
 	async stop() {
-		obsClient?.disconnect();
-		obsClient = null;
+		await teardown();
 	},
 	methods: ["obs.request", "obs.requestBatch", "obs.setEventSubscriptions"] as const,
 	events: ["obs.event"] as const,
-	async dispatch(method, params) {
+	async dispatch(method: string, params: Record<string, unknown>) {
 		switch (method) {
 			case "obs.request": {
 				const request: ObsRequest = {
@@ -155,5 +180,10 @@ export const obsControllerModule: DeviceModule = {
 			default:
 				throw new Error(`unknown method ${method}`);
 		}
+	},
+	services: {
+		capabilities: {
+			"obs.controller": obsServices,
+		},
 	},
 };

@@ -8,7 +8,11 @@
  *   - pushes `srtla.stats` link telemetry at most every REMOTE_STATS_INTERVAL seconds;
  *   - pushes the event log (`log`): full history on connect, then each new entry;
  *   - answers requests `{ "id", "method", "params" }` sent by the server
- *     with `{ "type": "response", ... }`.
+ *     with `{ "type": "response", ... }`;
+ *   - sends requests itself: `{ "type": "request", "id", "method", "params",
+ *     "target"? }` — `devices.list` is answered by the server, a `target`
+ *     routes the request to that device (server-mediated, same path viewers
+ *     use), the response comes back over this socket.
  *
  * On connect a hello is sent first:
  *   { "type": "hello", "id": "<device uuid>", "role": "relay|encoder|combined",
@@ -19,6 +23,7 @@
  * applyRemoteSettings() re-targets the link (and re-registers the device) at
  * runtime so settings saved in the UI apply without a process restart.
  */
+import type { DeviceSummary } from "../public/types";
 import { REMOTE_INTERVAL, REMOTE_STATS_INTERVAL, REMOTE_TOKEN, REMOTE_URL, ROLE } from "./config";
 import { asLanguage } from "./i18n";
 import { handleRequest } from "./methods";
@@ -48,6 +53,39 @@ let lastSeen = 0;
 let removeSink: (() => void) | null = null;
 
 const isOpen = (): boolean => ws !== null && ws.readyState === WebSocket.OPEN;
+
+// Outgoing requests (answered by the server itself, or forwarded to a target
+// device by it); shorter than the server's forward timeout so we fail first.
+const OUTGOING_TIMEOUT_MS = 5_000;
+let nextOutgoingId = 1;
+const outgoing = new Map<number, { resolve: (value: unknown) => void; reject: (reason: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+
+/** Settle an outgoing request when its response frame arrives; false for other frames. */
+function settleOutgoing(text: string): boolean {
+	try {
+		const msg: unknown = JSON.parse(text);
+		if (!msg || typeof msg !== "object" || Array.isArray(msg)) return false;
+		const m = msg as { type?: unknown; id?: unknown; ok?: unknown; result?: unknown; error?: unknown };
+		if (m.type !== "response" || typeof m.id !== "number") return false;
+		const p = outgoing.get(m.id);
+		if (!p) return false;
+		clearTimeout(p.timer);
+		outgoing.delete(m.id);
+		if (m.ok === false) p.reject(new Error(typeof m.error === "string" && m.error !== "" ? m.error : "request failed"));
+		else p.resolve(m.result);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function failOutgoing(reason: string): void {
+	for (const [id, p] of outgoing) {
+		clearTimeout(p.timer);
+		outgoing.delete(id);
+		p.reject(new Error(reason));
+	}
+}
 
 // Never log the token-bearing parts of the URL
 const safeUrl = (): string => scrubUrl(target.url);
@@ -136,6 +174,7 @@ function connect(): void {
         touch();
         const { data } = ev as unknown as { data: string | ArrayBuffer };
         const text = textOf(data);
+        if (settleOutgoing(text)) return;
         if (!isRequest(text)) return;
         send(await handleRequest(text));
     });
@@ -146,6 +185,7 @@ function connect(): void {
 
     sock.addEventListener("close", (ev) => {
         clearTimers();
+        failOutgoing("disconnected from control server");
         if (ws === sock) ws = null;
         if (stopped) return;
         console.warn(`[remote] disconnected (${ev.code}${ev.reason ? `: ${ev.reason}` : ""}); retrying in ${backoff / 1000}s`);
@@ -178,6 +218,35 @@ export function stopRemote(): void {
     removeSink = null;
     ws?.close(1001, "shutting down");
     ws = null;
+}
+
+/** Send a request over the link to the control server; rejects when the
+ * link is down or no response arrives within the timeout. With `target`, the
+ * server routes the request to that device and relays its response back. */
+export function serverRequest(method: string, params?: Record<string, unknown>, target?: string): Promise<unknown> {
+	return new Promise((resolve, reject) => {
+		if (!isOpen()) {
+			reject(new Error("control server not connected"));
+			return;
+		}
+		const id = nextOutgoingId++;
+		const timer = setTimeout(() => {
+			outgoing.delete(id);
+			reject(new Error(`no response to ${method} (timeout)`));
+		}, OUTGOING_TIMEOUT_MS);
+		outgoing.set(id, { resolve, reject, timer });
+		send(JSON.stringify({ type: "request", id, method, params: params ?? {}, ...(target ? { target } : {}) }));
+	});
+}
+
+/** The control server's registry — the devices registered on it. */
+export function listDevices(): Promise<DeviceSummary[]> {
+	return serverRequest("devices.list") as Promise<DeviceSummary[]>;
+}
+
+/** Request a method on another registered device (server-mediated). */
+export function requestDevice(deviceId: string, method: string, params?: Record<string, unknown>): Promise<unknown> {
+	return serverRequest(method, params, deviceId);
 }
 
 /**

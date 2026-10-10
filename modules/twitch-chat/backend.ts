@@ -12,8 +12,7 @@
  * history keeps reconnections from re-sending, and the `seen` set dedupes
  * message ids across reconnects.
  */
-import { eventFrame, type ChatLive } from "../types";
-import type { ChannelSpecs, PublishFn } from "../widgets";
+import { eventFrame, type ChatLive, type ChannelSpecs, type PublishFn } from "./types";
 
 /** Twitch's public IRC relay (no auth, anonymous `justinfan` nick). */
 const TWITCH_WS_URL = "wss://irc-ws.chat.twitch.tv:443";
@@ -221,3 +220,18 @@ export class ChatChannelManager {
 		state.reconnectTimer = setTimeout(() => this.#connect(state), delay);
 	}
 }
+
+/** Widget registration (the backend registry's hub wiring); the core reaches
+ * this module only through it, no per-module imports in the core. */
+export default {
+	id: "twitch-chat",
+	kind: "widget" as const,
+	title: "Twitch Chat",
+	hub: {
+		widgetType: "twitch-chat",
+		snapshotKey: "twitchChat",
+		configFields: TWITCH_CHAT_CONFIG_FIELDS,
+		channelSpec: twitchChatSpecFromConfig,
+		create: (publish: PublishFn): ChatChannelManager => new ChatChannelManager(publish),
+	},
+};

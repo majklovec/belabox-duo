@@ -1,69 +1,139 @@
 # Modules
 
-Device modules are the building blocks of a belabox-duo device. Each module owns
-one cohesive slice of behavior — a subprocess, a poller, a websocket — plus the
-RPC methods it answers, the events it pushes, its device-page card and its CSS.
+Every module under `modules/<id>/` is **self-contained**. A module owns one
+cohesive slice of behavior — a subprocess, a poller, a websocket — plus the RPC
+methods it answers, the events it pushes, its device card or dashboard-widget
+UI, and its CSS. It exposes all of that to the core **only** through a
+registration object; the core never imports a module by path, and no core file
+names a module by id.
+
+The core↔module boundary is enforced by `test/registries.test.ts`:
+`"core (src/ + public/ts/) names no module by id"` scans both core trees and
+fails on any module-specific import, and `frontend.tsx imports nothing from /src`.
 
 ## Layout
 
-Exactly three files per module, no exceptions:
-
 ```
 modules/
-  types.ts             # shared contract (dependency-free)
-  registry.backend.ts  # ALL_MODULES for the device runtime
-  registry.frontend.ts # FRONTEND_MODULES for the device page
+  .generated.frontend.ts     # gitignored — produced by scripts/gen-modules.ts
   README.md
-  encoder/      backend.ts · frontend.ts · styles.css
-  srtla/        backend.ts · frontend.ts · styles.css
-  modems/       backend.ts · frontend.ts · styles.css
-  obs-controller/
-  kick-stats/
-  kick-chat/
+  encoder/                   # device module
+  srtla/                     # device module
+  modems/                    # device module
+  obs-controller/            # device module
+  kick-stats/  twitch-chat/  kick-chat/  youtube-chat/  tiktok-chat/   # channel widget modules
 ```
 
-## Contract
+Each module ships exactly:
+- `backend.ts` — default-exports a backend registration. Runs in Bun on the
+  host: **no** mithril/DOM, no browser globals.
+- `frontend.tsx` — default-exports a frontend registration. Runs in the browser
+  (mithril components), **no** `../../src` imports.
+- `types.ts` — **this module's** local types: its own config keys, status
+  fragment, capability types, hub/widget types. Core-free.
+- `styles.css` — scoped under `.mod-<id>` (device card) or `.dash-card`
+  (dashboard widget).
+- any number of plain helpers for its own use (e.g. obs-controller's
+  `switcher-engine.ts`, kick-stats' `graph-linechart.tsx`).
 
-`modules/types.ts` defines `DeviceModule` (backend) and `BrowserModule`
-(frontend). The backend shape is implemented in `backend.ts`; the front-end
-component and event handlers live in `frontend.ts`; module CSS lives in
-`styles.css` with every selector scoped under `.mod-<id>`.
+There is no shared `modules/types.ts`, no `modules/widgets.ts`, no
+`modules/registry.*.ts` — the old aggregate layer is gone. The only thing in
+`modules/` that spans modules is the **generated** `.generated.frontend.ts`.
+A module's `types.ts` may import core-owned types (`Status` from `public/types`,
+`Method` from `src/methods`); it must not import another module.
 
-## Rules
+Frontend views are written in TSX and transformed by Bun using the Mithril
+pragma configured in `bunfig.toml`. Use Mithril attributes such as `class` and
+lowercase lifecycle/event names (`oncreate`, `onclick`, `oninput`).
 
-- The core files `src/methods.ts`, `src/client.ts` and `public/ts/app.ts`
-  import **only** from `registry.backend.ts` / `registry.frontend.ts`, never
-  from a concrete module.
-- No cross-module imports except through `types.ts` (and the shared device
-  store in the browser): modules never import each other.
-- `backend.ts` runs in Bun on the host — no mithril/DOM. `frontend.ts` runs in
-  the browser — no `../../src` imports.
-- Module method and event names are frozen: renaming one is a breaking API
-  change.
-- `obs-client.ts` stays at the repo root; it is imported only by
-  `modules/obs-controller/backend.ts`.
+## The registration contract
 
-### Deviations from the base contract
+### Backend (`modules/<id>/backend.ts`)
 
-- `DeviceModule.status?()` (optional, registered in `registry.backend.ts`):
-  `buildStatus()` in `src/methods.ts` asks each running module for its status
-  fragment (modem list, srtla state, …) instead of importing the module.
-- The registries also host the module runtime helpers the core needs
-  (`startModules`, `stopModules`, `configureModule`, …) — the old
-  `src/modules/index.ts` moved here.
-- `kick-stats` and `kick-chat` are device-independent dashboard widget
-  modules, not device modules: they are **not** in `ALL_MODULES` or
-  `FRONTEND_MODULES`. `registry.backend.ts` owns their shared widget hub
-  (`initWidgetHub` / `syncWidgetHub` / `widgetHubSnapshot` /
-  `destroyWidgetHub`) and their `ChannelHub` contracts in `widgets.ts`;
-  `registry.frontend.ts` exposes `WIDGET_MODULES` (the widget bodies,
-  `configFields`, …) which the dashboard page renders. Each module keeps the
-  three-file layout; its CSS is scoped under `.dash-card` (dashboard card),
-  not a device-page `.mod-<id>` wrapper.
+Default-exports an object the registry validates structurally:
+
+| field | required | purpose |
+|-------|----------|---------|
+| `kind`, `id`, `title` | yes | identity (`id` = directory name) |
+| `configSchema` | yes | `Record<field, {label, type, default, options?, min?, max?, step?}>` — the UI renders the config form from this |
+| `secretFields` | yes | config field names that are masked |
+| `methods` | yes | ordered list of RPC methods this module answers |
+| `events` | yes | ordered list of events it emits |
+| `start({config, emit, log, core})` | yes | bring it up; `core` is the per-role services object (subprocess, srtla, …) |
+| `stop()` | yes | tear down |
+| `dispatch(method, params)` | yes | handle an RPC call routed to this module |
+| `status?()` | no | status fragment merged into `sys.status` (`buildStatus` asks it; the core never imports the module for this) |
+| `services?` | no | `{ capabilities?: Record<string, Capability> }` — see the capability bus |
+| `hub?` | no | channel-widget hub (`widgetType`, `snapshotKey`, `configFields`, `channelSpec`, `create`, `enabled?`) |
+| `dependencies?` | no | ids of modules that must have `start()`ed first (see ordering) |
+
+### Frontend (`modules/<id>/frontend.tsx`)
+
+Default-exports an object the generated manifest re-exports and the frontend
+registry bridges:
+
+| field | purpose |
+|-------|---------|
+| `kind`, `id`, `title`, `configSchema` | identity + config form (mirrors backend) |
+| `component?` | a dashboard-widget component (channel widgets render via `WIDGET_MODULES`) |
+| `cardBody?(host, status)` | a device-card body `(DeviceCard, Status) => Vnode` — registered so the core renders the card by capability, not by import |
+| `configFields?` | config fields that require a device reload (widgets) |
+| `createHub?(publish)`, `eventSink?` | widget hub factory / event sink |
+
+## Discovery (the core names no module)
+
+- **Backend** — `src/registry.ts` `readdirSync`s `modules/*/` and imports each
+  `backend.ts`'s default export. Add a directory, it appears.
+- **Frontend** — the browser bundle cannot glob at runtime, so
+  `scripts/gen-modules.ts` writes `modules/.generated.frontend.ts` (a fixed
+  `export const FRONTEND_MANIFEST = [...]` of `{ id, path }` entries) from the
+  same `readdirSync` scan. `src/registry.frontend.ts` does a plain `import` of
+  that manifest — **no Glob, no module ids in core source**. The manifest is
+  gitignored and regenerated by `predev` (and `gen:modules`).
+
+Tests pin both directions: the frontend registry must import the manifest (and
+contain no `Glob`/`modules/*` import patterns), and the manifest must exist and
+be marked auto-generated.
+
+## Core↔module: registries and the capability bus only
+
+- `src/methods.ts` routes RPC methods via the registry's method-owner map
+  (built from each module's `methods` array) — it does not import any module.
+- `src/registry.frontend.ts` exposes accessors the UI calls: `moduleCard(id)`,
+  `deviceCardBody(id, host, status)`, `getFrontendModule(id)`, and
+  `WIDGET_MODULES`.
+- **Capability bus** — a module that exposes a service registers it under a
+  dotted name (`stream.encoder`, `stream.srtla`) in `services.capabilities`;
+  consumers look it up by name through `src/capabilities.ts` rather than
+  importing the providing module.
+- The **only** core→module import allowed in the browser is the documented
+  exception `public/ts/dashboard.ts → modules/obs-controller/frontend`
+  (`createObsPanel` + transport types): the obs panel is stateful and its event
+  types are module-owned, so a generic `Panel` signature would force the core
+  to re-declare obs types (§6 violation). It is allow-listed in the ban test.
+
+Each module's `frontend.tsx` side-effect-imports its own `styles.css`
+(`import "./styles.css"`); Bun's bundler emits it into the page (see `css.d.ts`),
+so the core never pulls module CSS by id. Components use mithril + CSS classes.
+
+## Ordering
+
+`resolveOrder(discovered)` (in `src/registry.ts`) topologically sorts modules
+by their `dependencies` (cycle-safe, deterministic: id-sorted when no edges).
+No module currently declares `dependencies`, so the order is the id sort.
+`startModules` / `stopModules` / `buildStatus` / `modulesView` all iterate
+`ALL_MODULES = resolveOrder(...)` — never a hand-maintained list.
 
 ## Adding a module
 
-1. `mkdir modules/<id>` and create `backend.ts`, `frontend.ts`, `styles.css`.
-2. Register the module in `registry.backend.ts` (and `registry.frontend.ts` if
-   it has a card). No other core file needs changes beyond the METHOD_OWNER
-   map in `src/methods.ts` for new `*.` method namespaces.
+1. `mkdir modules/<id>`; write `backend.ts` (default-export registration above),
+   `frontend.tsx` (default-export registration), `types.ts`, `styles.css`.
+2. Device module: register the card as `cardBody` in `frontend.tsx`.
+   Channel widget: register `component` + `createHub`/`hub` so it appears in
+   `WIDGET_MODULES`.
+3. If it must start after another module, add `dependencies: ["<id>", ...]`.
+4. **No core edits needed** for discovery — the backend scan picks it up and
+   `predev` regenerates the frontend manifest. The only core touch is `src/`
+   wiring for a brand-new core service the module needs.
+
+Module method and event names are frozen: renaming one is a breaking API change.

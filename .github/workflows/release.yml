@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # Native builds – profile step is safe
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            artifact: obs-client-linux-x64
+            native: true
+          - os: ubuntu-latest
+            target: bun-linux-arm64
+            artifact: obs-client-linux-arm64
+            native: false
+          - os: macos-latest
+            target: bun-darwin-arm64
+            artifact: obs-client-darwin-arm64
+            native: true
+          # Cross‑compiled from Ubuntu – skip profile generation
+          - os: ubuntu-latest
+            target: bun-windows-x64
+            artifact: obs-client-windows-x64.exe
+            native: false
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      # ---------------------------------------------------------------
+      # Step 1: build a “profiling” binary WITHOUT bytecode, then run it
+      #         to capture the bytecode order. Only for native targets.
+      # ---------------------------------------------------------------
+      - name: Build profiling binary (native only)
+        if: matrix.native == true
+        run: |
+          bun build --compile --minify --sourcemap \
+            --target=${{ matrix.target }} \
+            ./obs-client.ts \
+            --outfile obs-client-prof
+
+      - name: Record bytecode profile (native only)
+        if: matrix.native == true
+        run: ./obs-client-prof --help
+        env:
+          BUN_BYTECODE_ORDER_OUT: obs-client.order
+
+      # ---------------------------------------------------------------
+      # Step 2: final build with bytecode. For native targets we include
+      #         the .order file; for cross‑compiled targets we omit it.
+      # ---------------------------------------------------------------
+      - name: Build final binary
+        run: |
+          ARGS="--compile --minify --sourcemap --bytecode \
+            --target=${{ matrix.target }} \
+            ./obs-client.ts \
+            --outfile ${{ matrix.artifact }}"
+
+          if [ -f obs-client.order ]; then
+            ARGS="$ARGS --bytecode-order=obs-client.order"
+          fi
+
+          bun build $ARGS
+
+      - name: Verify binary (native only)
+        if: matrix.native == true
+        run: |
+          chmod +x ${{ matrix.artifact }}
+          ./${{ matrix.artifact }} --help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

@@ -435,3 +435,4 @@ rpc.on("log", (data) => applyLog(data as LogEvent));
 // Module events (carried with a `module` tag, routed by their name here)
 // ----------------------------------------------------------------------
 rpc.on("obs.event", (data) => dispatchFrontendEvent("obs.event", data));
+rpc.on("lowBitrateSwitcher.state", (data) => dispatchFrontendEvent("lowBitrateSwitcher.state", data));

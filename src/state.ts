@@ -12,7 +12,7 @@
 import { randomUUID } from "node:crypto";
 
 import { CONFIG_EXISTS, CONFIG_FILE, DRY_RUN, INITIAL_CONFIG } from "./config";
-import type { CeraConfig, EncoderConfig, EncoderState, SrtlaState } from "../modules/types";
+import type { CeraConfig, EncoderConfig, EncoderState, SrtlaState, SwitcherConfig } from "../public/types";
 import { writeFileAtomic } from "./files";
 import { asLanguage, DEFAULT_LANGUAGE, type Language, setCurrentLanguage } from "./i18n";
 import type { ModemConfig } from "./routing";
@@ -65,14 +65,53 @@ export interface ObsModuleConfig {
     sceneEvents: boolean;
 }
 /** All module keys the registry knows, and their on-disk shape. */
-export const ALL_MODULES = ["relay", "encoder", "obs-controller"] as const;
+export const ALL_MODULES = ["relay", "encoder", "obs-controller", "low-bitrate-switcher"] as const;
+
+/**
+ * Registry module ID → persisted settings key. `srtla` reads the legacy
+ * "relay" key. Kept here so methods and the registry both resolve the same
+ * persisted slice.
+ */
+export const MODULE_CONFIG_KEYS: Record<string, string> = {
+	"encoder": "encoder",
+	"srtla": "relay",
+	"modems": "modems",
+	"obs-controller": "obs-controller",
+};
+
 export type ModuleId = (typeof ALL_MODULES)[number];
 
 export const OBS_MODULE = "obs-controller" as const;
+
+/**
+ * The switcher slice's core-side defaults — the same values the frontend form
+ * carries, so a slice seeded (or backfilled) on first run is complete and the
+ * module can start before the card form has ever saved.
+ */
+const SWITCHER_DEFAULTS: ModulesState["low-bitrate-switcher"] = {
+    enabled: true,
+    sources: {
+        encoder: { enabled: false, deviceId: "" },
+        relay: { enabled: false, deviceId: "" },
+    },
+    failBehaviour: "pause",
+    autoSwitch: true,
+    onlySwitchWhenStreaming: false,
+    instantlySwitchOnRecover: true,
+    retryAttempts: 5,
+    pollIntervalMs: 1000,
+    triggers: { low: 500, offline: 400, rtt: 1500 },
+    scenes: { normal: "", low: "", offline: "" },
+    optionalScenes: { starting: "", ending: "", privacy: "" },
+    logToFile: true,
+};
+
 export interface ModulesState {
     relay: { enabled: boolean };
     encoder: { enabled: boolean };
+    modems: { enabled: boolean };
     "obs-controller": ObsModuleConfig;
+    "low-bitrate-switcher": { enabled: boolean } & SwitcherConfig;
 }
 
 /** Permanent device parameters persisted to the config file (no process state). */
@@ -144,7 +183,8 @@ function projectConfig(s: PersistentState): DeviceConfig {
     return cfg;
 }
 
-function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
+// Exported for the backfill regression tests (test/state.test.ts)
+export function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
     const section: Partial<SrtlaConfig> = cfg?.srtla ?? {};
     const hasTarget = !!(section.listenPort || section.remoteHost || section.remotePort);
     const target = hasTarget
@@ -160,9 +200,9 @@ function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
             color: cfg?.color,
             pipelineRepositories: cfg?.pipelineRepositories,
             language: cfg?.language,
-            // Backfill: pre-module configs get a modules map with the role's
-            // preset modules enabled.
-            modules: cfg?.modules ?? defaultModules(cfg?.role),
+            // Backfill: pre-module configs get the role's preset modules
+            // enabled; modules added later get their defaults merged in.
+            modules: backfillModules(cfg?.modules, cfg?.role),
         },
         selection: cfg?.modems ?? {},
         srtla: { running: false },
@@ -188,8 +228,57 @@ export function defaultModules(role?: Role): ModulesState {
     return {
         relay: { enabled: on.has("relay") },
         encoder: { enabled: on.has("encoder") },
+        modems: { enabled: on.has("modems") },
         "obs-controller": { enabled: false, obsUrl: "", obsPassword: "", sceneEvents: true },
+        // The card form refines the settings on first save; the module is
+        // always on — it rides on OBS — and starts on the complete defaults.
+        "low-bitrate-switcher": { ...SWITCHER_DEFAULTS },
     };
+}
+
+/**
+ * Stored module maps predate newer settings (e.g. the switcher slice); fill
+ * missing keys with the defaults for the role so the map always has the
+ * full shape. Stored values win over the defaults. Configs written before
+ * the switcher merged into obs-controller carry it as a top-level modules
+ * key — move it into the obs slice once, here.
+ */
+function backfillModules(stored: Partial<ModulesState> | undefined, role?: Role): ModulesState {
+    if (!stored) return defaultModules(role);
+    // Pre-merge configs kept the switcher as a top-level modules slice under the
+    // legacy camelCase key; move it to the module's own key once, here
+    const { lowBitrateSwitcher: legacy, ...rest } =
+        stored as Partial<ModulesState> & { lowBitrateSwitcher?: Record<string, unknown> };
+    const out: ModulesState = { ...defaultModules(role), ...rest };
+    if (legacy)
+        out["low-bitrate-switcher"] = {
+            ...(legacy as Record<string, unknown>),
+            enabled: (legacy as { enabled?: boolean }).enabled !== false,
+        } as ModulesState["low-bitrate-switcher"];
+    // Pre-merge configs enabled the switcher under the OBS slice's flag: when
+    // that flag was stored as true and the switcher slice carries no explicit
+    // flag of its own, it carries over to the new slice
+    const storedObs = rest["obs-controller"] as { switcherEnabled?: boolean } | undefined;
+    if (storedObs?.switcherEnabled === true && (out["low-bitrate-switcher"] as { enabled?: boolean }).enabled !== false)
+        out["low-bitrate-switcher"].enabled = true;
+    // Slices stored before a field existed (e.g. the first `{ enabled: true }`
+    // seed) are completed field by field; stored values win over the defaults
+    const sw = out["low-bitrate-switcher"] as unknown as Record<string, unknown>;
+    const rec = (v: unknown): Record<string, unknown> | undefined =>
+        v && typeof v === "object" ? (v as Record<string, unknown>) : undefined;
+    const fill = (key: string, fallback: object): void => {
+        sw[key] = { ...fallback, ...rec(sw[key]) };
+    };
+    fill("sources", {
+        encoder: { ...SWITCHER_DEFAULTS.sources.encoder, ...rec(rec(sw.sources)?.["encoder"]) },
+        relay: { ...SWITCHER_DEFAULTS.sources.relay, ...rec(rec(sw.sources)?.["relay"]) },
+    });
+    fill("triggers", SWITCHER_DEFAULTS.triggers);
+    fill("scenes", SWITCHER_DEFAULTS.scenes);
+    fill("optionalScenes", SWITCHER_DEFAULTS.optionalScenes);
+    for (const key of ["failBehaviour", "autoSwitch", "onlySwitchWhenStreaming", "instantlySwitchOnRecover", "retryAttempts", "pollIntervalMs", "logToFile"] as const)
+        sw[key] ??= SWITCHER_DEFAULTS[key];
+    return out;
 }
 
 // ----------------------------------------------------------------------

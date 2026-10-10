@@ -48,8 +48,17 @@ import { PIPELINES_DIR, RELOAD_MODE, ROLE, UPLINKS_FILE } from "./config";
 import { logEntries, logEvent } from "./eventlog";
 import { LANGUAGES, setCurrentLanguage, t } from "./i18n";
 import { isLoggedMethod, methodLog } from "./logMessages";
-import { callModule, encoderServices, getModule, moduleStatuses, modemServices, obsServices, restartRegisteredModule, srtlaServices } from "../modules/registry.backend";
-import type { CeraConfig, EncoderConfig, EncoderState, ModemInfo, SrtlaState } from "../modules/types";
+import { callModule, moduleStatuses, restartRegisteredModule } from "./registry";
+import type {
+	CeraConfig,
+	EncoderConfig,
+	EncoderState,
+	ModemInfo,
+	SrtlaState,
+	SwitcherMetricSources,
+	SwitcherStatus,
+} from "../public/types";
+import { encoderServices, modemServices, obsServices, srtlaServices } from "./services";
 import {
 	ApiError,
 	checkColor,
@@ -95,8 +104,9 @@ export async function buildStatus() {
 	// Module status fragments (modems module provides the modem list, encoder
 	// the ceracoder settings); one ModemManager scan serves both the interface
 	// enrichment and the modem list
+	const modFragments = await moduleStatuses();
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const modems = (await moduleStatuses().then((f) => f.modems) as any) as ModemInfo[];
+	const modems = (modFragments.modems as any) as ModemInfo[];
 	const [interfaces, audioSources] = await Promise.all([
 		detectInterfaces(modems),
 		role !== "relay" ? encoderServices.listAudioSources() : [],
@@ -123,6 +133,10 @@ export async function buildStatus() {
 		monitor: { running: isMonitorRunning(), reloadMode: RELOAD_MODE },
 		// null when the encoder binary is not ceracoder; the UI hides its settings then
 		ceracoder: encoderServices.ceracoderConfig(),
+		// null when the switcher is not running; the card shows "idle" then
+		lowBitrateSwitcher: (modFragments.lowBitrateSwitcher as SwitcherStatus | null) ?? null,
+		// The switcher's metric source options (part of the module configuration surface)
+		switcherMetricSources: (modFragments.switcherMetricSources as SwitcherMetricSources) ?? null,
 		// Module system: enabled flags + non-secret settings (secrets => {configured})
 		modules: modulesView(),
 	};
@@ -322,30 +336,8 @@ async function updateSettings(p: Params): Promise<object> {
  * registry; methods.ts never imports concrete modules). Extended as each
  * module migrates (see TODO.md).
  */
-const METHOD_OWNER: Record<string, string> = {
-	"encoder.status": "encoder",
-	"encoder.start": "encoder",
-	"encoder.stop": "encoder",
-	"encoder.bitrate": "encoder",
-	"ceracoder.set": "encoder",
-	"srtla.status": "srtla",
-	"srtla.start": "srtla",
-	"srtla.stop": "srtla",
-	"srtla.reload": "srtla",
-	"srtla.stats": "srtla",
-	"srtla.options": "srtla",
-	"modems.enable": "modems",
-	"modems.disable": "modems",
-	"modems.reset": "modems",
-	"modems.connect": "modems",
-	"modems.disconnect": "modems",
-	"obs.request": "obs-controller",
-	"obs.requestBatch": "obs-controller",
-	"obs.setEventSubscriptions": "obs-controller",
-};
-
 const moduleDispatch = (method: string, params: Record<string, unknown>): Promise<unknown> =>
-	callModule(METHOD_OWNER[method]!, method, params);
+	callModule(method, params);
 
 const modemAction =
 	(action: string, fn: (index: number) => Promise<boolean>): Method =>
@@ -552,8 +544,7 @@ const methods: Record<string, Method> = {
 			p.config && typeof p.config === "object" && !Array.isArray(p.config) ? (p.config as Record<string, unknown>) : {};
 		state.settings.modules ??= defaultModules(ROLE);
 		if (id === OBS_MODULE) {
-			// Registered module: the obs slice is applied by the module itself,
-			// then re-applied through the registry
+			// The obs module applies its slice, then re-applies
 			obsServices.configure(config);
 			saveState();
 			void restartRegisteredModule(id);
