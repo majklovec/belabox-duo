@@ -206,8 +206,8 @@ export function defaultModules(role?: Role): ModulesState {
         modems: { enabled: on.has("modems") },
         "obs-controller": { enabled: false, obsUrl: "", obsPassword: "", sceneEvents: true },
         // The settings (sources, triggers, scenes...) are filled in by the card
-        // form on first save; only the enable flag needs a default
-        "low-bitrate-switcher": { enabled: false } as ModulesState["low-bitrate-switcher"],
+        // form on first save. The module is always on — it rides on OBS.
+        "low-bitrate-switcher": { enabled: true } as ModulesState["low-bitrate-switcher"],
     };
 }
 

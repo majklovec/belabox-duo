@@ -30,7 +30,7 @@ import {
 } from "../../public/ts/components/ui";
 import { since } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
-import { card, type DeviceCard } from "../../public/ts/device/store";
+import type { DeviceCard } from "../../public/ts/device/store";
 
 /** Display label for a source device option. */
 const deviceLabel = (d: SwitcherDeviceOption): string => d.hostname ?? d.id;
@@ -46,16 +46,17 @@ const metricSources = (status: Status): SwitcherMetricSources =>
 /** OBS's live scene names (`GetSceneList`); null until the first fetch succeeds. */
 let scenes: string[] | null = null;
 let scenesFetching = false;
-let scenesNextAt = 0;
+let scenesTimer: ReturnType<typeof setTimeout> | null = null;
 const SCENE_REFRESH_MS = 15_000;
 
 /**
  * Fetch the scene list through the module's obs client, re-rendering on
- * arrival. Refreshed every 15 s (also the back-off while OBS is
- * unreachable). A failed fetch simply keeps the last known list.
+ * arrival. A self-rescheduling timer keeps the list fresh (and retries a
+ * failed fetch) every 15 s without depending on re-renders. A failed fetch
+ * simply keeps the last known list.
  */
 async function loadScenes(host: DeviceCard): Promise<void> {
-  if (scenesFetching || Date.now() < scenesNextAt) return;
+  if (scenesFetching) return;
   scenesFetching = true;
   try {
     const result = await host.act<{ scenes?: { name: string }[] } | undefined>(
@@ -67,23 +68,32 @@ async function loadScenes(host: DeviceCard): Promise<void> {
     	?.map((s) => s.name)
     	.filter((n): n is string => n !== "");
     if (list) scenes = list;
-  } catch {
+  } catch (e) {
     // device offline / OBS unreachable — keep the last known list
   } finally {
-    scenesNextAt = Date.now() + SCENE_REFRESH_MS;
     scenesFetching = false;
     m.redraw();
   }
 }
 
+/** Start the refresh loop once; `loadScenes` reschedules the next pass. */
+function scheduleScenes(host: DeviceCard): void {
+  if (scenesTimer) return;
+  scenesTimer = setTimeout(() => {
+    scenesTimer = null;
+    void loadScenes(host).then(
+      () => scheduleScenes(host),
+      () => scheduleScenes(host),
+    );
+  }, SCENE_REFRESH_MS);
+}
+
 /**
- * The scene select's options: OBS's scenes, keeping the persisted value even
- * if the scene vanished. Optional scene fields get an empty "—" entry.
+ * The scene select's options: only OBS's live scene list (plus an empty "—"
+ * entry for the optional scene fields) — no placeholder defaults.
  */
-const sceneOptions = (current: string, optional = false): [string, string][] => {
-  const names = scenes ?? [];
-  const out: [string, string][] = names.map((n): [string, string] => [n, n]);
-  if (current && !out.some(([n]) => n === current)) out.push([current, current]);
+const sceneOptions = (optional = false): [string, string][] => {
+  const out: [string, string][] = (scenes ?? []).map((n): [string, string] => [n, n]);
   if (optional) out.push(["", "—"]);
   return out;
 };
@@ -133,12 +143,12 @@ function loadForm(status: Status): SwitcherForm {
     pollInterval: String(c?.pollIntervalMs ?? 1000),
     instantlyRecover: c?.instantlySwitchOnRecover ?? true,
     onlySwitchWhenStreaming: c?.onlySwitchWhenStreaming ?? false,
-    sceneNormal: c?.scenes.normal ?? "LIVE",
-    sceneLow: c?.scenes.low ?? "LOW",
-    sceneOffline: c?.scenes.offline ?? "BRB",
-    sceneStarting: c?.optionalScenes.starting ?? "STARTING",
-    sceneEnding: c?.optionalScenes.ending ?? "ENDING",
-    scenePrivacy: c?.optionalScenes.privacy ?? "PRIVACY",
+    sceneNormal: c?.scenes.normal ?? "",
+    sceneLow: c?.scenes.low ?? "",
+    sceneOffline: c?.scenes.offline ?? "",
+    sceneStarting: c?.optionalScenes.starting ?? "",
+    sceneEnding: c?.optionalScenes.ending ?? "",
+    scenePrivacy: c?.optionalScenes.privacy ?? "",
     logToFile: c?.logToFile ?? true,
   };
 }
@@ -204,14 +214,11 @@ function switcherCardBody(
   const f = form;
   const sources = metricSources(status);
   void loadScenes(host);
+  scheduleScenes(host);
   const s = live ?? status.lowBitrateSwitcher ?? null;
   const busy = host.busy.has("switcher-save");
   return (
-    <Card
-      title={t("lowbs.title")}
-      class={"mod-switcher"}
-      headActions={[switcherEnabledToggle(status)]}
-    >
+    <Card title={t("lowbs.title")} class={"mod-switcher"}>
       {definitionList([
         [
           t("lowbs.row_state"),
@@ -368,7 +375,7 @@ function switcherCardBody(
                     ).value)
                   }
                 >
-                  {options(sceneOptions(f.sceneNormal))}
+                  {options(sceneOptions())}
                 </select>,
               ),
               field(
@@ -380,7 +387,7 @@ function switcherCardBody(
                     (f.sceneLow = (e.target as HTMLSelectElement).value)
                   }
                 >
-                  {options(sceneOptions(f.sceneLow))}
+                  {options(sceneOptions())}
                 </select>,
               ),
               field(
@@ -394,7 +401,7 @@ function switcherCardBody(
                     ).value)
                   }
                 >
-                  {options(sceneOptions(f.sceneOffline))}
+                  {options(sceneOptions())}
                 </select>,
               ),
               field(
@@ -408,7 +415,7 @@ function switcherCardBody(
                     ).value)
                   }
                 >
-                  {options(sceneOptions(f.sceneStarting, true))}
+                  {options(sceneOptions(true))}
                 </select>,
               ),
               field(
@@ -420,7 +427,7 @@ function switcherCardBody(
                     (f.sceneEnding = (e.target as HTMLSelectElement).value)
                   }
                 >
-                  {options(sceneOptions(f.sceneEnding, true))}
+                  {options(sceneOptions(true))}
                 </select>,
               ),
               field(
@@ -432,7 +439,7 @@ function switcherCardBody(
                     (f.scenePrivacy = (e.target as HTMLSelectElement).value)
                   }
                 >
-                  {options(sceneOptions(f.scenePrivacy, true))}
+                  {options(sceneOptions(true))}
                 </select>,
               ),
             ]}
@@ -481,31 +488,9 @@ function switcherCardBody(
 /**
  * The switcher card, rendered by the obs module below its own card (device
  * page: the global host + the pushed live state; dashboard: the widget's
- * connection host + its switcher state). Returns null when the switcher is
- * not enabled (its toggle then lives in the obs card's head only).
+ * connection host + its switcher state). The module is always on — it rides
+ * on OBS being enabled.
  */
-/**
- * The master enable / disable — a checkbox in the card's head (it stays
- * reachable while the engine is off): flips the module's `enabled` flag,
- * which the backend applies at (re)start through modules.configure.
- */
-function switcherEnabledToggle(status: Status): m.Vnode {
-  const on = (status.modules["low-bitrate-switcher"] as SwitcherModuleView | undefined)?.enabled === true;
-  return checkField(
-    t("lowbs.enable_switcher"),
-    <input
-      type={"checkbox"}
-      class={"obs-switcher-toggle"}
-      checked={on}
-      onchange={(e: Event) => {
-        void card.act("switcher-enable", "modules.configure", {
-          id: "low-bitrate-switcher",
-          config: { enabled: (e.target as HTMLInputElement).checked },
-        });
-      }}
-    />,
-  );
-}
 
 export function switcherCard(
   host: DeviceCard,

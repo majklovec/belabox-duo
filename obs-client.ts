@@ -54,7 +54,7 @@ const SWITCHER_MODULE = "low-bitrate-switcher";
 // Card-form defaults (the box has no factory of its own) — used only for the
 // in-memory slice, so the status always carries the full shape
 const DEFAULT_SWITCHER_SLICE: SwitcherConfig & { enabled: boolean } = {
-  enabled: false,
+  enabled: true,
   failBehaviour: "pause",
   autoSwitch: true,
   onlySwitchWhenStreaming: false,
@@ -62,8 +62,9 @@ const DEFAULT_SWITCHER_SLICE: SwitcherConfig & { enabled: boolean } = {
   retryAttempts: 5,
   pollIntervalMs: 1000,
   triggers: { low: 500, offline: 400, rtt: 1500 },
-  scenes: { normal: "LIVE", low: "LOW", offline: "BRB" },
-  optionalScenes: { starting: "STARTING", ending: "ENDING", privacy: "PRIVACY" },
+  // Scenes come from the card form (the real OBS scene list) — no placeholders
+  scenes: { normal: "", low: "", offline: "" },
+  optionalScenes: { starting: "", ending: "", privacy: "" },
   logToFile: true,
   sources: {
     encoder: { enabled: false, deviceId: "" },
@@ -752,16 +753,8 @@ async function main(): Promise<void> {
   if (storedSlice) {
     switcherSlice = { ...DEFAULT_SWITCHER_SLICE, ...storedSlice };
   } else {
-    // Pre-extraction shape: obs-level `switcherEnabled` plus a nested slice
-    // with legacy field names (bitrateSwitcherEnabled/switchingScenes)
-    const legacy = { ...(stored?.switcher ?? {}) } as Record<string, unknown>;
-    const legacyEnabled =
-      stored?.switcherEnabled === true || legacy.enabled === true;
-    delete legacy.enabled;
-    delete legacy.bitrateSwitcherEnabled;
-    delete legacy.switchingScenes;
-    delete legacy.obsController;
-    switcherSlice = { ...DEFAULT_SWITCHER_SLICE, ...legacy, enabled: legacyEnabled };
+
+    switcherSlice = { ...DEFAULT_SWITCHER_SLICE };
   }
   const writeBoxState = async (): Promise<void> => {
     await Bun.write(
