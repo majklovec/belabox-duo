@@ -1087,6 +1087,20 @@ async function main(): Promise<void> {
 					result = { ok: true };
 					break;
 				}
+				case "lowBitrateSwitcher.save": {
+					// The switcher card's Save button sends the full slice as `config`.
+					const config =
+						params.config &&
+						typeof params.config === "object" &&
+						!Array.isArray(params.config)
+							? (params.config as Record<string, unknown>)
+							: params;
+					switcherSlice = mergeBoxSwitcherConfig(switcherSlice, config);
+					await writeBoxState();
+					pushStatus();
+					result = { ok: true };
+					break;
+				}
 				default:
 					throw new ApiError(`Unknown method: ${method}`, 404);
 			}

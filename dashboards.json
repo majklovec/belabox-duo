@@ -3,7 +3,7 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 132,
+      "version": 138,
       "widgets": [
         {
           "id": "34aad0a5-0102-4cb0-bd3b-d50009aec4f1",
@@ -56,25 +56,14 @@
           }
         },
         {
-          "id": "1541d79a-7cd5-42ad-ab58-8d0141108578",
-          "deviceId": "239b2703-6577-4381-a395-b595c3202ce3",
+          "id": "79e9159e-4aa1-4c72-a656-2624affeafd0",
+          "deviceId": "a496aa1d-a8df-4ecf-92a0-66cbfc0918eb",
           "type": "combined",
           "name": "Enkodér + relay",
           "x": 0,
           "y": 0,
           "w": 4,
-          "h": 27,
-          "visible": true
-        },
-        {
-          "id": "1acc7cfd-c5cd-4943-9b1d-e6256efd75af",
-          "deviceId": "432cf12c-b890-4e79-a8d2-f502c39a1df7",
-          "type": "obs",
-          "name": "OBS Studio",
-          "x": 4,
-          "y": 4,
-          "w": 6,
-          "h": 13,
+          "h": 17,
           "visible": true
         }
       ],

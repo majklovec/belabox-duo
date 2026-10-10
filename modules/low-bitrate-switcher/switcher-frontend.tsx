@@ -59,13 +59,20 @@ async function loadScenes(host: DeviceCard): Promise<void> {
   if (scenesFetching) return;
   scenesFetching = true;
   try {
-    const result = await host.act<{ scenes?: { name: string }[] } | undefined>(
+    const result = await host.act<
+    	| {
+    		requestStatus: { result: boolean; code: number; comment?: string };
+    		responseData?: { scenes: { sceneName: string }[] };
+    	  }
+    	| undefined
+    >(
     	null,
     	"obs.request",
     	{ requestType: "GetSceneList", requestId: crypto.randomUUID(), requestData: {} },
     );
-    const list = result?.scenes
-    	?.map((s) => s.name)
+    const data = result?.requestStatus?.result ? result.responseData : undefined;
+    const list = data?.scenes
+    	?.map((s) => s.sceneName)
     	.filter((n): n is string => n !== "");
     if (list) scenes = list;
   } catch (e) {

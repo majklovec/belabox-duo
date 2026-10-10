@@ -125,6 +125,9 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 	let rafId = 0;
 	let pingInFlight = false;
 	let lastPing = 0;
+	/** Scene list staleness: re-run loadAll() every 15 s while connected (as the switcher does). */
+	let lastLoadAt = 0;
+	const SCENE_REFRESH_MS = 15_000;
 
 	/* One meter canvas per input plus its smoothed frame. Smoothing is as in
 	 * obs.html: fast attack, 30-frame peak hold, slow decay. */
@@ -197,6 +200,7 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 	async function loadAll(): Promise<void> {
 		if (ui.loading) return;
 		ui.loading = true;
+		lastLoadAt = Date.now();
 		const [scenes, inputs, studio, scene] = await Promise.all([
 			obsCall<{ scenes: { sceneName: string }[] }>("GetSceneList"),
 			obsCall<{ inputs: { inputName: string }[] }>("GetInputList"),
@@ -344,7 +348,9 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 			lastPing = now;
 			void ping();
 		}
-		if (ui.connected && !ui.loaded && !ui.loading) void loadAll();
+		// First load on connect, then re-read (scenes/inputs/studio/active scene)
+		// every 15 s so the scene deck tracks OBS scene-list changes.
+		if (ui.connected && !ui.loading && (!ui.loaded || now - lastLoadAt >= SCENE_REFRESH_MS)) void loadAll();
 		if (
 			ui.connected &&
 			ui.loaded &&

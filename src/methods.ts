@@ -596,6 +596,11 @@ const methods: Record<string, Method> = {
 		return moduleDispatch("obs.setEventSubscriptions", { eventSubscriptions: intents });
 	},
 
+	// ------------------------------------------------------------- switcher
+	"lowBitrateSwitcher.save": (p) => {
+		return moduleDispatch("lowBitrateSwitcher.save", p);
+	},
+
 };
 
 function methodAllowed(name: string): boolean {
