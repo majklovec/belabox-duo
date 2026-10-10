@@ -1,0 +1,11 @@
+/* Low-bitrate switcher card (moved from the obs-controller module)
+ */
+.mod-switcher .lbs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+}
+.mod-switcher .lbs-select {
+  margin-left: 0.5rem;
+  flex: 1;
+}

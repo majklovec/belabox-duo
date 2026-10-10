@@ -170,7 +170,7 @@ export interface ChannelLive {
 }
 
 // ----------------------------------------------------------------------
-// Low-bitrate switcher wire types (owned by the obs module; status + UI)
+// Low-bitrate switcher wire types (the low-bitrate-switcher module; status + UI)
 // ----------------------------------------------------------------------
 
 /** The switcher's state machine states — each maps to a scene. */
@@ -197,18 +197,8 @@ export interface SwitcherSourceConfig {
 	deviceId: string;
 }
 
-export interface LowBitrateSwitcherSources {
-	encoder: SwitcherSourceConfig;
-	relay: SwitcherSourceConfig;
-}
-
 /** What the switcher does when its obs-controller is disconnected. */
 export type SwitcherFailBehaviour = "pause" | "ignore";
-
-export interface SwitcherObsControllerConfig {
-	moduleId: string;
-	failBehaviour: SwitcherFailBehaviour;
-}
 
 /** Thresholds: bitrate in kbps, rtt in ms. */
 export interface SwitcherTriggers {
@@ -224,10 +214,28 @@ export interface SwitcherScenes {
 	offline: string;
 }
 
-/** The automatic-switching engine's own settings. */
-export interface SwitcherEngineConfig {
+/** Scenes the operator manages manually; the switcher never leaves the privacy scene. */
+export interface SwitcherOptionalScenes {
+	starting: string;
+	ending: string;
+	privacy: string;
+}
+
+/**
+ * The low-bitrate switcher's settings (persisted as the
+ * `settings.modules["low-bitrate-switcher"]` slice; the `enabled` flag of the
+ * same slice decides whether the module runs). Flat on purpose: the module
+ * applies it field by field and the frontend form carries the defaults —
+ * there is no core-side factory or normalizer.
+ */
+export interface SwitcherConfig {
+	sources: {
+		encoder: SwitcherSourceConfig;
+		relay: SwitcherSourceConfig;
+	};
+	failBehaviour: SwitcherFailBehaviour;
 	/** Master switch for the automatic switching (the module `enabled` flag is separate). */
-	bitrateSwitcherEnabled: boolean;
+	autoSwitch: boolean;
 	/** Ignore metrics while OBS is not streaming. */
 	onlySwitchWhenStreaming: boolean;
 	/** Return to the normal scene without the retry delay. */
@@ -237,25 +245,7 @@ export interface SwitcherEngineConfig {
 	/** Sampling period of the sources, ms. */
 	pollIntervalMs: number;
 	triggers: SwitcherTriggers;
-	switchingScenes: SwitcherScenes;
-}
-
-/** Scenes the operator manages manually; the switcher never leaves the privacy scene. */
-export interface SwitcherOptionalScenes {
-	starting: string;
-	ending: string;
-	privacy: string;
-}
-
-/**
- * Full switcher settings (persisted under settings.modules["obs-controller"].switcher).
- * The OBS-level `switcherEnabled` parameter (sibling of `switcher`) decides
- * whether the switcher runs; this object carries only its settings.
- */
-export interface LowBitrateSwitcherConfig {
-	sources: LowBitrateSwitcherSources;
-	obsController: SwitcherObsControllerConfig;
-	switcher: SwitcherEngineConfig;
+	scenes: SwitcherScenes;
 	optionalScenes: SwitcherOptionalScenes;
 	logToFile: boolean;
 }
@@ -280,9 +270,9 @@ export interface SwitcherDeviceOption {
 
 /**
  * The registered devices each switcher source slot can read from (part of the
- * obs-controller's configuration surface, provided by the module itself). The
- * renderer shows a select per slot fed by this list: the encoder slot lists
- * encoder/combined devices, the relay slot relay/combined ones.
+ * low-bitrate-switcher module's configuration surface, provided by the module
+ * itself). The renderer shows a select per slot fed by this list: the encoder
+ * slot lists encoder/combined devices, the relay slot relay/combined ones.
  */
 export interface SwitcherMetricSources {
 	encoder: SwitcherDeviceOption[];
@@ -346,16 +336,15 @@ export interface ObsModuleView {
 	obsUrl: string;
 	obsPassword: string | { configured: boolean };
 	sceneEvents: boolean;
-	/** Master switch for the low-bitrate switcher hosted by the obs module. */
-	switcherEnabled: boolean;
-	/** The low-bitrate switcher settings hosted by the obs module. */
-	switcher: LowBitrateSwitcherConfig;
 }
+/** The low-bitrate switcher module's view (its whole slice is non-secret). */
+export type SwitcherModuleView = { enabled: boolean } & SwitcherConfig;
 export interface ModulesView {
 	relay: { enabled: boolean };
 	encoder: { enabled: boolean };
 	modems: { enabled: boolean };
 	"obs-controller": ObsModuleView;
+	"low-bitrate-switcher": SwitcherModuleView;
 }
 /** A dashboard widget type, backed by (or showing) one of a device's modules. */
 export type WidgetType = "obs" | "stats" | "status" | "relay" | "encoder" | "combined" | "kick-stats" | "kick-chat" | "tiktok-chat" | "twitch-chat" | "youtube-chat";

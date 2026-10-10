@@ -1,8 +1,17 @@
-/* Low-bitrate switcher card: live state-machine status (pushed as
- * lowBitrateSwitcher.state) and the module settings form (modules.configure). */
+/* Low-bitrate switcher card (its own module): live state-machine status
+ * (pushed as lowBitrateSwitcher.state) and the module settings form
+ * (lowBitrateSwitcher.save). The form is the defaults source of the module's
+ * config: a field missing from the persisted slice falls back to the inline
+ * default right here (there is no core-side factory or normalizer). */
 import m from "mithril";
 
-import type { Status } from "../../public/types";
+import type {
+  Status,
+  SwitcherDeviceOption,
+  SwitcherMetricSources,
+  SwitcherModuleView,
+  SwitcherStatus,
+} from "../../public/types";
 import {
   actions,
   badge,
@@ -21,12 +30,7 @@ import {
 } from "../../public/ts/components/ui";
 import { since } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
-import type { DeviceCard } from "../../public/ts/device/store";
-import type {
-  SwitcherDeviceOption,
-  SwitcherMetricSources,
-  SwitcherStatus,
-} from "./types";
+import { card, type DeviceCard } from "../../public/ts/device/store";
 
 /** Display label for a source device option. */
 const deviceLabel = (d: SwitcherDeviceOption): string => d.hostname ?? d.id;
@@ -110,28 +114,32 @@ interface SwitcherForm {
 let form: SwitcherForm | undefined;
 let live: SwitcherStatus | null = null;
 
+/** The module's persisted slice (the defaults below apply where a field is absent). */
+const slice = (status: Status): SwitcherModuleView | undefined =>
+  status.modules["low-bitrate-switcher"] as SwitcherModuleView | undefined;
+
 function loadForm(status: Status): SwitcherForm {
-  const c = status.modules["obs-controller"].switcher;
+  const c = slice(status);
   return {
-    autoSwitch: c.switcher.bitrateSwitcherEnabled,
-    encEnabled: c.sources.encoder.enabled,
-    encDeviceId: c.sources.encoder.deviceId,
-    relEnabled: c.sources.relay.enabled,
-    relDeviceId: c.sources.relay.deviceId,
-    lowBitrate: String(c.switcher.triggers.low),
-    offlineBitrate: String(c.switcher.triggers.offline),
-    rtt: String(c.switcher.triggers.rtt),
-    retryAttempts: String(c.switcher.retryAttempts),
-    pollInterval: String(c.switcher.pollIntervalMs),
-    instantlyRecover: c.switcher.instantlySwitchOnRecover,
-    onlySwitchWhenStreaming: c.switcher.onlySwitchWhenStreaming,
-    sceneNormal: c.switcher.switchingScenes.normal,
-    sceneLow: c.switcher.switchingScenes.low,
-    sceneOffline: c.switcher.switchingScenes.offline,
-    sceneStarting: c.optionalScenes.starting,
-    sceneEnding: c.optionalScenes.ending,
-    scenePrivacy: c.optionalScenes.privacy,
-    logToFile: c.logToFile,
+    autoSwitch: c?.autoSwitch ?? true,
+    encEnabled: c?.sources.encoder.enabled ?? false,
+    encDeviceId: c?.sources.encoder.deviceId ?? "",
+    relEnabled: c?.sources.relay.enabled ?? false,
+    relDeviceId: c?.sources.relay.deviceId ?? "",
+    lowBitrate: String(c?.triggers.low ?? 500),
+    offlineBitrate: String(c?.triggers.offline ?? 400),
+    rtt: String(c?.triggers.rtt ?? 1500),
+    retryAttempts: String(c?.retryAttempts ?? 5),
+    pollInterval: String(c?.pollIntervalMs ?? 1000),
+    instantlyRecover: c?.instantlySwitchOnRecover ?? true,
+    onlySwitchWhenStreaming: c?.onlySwitchWhenStreaming ?? false,
+    sceneNormal: c?.scenes.normal ?? "LIVE",
+    sceneLow: c?.scenes.low ?? "LOW",
+    sceneOffline: c?.scenes.offline ?? "BRB",
+    sceneStarting: c?.optionalScenes.starting ?? "STARTING",
+    sceneEnding: c?.optionalScenes.ending ?? "ENDING",
+    scenePrivacy: c?.optionalScenes.privacy ?? "PRIVACY",
+    logToFile: c?.logToFile ?? true,
   };
 }
 
@@ -146,25 +154,24 @@ function toConfig(): Record<string, unknown> {
       encoder: { enabled: f.encEnabled, deviceId: f.encDeviceId },
       relay: { enabled: f.relEnabled, deviceId: f.relDeviceId },
     },
-    switcher: {
-      bitrateSwitcherEnabled: f.autoSwitch,
-      onlySwitchWhenStreaming: f.onlySwitchWhenStreaming,
-      instantlySwitchOnRecover: f.instantlyRecover,
-      retryAttempts: Math.max(
-        1,
-        Math.min(100, Math.floor(Number(f.retryAttempts) || 1)),
-      ),
-      pollIntervalMs: Math.max(200, Math.floor(Number(f.pollInterval) || 1000)),
-      triggers: {
-        low: num(f.lowBitrate),
-        offline: num(f.offlineBitrate),
-        rtt: num(f.rtt),
-      },
-      switchingScenes: {
-        normal: f.sceneNormal,
-        low: f.sceneLow,
-        offline: f.sceneOffline,
-      },
+    failBehaviour: "pause",
+    autoSwitch: f.autoSwitch,
+    onlySwitchWhenStreaming: f.onlySwitchWhenStreaming,
+    instantlySwitchOnRecover: f.instantlyRecover,
+    retryAttempts: Math.max(
+      1,
+      Math.min(100, Math.floor(Number(f.retryAttempts) || 1)),
+    ),
+    pollIntervalMs: Math.max(200, Math.floor(Number(f.pollInterval) || 1000)),
+    triggers: {
+      low: num(f.lowBitrate),
+      offline: num(f.offlineBitrate),
+      rtt: num(f.rtt),
+    },
+    scenes: {
+      normal: f.sceneNormal,
+      low: f.sceneLow,
+      offline: f.sceneOffline,
     },
     optionalScenes: {
       starting: f.sceneStarting,
@@ -176,9 +183,8 @@ function toConfig(): Record<string, unknown> {
 }
 
 function save(host: DeviceCard, status: Status): void {
-  void host.act("switcher-save", "modules.configure", {
-    id: "obs-controller",
-    config: { switcher: toConfig() },
+  void host.act("switcher-save", "lowBitrateSwitcher.save", {
+    config: toConfig(),
   });
 }
 
@@ -201,7 +207,11 @@ function switcherCardBody(
   const s = live ?? status.lowBitrateSwitcher ?? null;
   const busy = host.busy.has("switcher-save");
   return (
-    <Card title={t("lowbs.title")} class={"mod-switcher"}>
+    <Card
+      title={t("lowbs.title")}
+      class={"mod-switcher"}
+      headActions={[switcherEnabledToggle(status)]}
+    >
       {definitionList([
         [
           t("lowbs.row_state"),
@@ -474,12 +484,34 @@ function switcherCardBody(
  * connection host + its switcher state). Returns null when the switcher is
  * not enabled (its toggle then lives in the obs card's head only).
  */
+/**
+ * The master enable / disable — a checkbox in the card's head (it stays
+ * reachable while the engine is off): flips the module's `enabled` flag,
+ * which the backend applies at (re)start through modules.configure.
+ */
+function switcherEnabledToggle(status: Status): m.Vnode {
+  const on = (status.modules["low-bitrate-switcher"] as SwitcherModuleView | undefined)?.enabled === true;
+  return checkField(
+    t("lowbs.enable_switcher"),
+    <input
+      type={"checkbox"}
+      class={"obs-switcher-toggle"}
+      checked={on}
+      onchange={(e: Event) => {
+        void card.act("switcher-enable", "modules.configure", {
+          id: "low-bitrate-switcher",
+          config: { enabled: (e.target as HTMLInputElement).checked },
+        });
+      }}
+    />,
+  );
+}
+
 export function switcherCard(
   host: DeviceCard,
   status: Status,
   liveState: SwitcherStatus | null,
-): m.Vnode | null {
-  if (status.modules["obs-controller"].switcherEnabled !== true) return null;
+): m.Vnode {
   return switcherCardBody(host, status, liveState);
 }
 

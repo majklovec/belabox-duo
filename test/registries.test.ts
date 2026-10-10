@@ -8,12 +8,13 @@ import { modulesView } from "../src/modules";
 
 /**
  * Registry order of the device modules: the result of the registry's topological
- * sort over declared `dependencies`. No module currently declares a hard start
- * dependency, so the order is the stable id-sorted fallback (the old hard-coded
- * CANONICAL_ORDER is gone). If a module later declares `dependencies`, its
- * relative position shifts accordingly and this expectation must be revisited.
+ * sort over declared `dependencies` (id-sorted within equal ranks). The
+ * low-bitrate-switcher declares obs-controller as its only start dependency,
+ * which places it behind the obs module; a new start dependency shifts the
+ * positions accordingly and this expectation must be revisited.
  */
-const DEVICE_ORDER = ["encoder", "modems", "obs-controller", "srtla"];
+// low-bitrate-switcher starts after its dependency obs-controller
+const DEVICE_ORDER = ["encoder", "obs-controller", "low-bitrate-switcher", "modems", "srtla"];
 /** The channel widget modules (device-independent dashboard widgets). */
 const WIDGET_IDS = ["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"];
 
@@ -55,7 +56,7 @@ function scanFrontends(): { dir: string; id: string; kind: string }[] {
 const ids = (): string[] => allModules().map((mod) => mod.id);
 
 describe("module registries", () => {
-	// The device modules are discovered from modules/*/backend.ts, the 4 of
+	// The device modules are discovered from modules/*/backend.ts, the 5 of
 	// them in the canonical dependency order (the registry's start order).
 	test("backend registry enumerates the device modules in order", () => {
 		const deviceIds = ids().filter((id) => DEVICE_ORDER.includes(id));
@@ -115,11 +116,12 @@ describe("module registries", () => {
 	 * the core's own code does not mention). Per-device widget cards go through
 	 * `deviceCardBody(id, …)` (manifest), not a direct import.
 	 *
-	 * One documented seam remains: `dashboard.ts` imports `modules/obs-controller/frontend`
-	 * for the stateful obs panel. That panel's transport types are module-owned
-	 * and cannot be typed through a generic `Panel` signature without the core
-	 * re-declaring obs types (§6 forbids shared types) — so it is allow-listed
-	 * here, not ban-able. Any other `modules/<id>/…` import is an offence.
+	 * Two documented seams remain: `dashboard.ts` imports `modules/obs-controller/frontend`
+	 * for the stateful obs panel and `modules/low-bitrate-switcher/frontend` for the
+	 * switcher card. Their transport types are module-owned and cannot be typed
+	 * through a generic `Panel` signature without the core re-declaring module types
+	 * (§6 forbids shared types) — so they are allow-listed here, not ban-able. Any
+	 * other `modules/<id>/…` import is an offence.
 	 *
 	 * The test itself sits at the project root, so it is not in scope and its
 	 * own expectations never trip the scan.
@@ -127,8 +129,8 @@ describe("module registries", () => {
 	test("core (src/ + public/ts/) names no module by id", () => {
 		const moduleIds = new Set<string>();
 		for (const dir of readdirSync(modulesDir, { withFileTypes: true })) if (dir.isDirectory()) moduleIds.add(dir.name);
-		/** The single sanctioned core→module seams (path suffixes). */
-		const allow = new Set<string>([".generated", "modules/obs-controller/frontend"]);
+		/** The sanctioned core→module seams (path suffixes). */
+		const allow = new Set<string>([".generated", "modules/obs-controller/frontend", "modules/low-bitrate-switcher/frontend"]);
 		const walk = (dir: string): string[] =>
 			readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
 		const filesOf = (root: string): string[] => walk(root).filter((f) => f.endsWith(".ts") || f.endsWith(".tsx"));

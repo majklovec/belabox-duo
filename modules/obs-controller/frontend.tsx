@@ -11,15 +11,11 @@
  */
 import "./styles.css";
 import m from "mithril";
-import { badge, button, Card, checkField } from "../../public/ts/components/ui";
+import { badge, button, Card } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
-import { card, obsRequest, st } from "../../public/ts/device/store";
+import { obsRequest, st } from "../../public/ts/device/store";
 import type { Status } from "../../public/types";
 import type { BridgedModule } from "./types";
-import { handleSwitcherEvent, switcherCard, switcherLive } from "./switcher-frontend";
-// The dashboard's obs widget renders the switcher card under the panel (the
-// core's one documented module import, see REFACTOR-modules.md §7).
-export { switcherCard } from "./switcher-frontend";
 
 // ----------------------------------------------------------------------
 // Panel factory — one instance per render surface, own state and timers
@@ -687,54 +683,19 @@ const panel = createObsPanel({
 	},
 });
 
-/**
- * The switcher's master toggle, hosted in the OBS card's head so it stays
- * reachable while the switcher card itself is hidden (the toggle is a saved
- * OBS configuration parameter — it lands via modules.configure as soon as
- * it flips) and works on standalone OBS boxes too (role "obs" is the only
- * role that runs the obs-controller module there): the obs-client device
- * answers modules.configure and persists the box's own slice.
- */
-function switcherEnableToggle(status: Status | undefined): m.Vnode | null {
-	if (!status) return null;
-	const on = status.modules["obs-controller"].switcherEnabled === true;
-	return checkField(
-		t("lowbs.enable_switcher"),
-		<input
-			type={"checkbox"}
-			class={"obs-switcher-toggle"}
-			checked={on}
-			onchange={(e: Event) => {
-				void card.act("obs-switcher-enable", "modules.configure", {
-					id: "obs-controller",
-					config: { switcherEnabled: (e.target as HTMLInputElement).checked },
-				});
-			}}
-		/>,
-	);
-}
-
 const obsControllerModule: BridgedModule = {
 	id: "obs-controller",
 	kind: "device-card",
 	title: "OBS",
 	defaultSize: { w: 6, h: 13 },
 	minSize: { w: 4, h: 4 },
-	// Two cards: the OBS panel (its head carries the switcher toggle) plus the
-	// low-bitrate switcher card, which only renders while the toggle is on.
-	component: (status?: Status) => [
-		<Card
-			title={t("obs.card")}
-			class={"mod-obs-controller"}
-			headActions={[...panel.head(), switcherEnableToggle(status)]}
-		>
+	component: (status?: Status) => (
+		<Card title={t("obs.card")} class={"mod-obs-controller"} headActions={panel.head()}>
 			{panel.component()}
-		</Card>,
-		status ? switcherCard(card, status, switcherLive()) : null,
-	],
+		</Card>
+	),
 	handleEvent: (event, data) => {
 		panel.handleEvent(event, data);
-		handleSwitcherEvent(event, data);
 	},
 };
 

@@ -544,8 +544,7 @@ const methods: Record<string, Method> = {
 			p.config && typeof p.config === "object" && !Array.isArray(p.config) ? (p.config as Record<string, unknown>) : {};
 		state.settings.modules ??= defaultModules(ROLE);
 		if (id === OBS_MODULE) {
-			// The obs module applies its slice (including the nested switcher
-			// config, 400 on an invalid switcher slice), then re-applies
+			// The obs module applies its slice, then re-applies
 			obsServices.configure(config);
 			saveState();
 			void restartRegisteredModule(id);

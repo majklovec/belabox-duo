@@ -4,11 +4,11 @@
  * `module: "obs-controller"` tag). The obs.* API methods in methods.ts
  * dispatch their raw requests straight to this client.
  *
- * Also hosts the low-bitrate switcher sub-component (switcher.ts): its
- * engine runs on this module's lifecycle, drives scene changes through this
- * client, and its config nests under this module's settings slice.
+ * Its live client is exposed to other modules over the capability bus
+ * (the low-bitrate switcher drives scene changes through it — no second
+ * OBS websocket).
  *
- * Self-contained: wire types are local; the only core edge is the bag.
+ * Self-contained: wire types live in public/types; the only core edge is the bag.
  */
 import { z } from "zod";
 import {
@@ -21,7 +21,6 @@ import {
 	type ObsRequestBatch,
 } from "../../obs-client";
 import type { MCore, Mctx } from "./types";
-import { bindSwitcherCore, startSwitcher, stopSwitcher, switcherServices } from "./switcher";
 
 /** Core bag, filled at bind (discovery) and re-filled at start (a module may not import the core directly). */
 let core: MCore;
@@ -92,10 +91,8 @@ export const obsServices = {
 		return names.reduce((acc, name) => acc | (EVENT_SUBSCRIPTION_LOOKUP[name.toUpperCase()] ?? EventSubscription.None), 0);
 	},
 	/**
-	 * Apply persisted config fields (url / password / sceneEvents / enabled /
-	 * switcherEnabled plus the nested `switcher` slice); caller saves the
-	 * state. Only fields present in `config` are touched; an invalid switcher
-	 * slice is a 400.
+	 * Apply persisted config fields (url / password / sceneEvents / enabled);
+	 * caller saves the state. Only fields present in `config` are touched.
 	 */
 	configure(config: Record<string, unknown>): void {
 		const obs = core.state.settings.modules?.["obs-controller"];
@@ -104,8 +101,6 @@ export const obsServices = {
 		if (typeof config.obsUrl === "string") obs.obsUrl = config.obsUrl;
 		if (typeof config.obsPassword === "string") obs.obsPassword = config.obsPassword;
 		if (typeof config.sceneEvents === "boolean") obs.sceneEvents = config.sceneEvents;
-		if (typeof config.switcherEnabled === "boolean") obs.switcherEnabled = config.switcherEnabled;
-		if (config["switcher"] !== undefined) switcherServices.configure(config["switcher"] as Record<string, unknown>);
 	},
 };
 
@@ -114,7 +109,6 @@ const forward = (name: string, emit: Mctx["emit"]) =>
 		emit("obs.event", { eventType: name, eventIntent: event.eventIntent, eventData: event.eventData });
 
 async function teardown(): Promise<void> {
-	stopSwitcher();
 	obsClient?.disconnect();
 	obsClient = null;
 }
@@ -128,13 +122,10 @@ export default {
 		obsUrl: z.string().optional(),
 		obsPassword: z.string().optional(),
 		sceneEvents: z.boolean().optional(),
-		switcherEnabled: z.boolean().optional(),
-		switcher: z.unknown().optional(),
 	}).passthrough(),
 	secretFields: ["obsPassword"],
 	bind(c: MCore) {
 		core = c;
-		bindSwitcherCore(c);
 	},
 	async start(ctx: Mctx) {
 		core = ctx.core;
@@ -160,24 +151,12 @@ export default {
 		for (const name of FORWARDED_EVENTS) obsClient.on(name, forward(name, ctx.emit));
 		// Synthetic drop event (clearly marked as non-standard by the client)
 		obsClient.on(OBS_DISCONNECTED_EVENT, () => ctx.emit("obs.event", { disconnected: true }));
-		// The low-bitrate switcher sub-component: runs on this module's
-		// lifecycle, scene-switches through this client (no extra websocket),
-		// and only while its OBS-level master switch is on.
-		if (ctx.config["switcherEnabled"] === true) await startSwitcher(ctx, () => obsClient);
 	},
 	async stop() {
 		await teardown();
 	},
 	methods: ["obs.request", "obs.requestBatch", "obs.setEventSubscriptions"] as const,
-	events: ["obs.event", "lowBitrateSwitcher.state"] as const,
-	async status() {
-		// The switcher's live state (null = not running) plus its metric source
-		// options (the module configuration surface that feeds the UI selects)
-		return {
-			lowBitrateSwitcher: switcherServices.status(),
-			switcherMetricSources: switcherServices.metricSources(),
-		};
-	},
+	events: ["obs.event"] as const,
 	async dispatch(method: string, params: Record<string, unknown>) {
 		switch (method) {
 			case "obs.request": {

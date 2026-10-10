@@ -27,11 +27,11 @@ import { createCardHost, type DeviceCard } from "./device/store";
  * signature without the core re-declaring them (§6 "no shared types"). */
 import {
 	createObsPanel,
-	switcherCard,
 	type ObsEvent,
 	type ObsPanel,
 	type ObsRequestResult,
 } from "../../modules/obs-controller/frontend";
+import { switcherCard } from "../../modules/low-bitrate-switcher/frontend";
 import { deviceCardBody, getFrontendModule, widgetModule } from "../../src/registry.frontend";
 import { WIDGET_MODULE_IDS } from "../../public/types";
 import { t } from "./i18n";
@@ -463,12 +463,13 @@ function obsWidget(w: ServerDashboardWidget, conn: Connection | undefined): m.Ch
 	const status = conn.card.st.status;
 	// The dashboard widget card is shared by all widget types, so scope the module CSS
 	// with the same .mod-obs-controller class the device page's card root gets. The
-	// switcher card renders under the panel (and stays hidden until enabled there).
+	// switcher card renders under the panel while enabled on that device.
+	const switcherOn = status?.modules["low-bitrate-switcher"]?.enabled === true;
 	return (
 		<div class={"mod-obs-controller"}>
 			{[
 				obsPanelFor(w, conn).component(),
-				status ? switcherCard(conn.card, status, conn.live.switcher ?? null) : null,
+				status && switcherOn ? switcherCard(conn.card, status, conn.live.switcher ?? null) : null,
 			]}
 		</div>
 	);

@@ -47,12 +47,77 @@ import { ApiError, optionalStringList, requireString } from "./src/params";
 import { errorMessage, scrubUrl, textOf } from "./src/util";
 import { REMOTE_URL_RE } from "./src/validate";
 import { APP_VERSION } from "./src/version";
-import {
-	type LowBitrateSwitcherConfig,
-	type SwitcherDeviceOption,
-	defaultLowBitrateSwitcherConfig,
-	normalizeSwitcherConfig,
-} from "./src/switcher";
+import type { SwitcherConfig, SwitcherDeviceOption } from "./public/types";
+
+const SWITCHER_MODULE = "low-bitrate-switcher";
+
+// Card-form defaults (the box has no factory of its own) — used only for the
+// in-memory slice, so the status always carries the full shape
+const DEFAULT_SWITCHER_SLICE: SwitcherConfig & { enabled: boolean } = {
+  enabled: false,
+  failBehaviour: "pause",
+  autoSwitch: true,
+  onlySwitchWhenStreaming: false,
+  instantlySwitchOnRecover: true,
+  retryAttempts: 5,
+  pollIntervalMs: 1000,
+  triggers: { low: 500, offline: 400, rtt: 1500 },
+  scenes: { normal: "LIVE", low: "LOW", offline: "BRB" },
+  optionalScenes: { starting: "STARTING", ending: "ENDING", privacy: "PRIVACY" },
+  logToFile: true,
+  sources: {
+    encoder: { enabled: false, deviceId: "" },
+    relay: { enabled: false, deviceId: "" },
+  },
+};
+
+// Shape-checked merge of a modules.configure payload into the slice —
+// invalid values are kept as-is (the box persists, it does not run the engine)
+function mergeBoxSwitcherConfig(
+  cur: SwitcherConfig & { enabled: boolean },
+  raw: Record<string, unknown>,
+): SwitcherConfig & { enabled: boolean } {
+  const next: SwitcherConfig & { enabled: boolean } = {
+    ...cur,
+    triggers: { ...cur.triggers },
+    scenes: { ...cur.scenes },
+    optionalScenes: { ...cur.optionalScenes },
+    sources: {
+      encoder: { ...cur.sources.encoder },
+      relay: { ...cur.sources.relay },
+    },
+  };
+  if (typeof raw.enabled === "boolean") next.enabled = raw.enabled;
+  for (const key of ["autoSwitch", "onlySwitchWhenStreaming", "instantlySwitchOnRecover", "logToFile"] as const)
+    if (typeof raw[key] === "boolean") next[key] = raw[key];
+  if (raw.failBehaviour === "pause" || raw.failBehaviour === "ignore") next.failBehaviour = raw.failBehaviour;
+  if (typeof raw.retryAttempts === "number" && Number.isInteger(raw.retryAttempts) && raw.retryAttempts >= 1 && raw.retryAttempts <= 100)
+    next.retryAttempts = raw.retryAttempts;
+  if (typeof raw.pollIntervalMs === "number" && raw.pollIntervalMs >= 200 && raw.pollIntervalMs <= 3_600_000)
+    next.pollIntervalMs = raw.pollIntervalMs;
+  for (const key of Object.keys(next.triggers) as Array<keyof typeof next.triggers>) {
+    const v = (raw.triggers as Record<string, unknown> | undefined)?.[key];
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) next.triggers[key] = v;
+  }
+  for (const key of Object.keys(next.scenes) as Array<keyof typeof next.scenes>) {
+    const v = (raw.scenes as Record<string, unknown> | undefined)?.[key];
+    if (typeof v === "string" && v.length > 0 && v.length <= 255) next.scenes[key] = v;
+  }
+  for (const key of Object.keys(next.optionalScenes) as Array<keyof typeof next.optionalScenes>) {
+    const v = (raw.optionalScenes as Record<string, unknown> | undefined)?.[key];
+    if (typeof v === "string" && v.length > 0 && v.length <= 255) next.optionalScenes[key] = v;
+  }
+  for (const key of ["encoder", "relay"] as const) {
+    const s = raw.sources && typeof (raw.sources as Record<string, unknown>) === "object"
+      ? ((raw.sources as Record<string, unknown>)[key] as Record<string, unknown> | undefined)
+      : undefined;
+    if (s && typeof s === "object") {
+      if (typeof s.enabled === "boolean") next.sources[key].enabled = s.enabled;
+      if (typeof s.deviceId === "string") next.sources[key].deviceId = s.deviceId;
+    }
+  }
+  return next;
+}
 
 export enum ObsOpCode {
   Hello = 0,
@@ -667,20 +732,44 @@ async function main(): Promise<void> {
 
   // Stable device identity: the uuid is assigned once and persisted, so the
   // control server (and its dashboards) keep seeing the same device. The
-  // state file also carries the obs-controller's switcher config (the box
-  // runs only the obs module, so there is no full state.settings here).
+  // state file also carries the switcher's slice (the box persists settings
+  // only; the engine itself runs on the full box). Pre-extraction state
+  // files stored the switcher under the obs slice (switcherEnabled + nested
+  // switcher) — that shape is merged into the flat slice once, here.
   const stored = (await Bun.file(stateFile).json().catch(() => null)) as
-    | { uuid?: string; switcherEnabled?: boolean; switcher?: unknown }
+    | {
+        uuid?: string;
+        "low-bitrate-switcher"?: unknown;
+        switcherEnabled?: boolean;
+        switcher?: Record<string, unknown> & { enabled?: boolean };
+      }
     | null;
   const uuid = arg("--uuid") ?? stored?.uuid ?? crypto.randomUUID();
-  const obsConfig = {
-    switcherEnabled: stored?.switcherEnabled === true,
-    switcher: normalizeSwitcherConfig(stored?.switcher) ?? defaultLowBitrateSwitcherConfig(),
+  const storedSlice = stored?.["low-bitrate-switcher"] as
+    | (Partial<SwitcherConfig> & { enabled?: boolean })
+    | undefined;
+  let switcherSlice: SwitcherConfig & { enabled: boolean };
+  if (storedSlice) {
+    switcherSlice = { ...DEFAULT_SWITCHER_SLICE, ...storedSlice };
+  } else {
+    // Pre-extraction shape: obs-level `switcherEnabled` plus a nested slice
+    // with legacy field names (bitrateSwitcherEnabled/switchingScenes)
+    const legacy = { ...(stored?.switcher ?? {}) } as Record<string, unknown>;
+    const legacyEnabled =
+      stored?.switcherEnabled === true || legacy.enabled === true;
+    delete legacy.enabled;
+    delete legacy.bitrateSwitcherEnabled;
+    delete legacy.switchingScenes;
+    delete legacy.obsController;
+    switcherSlice = { ...DEFAULT_SWITCHER_SLICE, ...legacy, enabled: legacyEnabled };
+  }
+  const writeBoxState = async (): Promise<void> => {
+    await Bun.write(
+      stateFile,
+      JSON.stringify({ uuid, "low-bitrate-switcher": switcherSlice }, null, 2),
+    );
   };
-  await Bun.write(
-    stateFile,
-    JSON.stringify({ uuid, ...obsConfig }, null, 2),
-  );
+  await writeBoxState();
 
   const obs = new ObsClient({
     url: obsUrl,
@@ -779,9 +868,9 @@ async function main(): Promise<void> {
         obsUrl,
         obsPassword: obsPassword ? { configured: true } : "",
         sceneEvents: true,
-        switcherEnabled: obsConfig.switcherEnabled,
-        switcher: obsConfig.switcher,
       },
+      // The switcher's persisted slice (the engine itself never runs here)
+      [SWITCHER_MODULE]: switcherSlice,
     },
   });
 
@@ -847,24 +936,18 @@ async function main(): Promise<void> {
           break;
         }
         case "modules.configure": {
-          // The obs box runs only the obs-controller module; the browser's
-          // switcher toggle and form send their config here. obsUrl /
-          // obsPassword / sceneEvents are CLI-driven and ignored.
+          // The browser's switcher toggle and form send their config here;
+          // obsUrl / obsPassword / sceneEvents are CLI-driven and ignored.
           const id = requireString(params, "id");
-          if (id !== OBS_MODULE) throw new ApiError(`Unknown module: ${id}`, 404);
+          if (id !== OBS_MODULE && id !== SWITCHER_MODULE) throw new ApiError(`Unknown module: ${id}`, 404);
           const config =
             params.config && typeof params.config === "object" && !Array.isArray(params.config)
               ? (params.config as Record<string, unknown>)
               : {};
-          if (typeof config.switcherEnabled === "boolean") obsConfig.switcherEnabled = config.switcherEnabled;
-          if (config.switcher !== undefined) {
-            const next = normalizeSwitcherConfig(config.switcher);
-            if (!next) throw new ApiError("invalid switcher config", 400);
-            obsConfig.switcher = next;
-          }
-          await Bun.write(stateFile, JSON.stringify({ uuid, ...obsConfig }, null, 2));
+          if (id === SWITCHER_MODULE) switcherSlice = mergeBoxSwitcherConfig(switcherSlice, config);
+          await writeBoxState();
           pushStatus();
-          result = { ok: true, switcherEnabled: obsConfig.switcherEnabled, switcher: obsConfig.switcher };
+          result = { ok: true };
           break;
         }
         default:

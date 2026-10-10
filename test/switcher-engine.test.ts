@@ -1,19 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import {
-    defaultLowBitrateSwitcherConfig,
-    type LowBitrateSwitcherConfig,
-} from "../src/switcher";
-import {
-    type SwitcherMetrics,
     type SwitcherActiveSources,
-} from "../modules/obs-controller/types";
+    type SwitcherConfig,
+    type SwitcherMetrics,
+} from "../public/types";
 import {
     determineState,
-    normalizeSwitcherConfig,
     SwitcherEngine,
     type ObsSnapshot,
     type SwitcherDeps,
-} from "../modules/obs-controller/switcher-engine";
+} from "../modules/low-bitrate-switcher/switcher-engine";
 
 const SOURCES: SwitcherActiveSources = { encoder: "encoder", relay: null };
 
@@ -52,16 +48,25 @@ function makeDeps(opts: DepsOpts = {}): {
     return { deps, scenes, logs, updated };
 }
 
-/** The defaults with the given switcher-level patch. */
-const cfg = (switcherPatch: Partial<LowBitrateSwitcherConfig["switcher"]> = {}): LowBitrateSwitcherConfig => {
-    const c = normalizeSwitcherConfig({})!;
-    c.switcher = { ...c.switcher, ...switcherPatch };
-    return c;
-};
+/** The defaults (the card form's) with the given patch. */
+const cfg = (patch: Partial<SwitcherConfig> = {}): SwitcherConfig => ({
+    failBehaviour: "pause",
+    autoSwitch: true,
+    onlySwitchWhenStreaming: false,
+    instantlySwitchOnRecover: true,
+    pollIntervalMs: 1000,
+    retryAttempts: 5,
+    triggers: { low: 500, offline: 400, rtt: 1500 },
+    scenes: { normal: "LIVE", low: "LOW", offline: "BRB" },
+    optionalScenes: { starting: "STARTING", ending: "ENDING", privacy: "PRIVACY" },
+    logToFile: true,
+    sources: { encoder: { enabled: false, deviceId: "" }, relay: { enabled: false, deviceId: "" } },
+    ...patch,
+});
 
 /** Run fn with a started (and stopped) engine. */
 async function withEngine(
-    config: LowBitrateSwitcherConfig,
+    config: SwitcherConfig,
     deps: SwitcherDeps,
     fn: (engine: SwitcherEngine) => Promise<void>,
 ): Promise<void> {
@@ -80,7 +85,7 @@ const offline: SwitcherMetrics = { bitrateKbps: 300, rttMs: 50, connected: true,
 
 describe("determineState", () => {
     test("master switch off forces NORMAL", () => {
-        expect(determineState(offline, cfg({ bitrateSwitcherEnabled: false }))).toBe("NORMAL");
+        expect(determineState(offline, cfg({ autoSwitch: false }))).toBe("NORMAL");
     });
     test("disconnected source is OFFLINE", () => {
         expect(determineState({ ...good, connected: false }, cfg())).toBe("OFFLINE");
@@ -217,8 +222,7 @@ describe("SwitcherEngine", () => {
     });
 
     test("failBehaviour ignore: keeps the state, never touches the scene", async () => {
-        const c = cfg({ retryAttempts: 2 });
-        c.obsController = { moduleId: "obs-controller", failBehaviour: "ignore" };
+        const c = cfg({ retryAttempts: 2, failBehaviour: "ignore" });
         const { deps, scenes, logs } = makeDeps({ metrics: offline, obs: { connected: false, streaming: false, scene: "LIVE" } });
         await withEngine(c, deps, async (engine) => {
             await engine.tick();
@@ -300,25 +304,3 @@ describe("SwitcherEngine", () => {
     });
 });
 
-describe("normalizeSwitcherConfig", () => {
-    test("non-object input is rejected", () => {
-        expect(normalizeSwitcherConfig(null)).toBeNull();
-        expect(normalizeSwitcherConfig("x")).toBeNull();
-        expect(normalizeSwitcherConfig([])).toBeNull();
-    });
-
-    test("empty input yields the factory defaults", () => {
-        const c = normalizeSwitcherConfig({});
-        expect(c).toEqual(defaultLowBitrateSwitcherConfig());
-    });
-
-    test("partially valid input merges over the defaults", () => {
-        const c = normalizeSwitcherConfig({
-            switcher: { triggers: { low: 100, offline: -5, rtt: 4000 }, retryAttempts: "fast" },
-        })!;
-        expect(c.switcher.triggers.low).toBe(100);
-        expect(c.switcher.triggers.offline).toBe(400); // invalid: default kept
-        expect(c.switcher.triggers.rtt).toBe(4000);
-        expect(c.switcher.retryAttempts).toBe(5); // invalid: default kept
-    });
-});

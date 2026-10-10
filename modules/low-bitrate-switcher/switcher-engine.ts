@@ -1,18 +1,17 @@
 /**
- * The low-bitrate switcher engine — the pure state machine inside the
- * obs-controller module: decides NORMAL / LOW / OFFLINE from metrics,
+ * The low-bitrate switcher engine — the pure state machine of the
+ * low-bitrate-switcher module: decides NORMAL / LOW / OFFLINE from metrics,
  * accumulates retry counts, and drives scene switches. No device wiring here
  * (no OBS, no sources, no disk): everything comes through `SwitcherDeps`, so
- * the whole behaviour is unit-testable. Glue: switcher.ts alongside.
+ * the whole behaviour is unit-testable.
  */
-import {
-	defaultLowBitrateSwitcherConfig,
-	type LowBitrateSwitcherConfig,
-	type SwitcherMetrics,
-	type SwitcherState,
-	type SwitcherStatus,
-	type SwitcherActiveSources,
-} from "./types";
+import type {
+	SwitcherActiveSources,
+	SwitcherConfig,
+	SwitcherMetrics,
+	SwitcherState,
+	SwitcherStatus,
+} from "../../public/types";
 
 /** One OBS sample as the engine sees it (from the selected controller). */
 export interface ObsSnapshot {
@@ -51,13 +50,12 @@ const SCENE_FOR_STATE: Record<SwitcherState, "normal" | "low" | "offline"> = {
  *   otherwise                  -> NORMAL
  * Null metrics (source unavailable) count as NORMAL, never as a switch-off.
  */
-export function determineState(metrics: SwitcherMetrics, config: LowBitrateSwitcherConfig): SwitcherState {
-	const { bitrateSwitcherEnabled, triggers } = config.switcher;
-	if (!bitrateSwitcherEnabled) return "NORMAL";
+export function determineState(metrics: SwitcherMetrics, config: SwitcherConfig): SwitcherState {
+	if (!config.autoSwitch) return "NORMAL";
 	if (metrics.connected === false) return "OFFLINE";
-	if (metrics.bitrateKbps !== null && metrics.bitrateKbps < triggers.offline) return "OFFLINE";
-	if (metrics.bitrateKbps !== null && metrics.bitrateKbps < triggers.low) return "LOW";
-	if (metrics.rttMs !== null && metrics.rttMs > triggers.rtt) return "LOW";
+	if (metrics.bitrateKbps !== null && metrics.bitrateKbps < config.triggers.offline) return "OFFLINE";
+	if (metrics.bitrateKbps !== null && metrics.bitrateKbps < config.triggers.low) return "LOW";
+	if (metrics.rttMs !== null && metrics.rttMs > config.triggers.rtt) return "LOW";
 	return "NORMAL";
 }
 
@@ -75,7 +73,7 @@ export class SwitcherEngine {
 	private updatedAt = 0;
 
 	constructor(
-		private config: LowBitrateSwitcherConfig,
+		private config: SwitcherConfig,
 		private deps: SwitcherDeps,
 	) {}
 
@@ -83,8 +81,8 @@ export class SwitcherEngine {
 		return this.running;
 	}
 
-	/** Re-apply config (after modules.configure); keeps the running tick. */
-	updateConfig(config: LowBitrateSwitcherConfig): void {
+	/** Re-apply config (after `lowBitrateSwitcher.save`); keeps the running tick. */
+	updateConfig(config: SwitcherConfig): void {
 		this.config = config;
 	}
 
@@ -92,7 +90,7 @@ export class SwitcherEngine {
 	start(): void {
 		this.stop();
 		this.running = true;
-		const intervalMs = Math.max(200, this.config.switcher.pollIntervalMs);
+		const intervalMs = Math.max(200, this.config.pollIntervalMs);
 		this.timer = setInterval(() => {
 			void this.tick();
 		}, intervalMs);
@@ -129,7 +127,7 @@ export class SwitcherEngine {
 
 	private async runPoll(): Promise<void> {
 		// Engine master switch off: stay put, refresh the OBS snapshot only.
-		if (!this.config.switcher.bitrateSwitcherEnabled) {
+		if (!this.config.autoSwitch) {
 			this.sampleObs();
 			this.active = false;
 			this.resetRetry();
@@ -145,13 +143,13 @@ export class SwitcherEngine {
 		}
 
 		if (!obs.connected) {
-			if (this.config.obsController.failBehaviour === "pause") {
+			if (this.config.failBehaviour === "pause") {
 				this.active = false;
 				this.resetRetry();
 				return;
 			}
 			// "ignore": keep evaluating, but scene switches are off the table below.
-		} else if (this.config.switcher.onlySwitchWhenStreaming && !obs.streaming) {
+		} else if (this.config.onlySwitchWhenStreaming && !obs.streaming) {
 			this.active = false;
 			this.resetRetry();
 			return;
@@ -185,7 +183,7 @@ export class SwitcherEngine {
 			return;
 		}
 
-		const scenes = new Set(Object.values(this.config.switcher.switchingScenes));
+		const scenes = new Set(Object.values(this.config.scenes));
 		const inSwitchingScenes = obs.scene !== null && scenes.has(obs.scene);
 		if (onOptionalScene || !inSwitchingScenes) {
 			// Scene guard: OBS must sit on a switching scene; no retry buildup.
@@ -199,12 +197,12 @@ export class SwitcherEngine {
 		}
 
 		const recover = desired === "NORMAL";
-		if (recover && this.config.switcher.instantlySwitchOnRecover) {
+		if (recover && this.config.instantlySwitchOnRecover) {
 			await this.doSwitch();
 			return;
 		}
 		this.retryCount += 1;
-		if (this.retryCount >= this.config.switcher.retryAttempts) {
+		if (this.retryCount >= this.config.retryAttempts) {
 			await this.doSwitch();
 		}
 	}
@@ -222,7 +220,7 @@ export class SwitcherEngine {
 	}
 
 	private async doSwitch(): Promise<void> {
-		const scene = this.config.switcher.switchingScenes[SCENE_FOR_STATE[this.desired]];
+		const scene = this.config.scenes[SCENE_FOR_STATE[this.desired]];
 		this.retryCount = 0;
 		const ok = await this.deps.setScene(scene);
 		if (ok) {
@@ -240,71 +238,3 @@ export class SwitcherEngine {
 	}
 }
 
-/**
- * Merge a raw config slice (RPC body / persisted settings) with the factory
- * defaults and validate it field by field. Returns the normalized config, or
- * null when the input is not a settings object at all (the caller keeps the
- * module disabled then — an unparseable config must not switch scenes).
- */
-export function normalizeSwitcherConfig(raw: unknown): LowBitrateSwitcherConfig | null {
-	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-	const r = raw as Record<string, unknown>;
-	const out = structuredClone(defaultLowBitrateSwitcherConfig());
-
-	const asBool = (v: unknown): boolean | undefined => (typeof v === "boolean" ? v : undefined);
-	const asNonEmptyString = (v: unknown): string | undefined =>
-		typeof v === "string" && v.trim() !== "" ? v : undefined;
-	const asInt = (v: unknown, min: number, max: number): number | undefined =>
-		typeof v === "number" && Number.isInteger(v) && v >= min && v <= max ? v : undefined;
-
-	const asObject = (v: unknown): Record<string, unknown> | null =>
-		v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
-
-	// Sources
-	const sources = asObject(r.sources) ?? {};
-	for (const key of ["encoder", "relay"] as const) {
-		const s = asObject(sources[key]) ?? {};
-		const b = asBool(s.enabled);
-		if (b !== undefined) out.sources[key].enabled = b;
-		const id = asNonEmptyString(s.deviceId);
-		if (id) out.sources[key].deviceId = id;
-	}
-	// OBS controller
-	const oc = asObject(r.obsController) ?? {};
-	const ocId = asNonEmptyString(oc.moduleId);
-	if (ocId) out.obsController.moduleId = ocId;
-	if (oc.failBehaviour === "pause" || oc.failBehaviour === "ignore") out.obsController.failBehaviour = oc.failBehaviour;
-
-	// Engine
-	const sw = asObject(r.switcher) ?? {};
-	const swEnabled = asBool(sw.bitrateSwitcherEnabled);
-	if (swEnabled !== undefined) out.switcher.bitrateSwitcherEnabled = swEnabled;
-	const oss = asBool(sw.onlySwitchWhenStreaming);
-	if (oss !== undefined) out.switcher.onlySwitchWhenStreaming = oss;
-	const isr = asBool(sw.instantlySwitchOnRecover);
-	if (isr !== undefined) out.switcher.instantlySwitchOnRecover = isr;
-	const ra = asInt(sw.retryAttempts, 1, 100);
-	if (ra !== undefined) out.switcher.retryAttempts = ra;
-	const pi = asInt(sw.pollIntervalMs, 200, 3_600_000);
-	if (pi !== undefined) out.switcher.pollIntervalMs = pi;
-	const trig = asObject(sw.triggers) ?? {};
-	for (const k of ["low", "offline", "rtt"] as const) {
-		const v = asInt(trig[k], 0, 100_000_000);
-		if (v !== undefined) out.switcher.triggers[k] = v;
-	}
-	const wc = asObject(sw.switchingScenes) ?? {};
-	for (const k of ["normal", "low", "offline"] as const) {
-		const s = asNonEmptyString(wc[k]);
-		if (s) out.switcher.switchingScenes[k] = s;
-	}
-	const osc = asObject(r.optionalScenes) ?? {};
-	for (const k of ["starting", "ending", "privacy"] as const) {
-		const s = asNonEmptyString(osc[k]);
-		if (s) out.optionalScenes[k] = s;
-	}
-
-	const ltf = asBool(r.logToFile);
-	if (ltf !== undefined) out.logToFile = ltf;
-
-	return out;
-}

@@ -1,22 +1,36 @@
 /*
- * Local types for the obs-controller module (never imported by the core or
- * other modules): structural copies of the core bag and the frontend
- * registration. Wire types live in public/types.ts (the documented wire
- * vocabulary).
+ * Local types for the low-bitrate-switcher module (never imported by the core
+ * or other modules). The wire shapes come from public/types.ts (the documented
+ * wire vocabulary); the core bag and the obs capability are structural copies.
  */
+
+/** Devices each source slot may read from, by registry role. */
+export const SWITCHER_SOURCE_ROLES: { encoder: readonly string[]; relay: readonly string[] } = {
+	encoder: ["encoder", "combined"],
+	relay: ["relay", "combined"],
+};
+
+/** The obs module's service record (capability `obs.controller`), structurally. */
+export interface ObsServices {
+	/** The module's live OBS websocket (null: module not started / no url). */
+	client(): {
+		connected: boolean;
+		identified: boolean;
+		sendRequest(request: {
+			requestType: string;
+			requestId: string;
+			requestData: Record<string, unknown>;
+		}): Promise<{ requestStatus: { result: boolean }; responseData?: Record<string, unknown> }>;
+		on(event: string, handler: (data: Record<string, unknown>) => void): void;
+	} | null;
+}
 
 /** The slice of the core bag this module uses. */
 export interface MCore {
 	config: { LOG_FILE: string };
 	state: {
 		settings: {
-			modules?: Record<string, {
-				enabled?: boolean;
-				obsUrl?: string;
-				obsPassword?: string;
-				sceneEvents?: boolean;
-				[key: string]: unknown;
-			}>;
+			modules?: Record<string, { enabled?: boolean; [key: string]: unknown }>;
 		};
 	};
 	saveState(): Promise<void>;
@@ -24,7 +38,6 @@ export interface MCore {
 	ApiError: new (message: string, code?: number) => Error & { code: number };
 	/** Capability bus (capability names, never module ids). */
 	requireCapability: <T = unknown>(name: string) => T;
-	moduleById: (id: string) => { id: string; status?: () => Promise<Record<string, unknown>> } | undefined;
 	/** The control server's registry — the devices registered on it. */
 	listDevices(): Promise<Array<{ id: string; hostname?: string; role?: string; online: boolean }>>;
 	/** Request a method on another registered device (server-mediated). */

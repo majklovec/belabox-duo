@@ -27,6 +27,12 @@ export function configureModule(id: string, config: Record<string, unknown>): vo
             // Subprocess wiring follows the process role and applies on restart
             break;
         }
+        case "low-bitrate-switcher": {
+            // Only the `enabled` toggle is handled here; the full settings go
+            // through the module's own lowBitrateSwitcher.save method
+            if (typeof config.enabled === "boolean") m["low-bitrate-switcher"].enabled = config.enabled;
+            break;
+        }
     }
 }
 
@@ -44,9 +50,8 @@ export function modulesView(): object {
             obsUrl: obs.obsUrl,
             obsPassword: obs.obsPassword ? { configured: true } : { configured: false },
             sceneEvents: obs.sceneEvents,
-            switcherEnabled: obs.switcherEnabled,
-            // No secrets in the switcher config: the whole slice goes to the client
-            switcher: obs.switcher,
         },
+        // No secrets in the switcher settings: the whole slice goes to the client
+        "low-bitrate-switcher": m["low-bitrate-switcher"],
     };
 }
