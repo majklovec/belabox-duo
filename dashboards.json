@@ -3,7 +3,7 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 138,
+      "version": 139,
       "widgets": [
         {
           "id": "34aad0a5-0102-4cb0-bd3b-d50009aec4f1",
@@ -64,6 +64,17 @@
           "y": 0,
           "w": 4,
           "h": 17,
+          "visible": true
+        },
+        {
+          "id": "05e82e70-92a8-4e49-916b-96daf50f1b05",
+          "deviceId": "334a2831-30a5-465a-bbd5-97d5d9260c0e",
+          "type": "obs",
+          "name": "OBS Studio",
+          "x": 4,
+          "y": 4,
+          "w": 6,
+          "h": 13,
           "visible": true
         }
       ],
