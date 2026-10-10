@@ -42,7 +42,7 @@
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SwitcherConfig, SwitcherDeviceOption } from "./public/types";
-import { arg, argFail, intArg } from "./src/args";
+import { arg, argFail, flag, intArg } from "./src/args";
 import { ApiError, optionalStringList, requireString } from "./src/params";
 import { errorMessage, scrubUrl, textOf } from "./src/util";
 import { REMOTE_URL_RE } from "./src/validate";
@@ -760,6 +760,17 @@ async function main(): Promise<void> {
 	const deviceName = arg("--hostname", hostname());
 	const stateFile = arg("--state-file", join(tmpdir(), "obs-client.json"));
 
+	if (flag("--help") || flag("-h")) {
+		console.log(
+			"Usage: bun obs-client.ts --remote ws://host:port/device" +
+				" [--obs ws://127.0.0.1:4455] [--obs-password pw]" +
+				" [--remote-token pw] [--hostname name] [--state-file path] [--uuid uuid]",
+		);
+		console.log(
+			"The token/URL may also come from SRTLA_REMOTE_TOKEN / SRTLA_REMOTE_URL and OBS_PASSWORD env vars.",
+		);
+		process.exit(0);
+	}
 	if (!remoteUrl) {
 		console.error(
 			"Usage: bun obs-client.ts --remote ws://host:port/device" +
@@ -1233,4 +1244,25 @@ async function main(): Promise<void> {
 	connect();
 }
 
-void main();
+// Only run as a standalone proxy when this file is the entry point; the
+// ObsClient class and helpers are also imported in-process (the relay's
+// obs-controller module, tests). In compiled binaries (`bun build
+// --compile`) both argv[1] and import.meta.url live in Bun's virtual
+// /$bunfs filesystem, so the path comparison can never match there —
+// treat that prefix as "we are the executable".
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const isEntry = (() => {
+	if (import.meta.url.startsWith("file:///$bunfs/")) return true;
+	const target = process.argv[1];
+	if (!target) return false;
+	try {
+		return realpathSync(fileURLToPath(import.meta.url)) ===
+			realpathSync(target);
+	} catch {
+		return false;
+	}
+})();
+
+if (isEntry) void main();
