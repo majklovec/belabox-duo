@@ -55,6 +55,8 @@ interface SrtlaStatsResult {
 }
 
 let core: MCore;
+/** The slice the registry handed over at start (fallback for moduleSlice). */
+let startCfg: Record<string, unknown> | null = null;
 /** The control server's registry, cached per start (refreshed at start + per poll). */
 let deviceList: SwitcherDeviceOption[] | null = null;
 let cfg: SliceConfig;
@@ -67,10 +69,18 @@ let fileLogBroken = false;
 
 const fileLog = (): string => join(dirname(core.config.LOG_FILE), "lowBitrateSwitcher.log");
 
-/** The module's own persisted slice (the registry hands it over via ctx.config). */
-function moduleSlice(): SliceConfig {
-	const stored = core.state.settings.modules?.[MODULE_ID] as Record<string, unknown> | undefined;
-	return stored as unknown as SliceConfig;
+/**
+ * The module's own persisted slice (the registry hands it over via
+ * ctx.config, kept as a fallback when the state slice is absent). Incomplete
+ * slices (no `sources`) resolve to null: the module idles until the card form
+ * saves — a crash here would take the whole client down.
+ */
+function moduleSlice(): SliceConfig | null {
+	const stored =
+		core.state.settings.modules?.[MODULE_ID] ?? (startCfg ? { enabled: true, ...startCfg } : undefined);
+	return stored && typeof stored["sources"] === "object" && stored["sources"] !== null
+		? (stored as unknown as SliceConfig)
+		: null;
 }
 
 /**
@@ -79,7 +89,12 @@ function moduleSlice(): SliceConfig {
  * of the expected shape. The form is the source of the defaults.
  */
 function applyConfig(raw: Record<string, unknown>): SliceConfig {
-	const out: SliceConfig = structuredClone(cfg);
+	// No previous value (the module idled on an incomplete slice): the form's
+	// full slice — which carries the defaults by design — is the base.
+	const base: SliceConfig = cfg
+		? structuredClone(cfg)
+		: ({ enabled: true, ...raw } as SliceConfig);
+	const out: SliceConfig = structuredClone(base);
 	const src = (inKey: "encoder" | "relay", v: unknown): SwitcherSourceConfig => {
 		const o = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 		return {
@@ -308,7 +323,7 @@ async function collectMetrics(): Promise<SwitcherMetrics | null> {
 
 function moduleLog(level: "info" | "warn" | "error", message: string): void {
 	core.logEvent(level, SECTION, message);
-	if (cfg.logToFile && !fileLogBroken) {
+	if (cfg?.logToFile && !fileLogBroken) {
 		const line = `${JSON.stringify({ at: Date.now(), level, message })}\n`;
 		const path = fileLog();
 		mkdir(dirname(path), { recursive: true })
@@ -322,7 +337,16 @@ function moduleLog(level: "info" | "warn" | "error", message: string): void {
 // ------------------------------------------------------------------------ engine
 
 async function startEngine(): Promise<void> {
-	cfg = moduleSlice();
+	const slice = moduleSlice();
+	if (!slice) {
+		core.logEvent(
+			"warn",
+			SECTION,
+			"no complete configuration is persisted yet; starting idle until the card form saves",
+		);
+		return;
+	}
+	cfg = slice;
 	await refreshDeviceList();
 	sources = resolveSources();
 	engine = new SwitcherEngine(cfg, {
@@ -387,6 +411,7 @@ export default {
 	async start(ctx: Mctx) {
 		core = ctx.core;
 		emit = ctx.emit;
+		startCfg = ctx.config;
 		if (ctx.config.enabled !== true) return;
 		await stopEngine();
 		await startEngine();
@@ -418,13 +443,17 @@ export default {
 				Object.assign(slice, next);
 				core.state.settings.modules![MODULE_ID] = slice;
 				await core.saveState();
-				// Hot-apply: the running engine picks the new values up right away
+				// Hot-apply: the running engine picks the new values up right
+				// away; a module that idled on an incomplete slice starts now
+				// (the persisted slice above is complete).
 				if (engine) {
 					cfg = next;
 					await refreshDeviceList();
 					sources = resolveSources();
 					engine.updateConfig(cfg);
 					engine.start();
+				} else {
+					await startEngine();
 				}
 				return { ok: true };
 			}

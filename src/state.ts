@@ -82,6 +82,30 @@ export const MODULE_CONFIG_KEYS: Record<string, string> = {
 export type ModuleId = (typeof ALL_MODULES)[number];
 
 export const OBS_MODULE = "obs-controller" as const;
+
+/**
+ * The switcher slice's core-side defaults — the same values the frontend form
+ * carries, so a slice seeded (or backfilled) on first run is complete and the
+ * module can start before the card form has ever saved.
+ */
+const SWITCHER_DEFAULTS: ModulesState["low-bitrate-switcher"] = {
+    enabled: true,
+    sources: {
+        encoder: { enabled: false, deviceId: "" },
+        relay: { enabled: false, deviceId: "" },
+    },
+    failBehaviour: "pause",
+    autoSwitch: true,
+    onlySwitchWhenStreaming: false,
+    instantlySwitchOnRecover: true,
+    retryAttempts: 5,
+    pollIntervalMs: 1000,
+    triggers: { low: 500, offline: 400, rtt: 1500 },
+    scenes: { normal: "", low: "", offline: "" },
+    optionalScenes: { starting: "", ending: "", privacy: "" },
+    logToFile: true,
+};
+
 export interface ModulesState {
     relay: { enabled: boolean };
     encoder: { enabled: boolean };
@@ -159,7 +183,8 @@ function projectConfig(s: PersistentState): DeviceConfig {
     return cfg;
 }
 
-function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
+// Exported for the backfill regression tests (test/state.test.ts)
+export function fromConfig(cfg: Partial<DeviceConfig> | null): PersistentState {
     const section: Partial<SrtlaConfig> = cfg?.srtla ?? {};
     const hasTarget = !!(section.listenPort || section.remoteHost || section.remotePort);
     const target = hasTarget
@@ -205,9 +230,9 @@ export function defaultModules(role?: Role): ModulesState {
         encoder: { enabled: on.has("encoder") },
         modems: { enabled: on.has("modems") },
         "obs-controller": { enabled: false, obsUrl: "", obsPassword: "", sceneEvents: true },
-        // The settings (sources, triggers, scenes...) are filled in by the card
-        // form on first save. The module is always on — it rides on OBS.
-        "low-bitrate-switcher": { enabled: true } as ModulesState["low-bitrate-switcher"],
+        // The card form refines the settings on first save; the module is
+        // always on — it rides on OBS — and starts on the complete defaults.
+        "low-bitrate-switcher": { ...SWITCHER_DEFAULTS },
     };
 }
 
@@ -236,6 +261,23 @@ function backfillModules(stored: Partial<ModulesState> | undefined, role?: Role)
     const storedObs = rest["obs-controller"] as { switcherEnabled?: boolean } | undefined;
     if (storedObs?.switcherEnabled === true && (out["low-bitrate-switcher"] as { enabled?: boolean }).enabled !== false)
         out["low-bitrate-switcher"].enabled = true;
+    // Slices stored before a field existed (e.g. the first `{ enabled: true }`
+    // seed) are completed field by field; stored values win over the defaults
+    const sw = out["low-bitrate-switcher"] as unknown as Record<string, unknown>;
+    const rec = (v: unknown): Record<string, unknown> | undefined =>
+        v && typeof v === "object" ? (v as Record<string, unknown>) : undefined;
+    const fill = (key: string, fallback: object): void => {
+        sw[key] = { ...fallback, ...rec(sw[key]) };
+    };
+    fill("sources", {
+        encoder: { ...SWITCHER_DEFAULTS.sources.encoder, ...rec(rec(sw.sources)?.["encoder"]) },
+        relay: { ...SWITCHER_DEFAULTS.sources.relay, ...rec(rec(sw.sources)?.["relay"]) },
+    });
+    fill("triggers", SWITCHER_DEFAULTS.triggers);
+    fill("scenes", SWITCHER_DEFAULTS.scenes);
+    fill("optionalScenes", SWITCHER_DEFAULTS.optionalScenes);
+    for (const key of ["failBehaviour", "autoSwitch", "onlySwitchWhenStreaming", "instantlySwitchOnRecover", "retryAttempts", "pollIntervalMs", "logToFile"] as const)
+        sw[key] ??= SWITCHER_DEFAULTS[key];
     return out;
 }
 
