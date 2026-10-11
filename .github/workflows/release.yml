@@ -88,7 +88,7 @@ jobs:
               *)      OUTIF=${{ matrix.artifact }} ;;
             esac
 
-            ARGS="--compile --minify --sourcemap --bytecode \
+            ARGS="--compile --minify --sourcemap --format=esm --bytecode \
               --target=${{ matrix.target }} \
               ./${app}.ts \
               --outfile $OUTIF"
