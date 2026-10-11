@@ -74,20 +74,32 @@ function asChatMessage(raw: unknown): ChatLive | null {
 	if (!raw || typeof raw !== "object") return null;
 	const msg = raw as Record<string, unknown>;
 	if (msg.id === undefined || msg.id === null) return null;
+
 	const sender = (msg.sender as Record<string, unknown> | undefined) ?? {};
 	const username = typeof sender.username === "string" ? sender.username : undefined;
 	const identity = (sender.identity as Record<string, unknown> | undefined) ?? {};
 	const color = typeof identity.color === "string" && /^#[0-9a-fA-F]{3,8}$/.test(identity.color)
 		? identity.color
 		: undefined;
-	const text =
+
+	let text =
 		typeof msg.content === "string" && msg.content !== ""
 			? msg.content
 			: typeof msg.message === "string" && msg.message !== ""
 				? msg.message
 				: undefined;
+
+	const metadata = (msg.metadata as Record<string, unknown> | undefined) ?? {};
+	const originalSender = (metadata.original_sender as Record<string, unknown> | undefined) ?? {};
+	const replyUsername =
+		typeof originalSender.username === "string" ? originalSender.username : undefined;
+	// replies get an @mention of the replied-to user prepended to the text
+	if (text && replyUsername) text = `@${replyUsername} ${text}`;
+
 	if (username === undefined && text === undefined) return null;
+
 	const out: ChatLive = { id: typeof msg.id === "number" ? msg.id : String(msg.id) };
+	
 	if (username) out.username = username;
 	if (color) out.color = color;
 	if (text) out.text = text;
@@ -95,6 +107,7 @@ function asChatMessage(raw: unknown): ChatLive | null {
 		const ts = Date.parse(msg.created_at);
 		if (Number.isFinite(ts)) out.ts = ts;
 	}
+
 	return out;
 }
 

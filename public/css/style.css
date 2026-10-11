@@ -887,7 +887,7 @@ td.num {
  * GridStack (imported below) — this only skins the widget body inside it. */
 .dash-grid {
   --dash-row-h: 60px;
-  margin: 16px 0;
+  /* margin: 16px 0; */
 }
 /* NOTE on .grid-stack-item-content: GridStack sizes/insets it with `position:
  * absolute` + `top/bottom/left/right: margin` and leaves `width/height: auto`

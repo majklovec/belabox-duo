@@ -3,7 +3,7 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 159,
+      "version": 161,
       "widgets": [
         {
           "id": "34aad0a5-0102-4cb0-bd3b-d50009aec4f1",
@@ -90,6 +90,20 @@
           "w": 5,
           "h": 15,
           "visible": true
+        },
+        {
+          "id": "e08b1313-3a49-4fcb-a80f-d5d37d1e8012",
+          "deviceId": "",
+          "type": "kick-chat",
+          "name": "Chat Kick",
+          "x": 0,
+          "y": 15,
+          "w": 12,
+          "h": 10,
+          "visible": true,
+          "config": {
+            "channel": "destiny"
+          }
         }
       ],
       "columns": 12

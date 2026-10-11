@@ -38,3 +38,13 @@
 .dash-widget-body .kick-chat-line .chat-text {
   word-break: break-word;
 }
+
+.dash-widget-body .kick-chat-line .chat-text a {
+  color: var(--accent);
+  text-decoration: none;
+}
+/* A line starting with @username is a DM — decorateText wraps it in .dm,
+   dimmed so it recedes in the feed. */
+.dash-widget-body .kick-chat-line .dm {
+  opacity: 0.55;
+}
