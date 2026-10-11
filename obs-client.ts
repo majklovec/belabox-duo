@@ -1258,22 +1258,29 @@ async function main(): Promise<void> {
 	connect();
 }
 
+import { realpathSync } from "node:fs";
 // Only run as a standalone proxy when this file is the entry point; the
 // ObsClient class and helpers are also imported in-process (the relay's
 // obs-controller module, tests). In compiled binaries (`bun build
 // --compile`) both argv[1] and import.meta.url live in Bun's virtual
 // /$bunfs filesystem, so the path comparison can never match there —
 // treat that prefix as "we are the executable".
-import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+const isBunBinary =
+	import.meta.url.includes("$bunfs") ||
+	import.meta.url.includes("~BUN") ||
+	import.meta.url.includes("%7EBUN");
+
+// Safe entry detection (your existing logic)
 const isEntry = (() => {
-	if (import.meta.url.startsWith("file:///$bunfs/")) return true;
+	if (isBunBinary) return true;
 	const target = process.argv[1];
 	if (!target) return false;
 	try {
-		return realpathSync(fileURLToPath(import.meta.url)) ===
-			realpathSync(target);
+		return (
+			realpathSync(fileURLToPath(import.meta.url)) === realpathSync(target)
+		);
 	} catch {
 		return false;
 	}
