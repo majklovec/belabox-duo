@@ -37,16 +37,25 @@ jobs:
             target: bun-linux-x64
             artifact: obs-client-linux-x64
             client-artifact: client-linux-x64
+            ext: ""
             native: true
           - os: ubuntu-latest
             target: bun-linux-arm64
             artifact: obs-client-linux-arm64
             client-artifact: client-linux-arm64
+            ext: ""
             native: false
           - os: macos-latest
             target: bun-darwin-arm64
             artifact: obs-client-darwin-arm64
             client-artifact: client-darwin-arm64
+            ext: ""
+            native: true
+          - os: windows-latest
+            target: bun-windows-x64
+            artifact: obs-client-windows-x64
+            client-artifact: client-windows-x64
+            ext: ".exe"
             native: true
 
     runs-on: ${{ matrix.os }}
@@ -59,28 +68,33 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
+        shell: bash
         run: bun install
 
       - name: Generate module manifests
+        shell: bash
         run: bun run gen:modules
 
       - name: Build profiling binaries (native only)
         if: matrix.native == true
+        shell: bash
         run: |
           for app in obs-client client; do
             bun build --compile --minify --sourcemap \
               --target=${{ matrix.target }} \
               ./${app}.ts \
-              --outfile ${app}-prof
+              --outfile ${app}-prof${{ matrix.ext }}
           done
 
       - name: Record bytecode profiles (native only)
         if: matrix.native == true
+        shell: bash
         run: |
-          BUN_BYTECODE_ORDER_OUT=obs-client.order ./obs-client-prof --help
-          BUN_BYTECODE_ORDER_OUT=client.order ./client-prof --help
+          BUN_BYTECODE_ORDER_OUT=obs-client.order ./obs-client-prof${{ matrix.ext }} --help
+          BUN_BYTECODE_ORDER_OUT=client.order ./client-prof${{ matrix.ext }} --help
 
       - name: Build final binaries
+        shell: bash
         run: |
           for app in obs-client client; do
             case $app in
@@ -91,7 +105,7 @@ jobs:
             ARGS="--compile --minify --sourcemap --format=esm --bytecode \
               --target=${{ matrix.target }} \
               ./${app}.ts \
-              --outfile $OUTIF"
+              --outfile ${OUTIF}${{ matrix.ext }}"
 
             if [ -f ${app}.order ]; then
               ARGS="$ARGS --bytecode-order=${app}.order"
@@ -102,17 +116,18 @@ jobs:
 
       - name: Verify binaries (native only)
         if: matrix.native == true
+        shell: bash
         run: |
-          chmod +x ${{ matrix.artifact }} ${{ matrix.client-artifact }}
-          ./${{ matrix.artifact }} --help
-          ./${{ matrix.client-artifact }} --help
+          chmod +x ${{ matrix.artifact }}${{ matrix.ext }} ${{ matrix.client-artifact }}${{ matrix.ext }} || true
+          ./${{ matrix.artifact }}${{ matrix.ext }} --help
+          ./${{ matrix.client-artifact }}${{ matrix.ext }} --help
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
           path: |
-            ${{ matrix.artifact }}
-            ${{ matrix.client-artifact }}
+            ${{ matrix.artifact }}${{ matrix.ext }}
+            ${{ matrix.client-artifact }}${{ matrix.ext }}
 
   publish-server-docker:
     needs: version
