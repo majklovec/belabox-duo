@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   release-please:
@@ -17,3 +16,6 @@ jobs:
           # Only create the tag. Your Release.yml does the actual
           # GitHub Release (binaries + generated notes).
           skip-github-release: true
+          # Commit the version bump + CHANGELOG directly to main and
+          # create the tag — no release PR is created.
+          skip-github-pull-request: true
