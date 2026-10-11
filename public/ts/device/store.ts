@@ -20,7 +20,7 @@ import type {
 import { actions, button, type KeysOf } from "../components/ui";
 import { type Level } from "../icons";
 import { t } from "../i18n";
-import { optionalNumber, setHeaderColor } from "../util";
+import { optionalNumber, setHeaderColor, uuid } from "../util";
 import { type Params, RpcClient, RpcError, socketUrl } from "../services/rpc";
 import { applyLog, log } from "./log";
 
@@ -372,7 +372,7 @@ export function obsRequest<T = Record<string, unknown>>(
 	return act(
 		null,
 		"obs.request",
-		{ requestType, requestId: crypto.randomUUID(), requestData },
+		{ requestType, requestId: uuid(), requestData },
 	) as Promise<ObsRequestResponse<T> | undefined>;
 }
 
@@ -381,8 +381,8 @@ export function obsBatch(
 	opts?: { haltOnFailure?: boolean; executionType?: 0 | 1 | 2 },
 ): Promise<{ requestId: string; results: ObsRequestResponse<Record<string, unknown>>[] } | undefined> {
 	return act(null, "obs.requestBatch", {
-		requestId: crypto.randomUUID(),
-		requests: requests.map((r) => ({ ...r, requestId: crypto.randomUUID() })),
+		requestId: uuid(),
+		requests: requests.map((r) => ({ ...r, requestId: uuid() })),
 		haltOnFailure: opts?.haltOnFailure ?? false,
 		executionType: opts?.executionType ?? 0,
 	});

@@ -38,6 +38,7 @@ import { t } from "./i18n";
 import { roleTag } from "./icons";
 import { RpcClient, socketUrl } from "./services/rpc";
 import { serverLive } from "./services/serverws";
+import { uuid } from "./util";
 import { formatBitrate } from "./util";
 
 export const KICK_CHAT_CAP = 20;
@@ -438,7 +439,7 @@ function obsPanelFor(w: ServerDashboardWidget, conn: Connection): ObsPanel {
 			send: <T = Record<string, unknown>,>(type: string, data?: Record<string, unknown>) =>
 				conn.rpc.call<ObsRequestResult<T> | undefined>("obs.request", {
 					requestType: type,
-					requestId: crypto.randomUUID(),
+					requestId: uuid(),
 					requestData: data ?? {},
 				}),
 			onEvent: (h) => conn.rpc.on("obs.event", (data) => h(data as ObsEvent)),

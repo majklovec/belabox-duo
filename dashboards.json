@@ -3,17 +3,17 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 139,
+      "version": 159,
       "widgets": [
         {
           "id": "34aad0a5-0102-4cb0-bd3b-d50009aec4f1",
           "deviceId": "",
           "type": "kick-stats",
           "name": "Stats Kick",
-          "x": 4,
+          "x": 0,
           "y": 0,
-          "w": 6,
-          "h": 4,
+          "w": 3,
+          "h": 6,
           "visible": true,
           "config": {
             "channel": "cicero_mt"
@@ -56,25 +56,39 @@
           }
         },
         {
-          "id": "79e9159e-4aa1-4c72-a656-2624affeafd0",
-          "deviceId": "a496aa1d-a8df-4ecf-92a0-66cbfc0918eb",
-          "type": "combined",
-          "name": "Enkodér + relay",
+          "id": "fa89a066-3bb3-4247-b48b-752d578720a7",
+          "deviceId": "",
+          "type": "kick-chat",
+          "name": "Chat Kick",
           "x": 0,
+          "y": 6,
+          "w": 3,
+          "h": 9,
+          "visible": true,
+          "config": {
+            "channel": "cicero_mt"
+          }
+        },
+        {
+          "id": "f6f15b5e-27df-4cc7-932c-fc9068d76307",
+          "deviceId": "e11274fb-4e15-4df4-9683-6e98b3183fd3",
+          "type": "combined",
+          "name": "Combined",
+          "x": 8,
           "y": 0,
           "w": 4,
-          "h": 17,
+          "h": 15,
           "visible": true
         },
         {
-          "id": "05e82e70-92a8-4e49-916b-96daf50f1b05",
-          "deviceId": "334a2831-30a5-465a-bbd5-97d5d9260c0e",
+          "id": "9e49e1ec-b597-4580-934a-e27c6040a1ad",
+          "deviceId": "7db2c627-5a08-4c59-a89f-1fd0eb193a17",
           "type": "obs",
           "name": "OBS Studio",
-          "x": 4,
-          "y": 4,
-          "w": 6,
-          "h": 13,
+          "x": 3,
+          "y": 0,
+          "w": 5,
+          "h": 15,
           "visible": true
         }
       ],

@@ -20,7 +20,7 @@ import {
 } from "./dashboard";
 import { widgetModule } from "../../src/registry.frontend";
 import { t } from "./i18n";
-import { mountPage } from "./util";
+import { mountPage, uuid } from "./util";
 
 const ADD_PATH_RE = /\/dashboards\/add\/([^/]+)\/?$/;
 
@@ -121,7 +121,7 @@ async function submit(): Promise<void> {
 	const size = widgetSize(type);
 	const { x, y } = firstFreePosition(dash, size.default);
 	const widget: ServerDashboardWidget = {
-		id: crypto.randomUUID(),
+		id: uuid(),
 		type,
 		deviceId: isIndependent(type) ? "" : state.device,
 		name: typeLabel(type),

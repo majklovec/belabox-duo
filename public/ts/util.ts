@@ -19,6 +19,18 @@ export async function mountPage(title: () => string, component: m.Component): Pr
 export const setHeaderColor = (color: string): void =>
 	document.documentElement.style.setProperty("--header-color", color);
 
+/** UUID: native `crypto.randomUUID()`, or a v4 built from `getRandomValues` when
+ * `randomUUID` is missing (it only exists in secure contexts — HTTPS or localhost —
+ * while `getRandomValues` always does, so this also covers plain-HTTP device IPs). */
+export const uuid = (): string => {
+	if (crypto.randomUUID) return crypto.randomUUID();
+	const b = crypto.getRandomValues(new Uint8Array(16));
+	b[6] = (b[6] & 0x0f) | 0x40;
+	b[8] = (b[8] & 0x3f) | 0x80;
+	const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+	return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+};
+
 /** HTML `pattern` for hostnames (src/validate HOSTNAME_RE). Browsers compile `pattern` with the
  * `v` flag, where a literal "-" in a character class must be escaped. */
 export const HOSTNAME_PATTERN = "[A-Za-z0-9][A-Za-z0-9.\\-]{0,62}";

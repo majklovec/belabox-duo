@@ -28,7 +28,7 @@ import {
   numberAttrs,
   options,
 } from "../../public/ts/components/ui";
-import { since } from "../../public/ts/util";
+import { since, uuid } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
 import type { DeviceCard } from "../../public/ts/device/store";
 
@@ -68,7 +68,7 @@ async function loadScenes(host: DeviceCard): Promise<void> {
     >(
     	null,
     	"obs.request",
-    	{ requestType: "GetSceneList", requestId: crypto.randomUUID(), requestData: {} },
+    	{ requestType: "GetSceneList", requestId: uuid(), requestData: {} },
     );
     const data = result?.requestStatus?.result ? result.responseData : undefined;
     const list = data?.scenes
