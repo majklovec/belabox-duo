@@ -2,14 +2,45 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
+  # ------------------------------------------------------------------
+  # 1. Compute next semver from Conventional Commits and push the tag.
+  #    Skipped entirely if there is no feat/fix/perf/BREAKING change.
+  # ------------------------------------------------------------------
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.tag.outputs.new_tag }}
+      changed: ${{ steps.tag.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: tag
+        uses: anothrNick/github-tag-action@1.71.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: patch
+          RELEASE_BRANCHES: main
+
+  # ------------------------------------------------------------------
+  # 2. Build compiled binaries for every target.
+  # ------------------------------------------------------------------
   build:
+    needs: version
+    if: needs.version.outputs.changed == 'true'
     strategy:
       matrix:
         include:
-          # Native builds – profile step is safe
           - os: ubuntu-latest
             target: bun-linux-x64
             artifact: obs-client-linux-x64
@@ -25,17 +56,8 @@ jobs:
             artifact: obs-client-darwin-arm64
             client-artifact: client-darwin-arm64
             native: true
-          # Cross‑compiled from Ubuntu – skip profile generation
-          #
-          # NOTE: bun-windows-x64 (cross-compiled from Linux) is temporarily
-          # disabled — it failed in CI (run 38089342577) but builds fine
-          # locally on bun 1.4.2/1.4.3, so the cause is a CI-environment
-          # quirk we can't diagnose without the job log. Re-add:
-          #   - os: ubuntu-latest
-          #     target: bun-windows-x64
-          #     artifact: obs-client-windows-x64.exe
-          #     client-artifact: client-windows-x64.exe
-          #     native: false
+          # bun-windows-x64 (cross-compiled from Linux) is temporarily
+          # disabled — see original note in git history.
 
     runs-on: ${{ matrix.os }}
 
@@ -49,18 +71,9 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      # client.ts → src/registry → src/registry.frontend.ts imports the
-      # gitignored modules/.generated.frontend.ts, which only exists after
-      # the generator runs. Emit it before any build so fresh CI checkouts
-      # resolve the import (bun build does not fire prebuild/predev hooks).
       - name: Generate frontend module manifest
         run: bun run gen:modules
 
-      # ---------------------------------------------------------------
-      # Step 1: build “profiling” binaries WITHOUT bytecode, then run
-      #         them to capture the bytecode order. Only for native
-      #         targets.
-      # ---------------------------------------------------------------
       - name: Build profiling binaries (native only)
         if: matrix.native == true
         run: |
@@ -77,10 +90,6 @@ jobs:
           BUN_BYTECODE_ORDER_OUT=obs-client.order ./obs-client-prof --help
           BUN_BYTECODE_ORDER_OUT=client.order ./client-prof --help
 
-      # ---------------------------------------------------------------
-      # Step 2: final build with bytecode. For native targets we include
-      #         the .order file; for cross‑compiled targets we omit it.
-      # ---------------------------------------------------------------
       - name: Build final binaries
         run: |
           for app in obs-client client; do
@@ -115,15 +124,13 @@ jobs:
             ${{ matrix.artifact }}
             ${{ matrix.client-artifact }}
 
-  # -------------------------------------------------------------------
-  # Control server as a Docker image (Dockerfile in the repo root):
-  # ghcr.io/<owner>/<repo>-server:<tag> and :latest
-  # -------------------------------------------------------------------
+  # ------------------------------------------------------------------
+  # 3. Control server Docker image → ghcr.io/<owner>/<repo>-server:<tag>
+  # ------------------------------------------------------------------
   publish-server-docker:
+    needs: version
+    if: needs.version.outputs.changed == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -143,14 +150,17 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ghcr.io/${{ github.repository }}-server:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}-server:${{ needs.version.outputs.new_tag }}
             ghcr.io/${{ github.repository }}-server:latest
 
+  # ------------------------------------------------------------------
+  # 4. Publish the GitHub Release for the tag created in job 1.
+  #    The tag already exists, so softprops just attaches the files.
+  # ------------------------------------------------------------------
   release:
-    needs: [build, publish-server-docker]
+    needs: [version, build, publish-server-docker]
+    if: needs.version.outputs.changed == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -159,5 +169,6 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.new_tag }}
           files: artifacts/**/*
           generate_release_notes: true
