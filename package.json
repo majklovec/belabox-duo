@@ -2,10 +2,14 @@
   "scripts": {
     "gen:modules": "bun scripts/gen-modules.ts",
     "predev": "bun scripts/gen-modules.ts",
+    "pretest": "bun scripts/gen-modules.ts",
     "dev": "bun server.ts",
     "test": "bun test",
+    "prebuild:obs-client": "bun scripts/gen-modules.ts",
     "build:obs-client": "bun build --compile --minify --sourcemap ./obs-client.ts --outfile dist/obs-client",
+    "prebuild:client": "bun scripts/gen-modules.ts",
     "build:client": "bun build --compile --minify --sourcemap --bytecode ./client.ts --outfile dist/client",
+    "prebuild:server": "bun scripts/gen-modules.ts",
     "build:server": "bun build --compile --minify --sourcemap --bytecode ./server.ts --outfile dist/server"
   },
   "devDependencies": {

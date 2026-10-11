@@ -19,7 +19,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 
-import { OBS_DISCONNECTED_EVENT } from "../../obs-client";
+import { OBS_DISCONNECTED_EVENT } from "../../src/obs/client";
 import type {
 	SwitcherActiveSources,
 	SwitcherConfig,

@@ -19,7 +19,7 @@ import {
 	type ObsEvent,
 	type ObsRequest,
 	type ObsRequestBatch,
-} from "../../obs-client";
+} from "../../src/obs/client";
 import type { MCore, Mctx } from "./types";
 
 /** Core bag, filled at bind (discovery) and re-filled at start (a module may not import the core directly). */

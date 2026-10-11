@@ -2,11 +2,19 @@
  * Backend module registry — the core's door into module code.
  *
  * Modules are self-registered: every modules/<id>/backend.ts with a
- * matching-shape default export is a registration, discovered by a directory
- * scan at load (the backend runs unbundled, so this is a runtime readdir, not
- * the statically resolvable glob the bundled frontend registry uses). Adding a
- * module needs no edit to this file. Malformed registrations are rejected at
- * load with the module id in the message (a broken module never boots silently).
+ * matching-shape default export is a registration. Discovery has two modes:
+ *
+ *  - unbundled (bun server.ts, bun test): a runtime directory scan anchored
+ *    on import.meta.url. Adding a module needs no edit to this file and no
+ *    regeneration.
+ *  - compiled binaries (bun build --compile): the build-time manifest
+ *    modules/.generated.backend.ts (emitted by scripts/gen-modules.ts,
+ *    mirroring the bundled frontend registry's manifest). A compiled
+ *    process cannot readdir — import.meta.url lives in Bun's virtual
+ *    /$bunfs mount, not on disk.
+ *
+ * Malformed registrations are rejected at load with the module id in the
+ * message (a broken module never boots silently).
  *
  * Each module's `services.capabilities` record is wired into the capability
  * bus at load, so the core reaches module behaviour through
@@ -125,30 +133,69 @@ function validate(mod: unknown, file: string): asserts mod is ModuleRegistration
 	}
 }
 
-const discovered = new Map<string, ModuleRegistration>();
-// Self-registering discovery: every modules/<id>/backend.ts is a registration.
-// The backend runs unbundled (bun server.ts), so this is a runtime directory
-// scan anchored on import.meta.url — not the statically resolvable glob the
-// bundled frontend registry uses. Adding a module needs no edit to this file.
-for (const entry of readdirSync(MODULES_DIR).sort()) {
-	const backendPath = join(MODULES_DIR, entry, "backend.ts");
-	if (!existsSync(backendPath)) continue;
-	const file = `modules/${entry}/backend.ts`;
-	let ns: { default?: unknown };
-	try {
-		ns = (await import(backendPath)) as { default?: unknown };
-	} catch (err) {
-		throw new Error(`failed to load module backend ${file}: ${err instanceof Error ? err.message : String(err)}`);
-	}
-	const mod: unknown = ns.default;
-	if (mod === undefined) throw new Error(`module backend ${file} has no default export`);
+/**
+ * Compiled-binary detection: in `bun build --compile` output import.meta.url
+ * points inside Bun's virtual /$bunfs (or ~BUN) filesystem, where the modules
+ * directory does not exist on disk.
+ */
+const IS_COMPILED_BINARY =
+	import.meta.url.includes("$bunfs") ||
+	import.meta.url.includes("~BUN") ||
+	import.meta.url.includes("%7EBUN");
+
+/** Load and validate one registration (shared by both discovery modes). */
+function acceptRegistration(mod: unknown, file: string): ModuleRegistration {
 	try {
 		validate(mod, file);
 	} catch (err) {
 		throw new Error(`rejecting module backend ${file}: ${err instanceof Error ? err.message : String(err)}`);
 	}
-	if (discovered.has(mod.id)) throw new Error(`duplicate module id ${mod.id}`);
-	discovered.set(mod.id, mod);
+	return mod;
+}
+
+const discovered = new Map<string, ModuleRegistration>();
+if (IS_COMPILED_BINARY) {
+	// Compiled binaries read the build-time manifest (one static import per
+	// modules/<id>/backend.ts, emitted by scripts/gen-modules.ts). The
+	// specifier is statically resolvable, so the bundler inlines it.
+	let manifest: unknown[];
+	try {
+		const ns = (await import("../modules/.generated.backend")) as { default: unknown[] };
+		manifest = ns.default;
+	} catch (err) {
+		throw new Error(
+			`compiled binary is missing the backend module manifest (modules/.generated.backend.ts) — run \`bun run gen:modules\` before building: ${
+				err instanceof Error ? err.message : String(err)
+			}`,
+		);
+	}
+	for (const entry of manifest) {
+		const mod = acceptRegistration(entry, `modules/${(entry as ModuleRegistration).id}/backend.ts`);
+		if (discovered.has(mod.id)) throw new Error(`duplicate module id ${mod.id}`);
+		discovered.set(mod.id, mod);
+	}
+} else {
+	// Self-registering discovery: every modules/<id>/backend.ts is a
+	// registration. The backend runs unbundled (bun server.ts), so this is a
+	// runtime directory scan anchored on import.meta.url — not the statically
+	// resolvable manifest the compiled binaries use. Adding a module needs no
+	// edit to this file and no regeneration.
+	for (const entry of readdirSync(MODULES_DIR).sort()) {
+		const backendPath = join(MODULES_DIR, entry, "backend.ts");
+		if (!existsSync(backendPath)) continue;
+		const file = `modules/${entry}/backend.ts`;
+		let ns: { default?: unknown };
+		try {
+			ns = (await import(backendPath)) as { default?: unknown };
+		} catch (err) {
+			throw new Error(`failed to load module backend ${file}: ${err instanceof Error ? err.message : String(err)}`);
+		}
+		const mod: unknown = ns.default;
+		if (mod === undefined) throw new Error(`module backend ${file} has no default export`);
+		const reg = acceptRegistration(mod, file);
+		if (discovered.has(reg.id)) throw new Error(`duplicate module id ${reg.id}`);
+		discovered.set(reg.id, reg);
+	}
 }
 
 /** Registry order: topological over dependencies (stable, id-tie-broken). */

@@ -61,7 +61,7 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Generate frontend module manifest
+      - name: Generate module manifests
         run: bun run gen:modules
 
       - name: Build profiling binaries (native only)

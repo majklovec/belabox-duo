@@ -102,10 +102,16 @@ describe("module registries", () => {
 		expect(readFileSync(manifest, "utf8")).toMatch(/AUTO-GENERATED/i);
 	});
 
-	test("backend registry discovers by directory scan, no per-module imports", () => {
+	test("backend registry discovers by directory scan + compiled-binary manifest, no per-module imports", () => {
 		const src = readFileSync(join(import.meta.dir, "..", "src", "registry.ts"), "utf8");
 		expect(src).not.toMatch(/from "\.\.\/modules\/[\w-]+\/backend/);
 		expect(src).toMatch(/readdirSync\(MODULES_DIR\)/);
+		// Compiled binaries (bun build --compile) cannot run the scan — they
+		// fall back to the generated manifest, like the frontend registry.
+		expect(src).toMatch(/"\.\.\/modules\/\.generated\.backend"/);
+		const manifest = join(modulesDir, ".generated.backend.ts");
+		expect(statSync(manifest).size).toBeGreaterThan(0);
+		expect(readFileSync(manifest, "utf8")).toMatch(/AUTO-GENERATED/i);
 	});
 
 	/**

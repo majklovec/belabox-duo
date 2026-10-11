@@ -55,6 +55,7 @@
  *                            SIGHUP delivery fails or no pid is known)
  */
 
+import { flag } from "./src/args";
 import { startApiServer } from "./src/api";
 import { argv, HAS_RELAY, REMOTE_URL, ROLE } from "./src/config";
 import { flushLog, logEvent } from "./src/eventlog";
@@ -66,6 +67,20 @@ import { runAutostart } from "./src/stream";
 import { reconfigure, startInterfaceMonitor, stopInterfaceMonitor } from "./src/routing";
 
 async function main(): Promise<void> {
+    // Exit before any module/service boots (CI runs `--help` on the compiled
+    // binary to verify it and to record bytecode profiles).
+    if (flag("--help") || flag("-h")) {
+        console.log(
+            "Usage: bun client.ts [--config /path/to/config.json] [--dry-run] [--port 8085] " +
+                "[--role relay|encoder|combined] [--pipelines /path/to/pipelines] " +
+                "[--remote ws://host:port/device] [--remote-token secret]",
+        );
+        console.log(
+            "The token/URL may also come from SRTLA_REMOTE_TOKEN / SRTLA_REMOTE_URL env vars. See the README for the full option list.",
+        );
+        process.exit(0);
+    }
+
     await i18nReady;
     console.log(`=== SRTLA Bonding Setup (Bun) — role: ${ROLE} ===\n`);
 

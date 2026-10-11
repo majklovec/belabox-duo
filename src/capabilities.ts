@@ -52,7 +52,7 @@ import type {
 } from "../public/types";
 import type { SrtlaOptions, SrtlaOptionsResult, SrtlaTarget } from "./state";
 import type { SrtlaControlState, SrtlaMode, SrtlaStatsEvent } from "./srtlaControl";
-import type { ObsClient } from "../obs-client";
+import type { ObsClient } from "./obs/client";
 
 /** `stream.encoder` — the encoder's live process + pipeline/audio source list. */
 export interface EncoderServices {
