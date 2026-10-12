@@ -1,6 +1,6 @@
 /* SRTLA card: srtla_send state, the receiver form and the scheduler options. */
 import m from "mithril";
-import type { Status } from "../../public/types";
+import type { ServerDashboardWidget, Status, SrtlaStats } from "../../public/types";
 import {
 	actions,
 	badge,
@@ -16,10 +16,10 @@ import {
 	input,
 	schedulerOptions,
 } from "../../public/ts/components/ui";
-import { since } from "../../public/ts/util";
+import { formatBitrate, since } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
 import { card, type DeviceCard } from "../../public/ts/device/store";
-import type { BridgedModule } from "./types";
+import type { BridgedModule, ChannelWidgetModule, WidgetContext } from "./types";
 
 type SrtlaOptions = Status["state"]["srtlaOptions"];
 
@@ -145,6 +145,69 @@ export function srtlaCardBody(host: DeviceCard, status: Status): m.Vnode {
 	);
 }
 
+// ----------------------------------------------------------------- stats widget
+
+/** The widget's own device's live srtla stats (the core hands the device's
+ * `DeviceLive` bag in `ctx`; the module knows its own key). */
+const srtlaStatsOf = (ctx: WidgetContext): SrtlaStats | undefined =>
+	(ctx.deviceLive as { srtla?: SrtlaStats } | undefined)?.srtla;
+
+/** One row per SRT link: label/ip plus connection badge and rate. */
+function srtlaLinksRows(s: SrtlaStats): [string, Child][] {
+	return (s.links ?? []).map((l) => [
+		l.label ?? l.ip,
+		<span>
+			{l.connected ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off")}{" "}
+			<span class={"muted"}>{`${formatBitrate(l.bitrate_bytes_per_sec)} · ${l.rtt_ms} ms`}</span>
+		</span>,
+	]);
+}
+
+/** The stats table (or a no-links placeholder when the stream has no links). */
+function srtlaTable(s: SrtlaStats): m.Vnode {
+	const rows = srtlaLinksRows(s);
+	return rows.length ? (
+		<table class={"dash-table"}>
+			<tbody>
+				{rows.map(([label, value], i) => (
+					<tr key={i}>
+						<th>{label}</th>
+						<td>{value}</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+	) : (
+		<p class={"muted"}>{t("dev.badge.no_links")}</p>
+	);
+}
+
+/** The `stats` dashboard widget: the SRTLA link table for its device. */
+function statsBody(w: ServerDashboardWidget, ctx: WidgetContext): m.Children {
+	const s = srtlaStatsOf(ctx);
+	if (!s)
+		return <p class={"muted"}>{ctx.deviceLive ? t("dash.widget_waiting") : t("dev.badge.offline")}</p>;
+	return srtlaTable(s);
+}
+
+function statsBadge(w: ServerDashboardWidget, ctx: WidgetContext): m.Vnode {
+	const s = srtlaStatsOf(ctx);
+	if (!s)
+		return badge(ctx.deviceLive ? t("dash.widget_waiting") : t("dev.badge.offline"), ctx.deviceLive ? "" : "off");
+	return badge(`${s.active_links ?? 0}/${s.total_links ?? 0}`, "on");
+}
+
+const srtlaStatsWidget: ChannelWidgetModule<ServerDashboardWidget> = {
+	id: "srtla-stats",
+	kind: "widget",
+	widgetTypes: ["stats"],
+	defaultSize: { w: 3, h: 2 },
+	configFields: [] as const,
+	channelOf: () => "",
+	body: statsBody,
+	badge: statsBadge,
+};
+
 const srtlaModule: BridgedModule = {
 	id: "srtla",
 	kind: "device-card",
@@ -155,4 +218,4 @@ const srtlaModule: BridgedModule = {
 	cardBody: (host, status) => srtlaCardBody(host as DeviceCard, status as Status),
 };
 
-export default srtlaModule;
+export default [srtlaModule, srtlaStatsWidget];

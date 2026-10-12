@@ -1,15 +1,46 @@
-// kick-stats frontend — the dashboard widget body for the kick-stats channel
-// module. Renders straight from the shared `kickLive` map (fed by the
-// control server's dashboard websocket): current stream info plus a line
-// chart of viewer counts collected by the server-side poller.
+// kick-stats frontend — the dashboard widget for the kick-stats channel
+// module. Self-contained: owns its per-channel live map, fed by the dashboard
+// websocket frames it cares about (`widget.snapshot`, `kick.stats`): current
+// stream info plus a line chart of viewer counts from the server-side poller.
+// The core only forwards frames (`onFrame`).
 import m from "mithril";
 import type { ServerDashboardWidget } from "../../public/types";
-import { ChannelWidgetModule, type ChannelLive, type StatsSample } from "./types";
+import {
+	ChannelWidgetModule,
+	type ChannelLive,
+	type StatsLive,
+	type StatsSample,
+	type WidgetContext,
+} from "./types";
 import { badge as badgeEl } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import { KICK_STATS_CONFIG_FIELDS } from "./backend";
 import { LineChart } from "./graph-linechart";
 import "./styles.css";
+
+/** Live kick-stats data per channel, accumulated from the dashboard websocket. */
+const live = new Map<string, ChannelLive>();
+const liveFor = (channel: string): ChannelLive => {
+	let l = live.get(channel);
+	if (!l) {
+		l = {};
+		live.set(channel, l);
+	}
+	return l;
+};
+
+/** Fold one dashboard-websocket frame into this module's live state; the kick
+ * stats frames only — the chat channels' frames are ignored here. */
+function onFrame(event: string, data: unknown): void {
+	if (event === "widget.snapshot") {
+		const snap = data as { stats?: Record<string, StatsLive | null> };
+		for (const [channel, stats] of Object.entries(snap.stats ?? {}))
+			liveFor(channel).stats = stats;
+	} else if (event === "kick.stats") {
+		const e = data as { channel?: string; stats?: StatsLive };
+		if (e.channel && e.stats) liveFor(e.channel).stats = e.stats;
+	}
+}
 
 /** The widget's channel name ("" when not configured) — the module owns which
  * config parameter carries it. */
@@ -18,10 +49,10 @@ function channelOf(w: ServerDashboardWidget): string {
 }
 
 /** Card head: the stream badge (not configured, waiting, else streaming/offline). */
-function badge(w: ServerDashboardWidget, live: ChannelLive): m.Vnode {
+function badge(w: ServerDashboardWidget, _ctx: WidgetContext): m.Vnode {
 	const channel = channelOf(w);
 	if (!channel) return badgeEl(t("dash.widget_not_configured"), "warn");
-	const s = live.stats;
+	const s = (live.get(channel) ?? {}).stats;
 	if (!s) return badgeEl(t("dash.widget_waiting"), "warn");
 	return badgeEl(s.isLive ? t("dev.badge.online") : t("dev.badge.offline"), s.isLive ? "on" : "off");
 }
@@ -35,10 +66,10 @@ function durationMinutes(fromMs: number, toMs: number): string {
 }
 
 /** The card body: stream info on top, the viewers line chart below. */
-function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
+function body(w: ServerDashboardWidget, _ctx: WidgetContext): m.Children {
 	const channel = channelOf(w);
 	if (!channel) return <p class={"muted"}>{t("dash.widget_not_configured")}</p>;
-	const s = live.stats;
+	const s = (live.get(channel) ?? {}).stats;
 	if (!s) return <p class={"muted"}>{t("kickstats.waiting")}</p>;
 	const now = s.at;
 	return (
@@ -92,10 +123,13 @@ function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
 const kickStatsModule: ChannelWidgetModule<ServerDashboardWidget> = {
 	id: "kick-stats",
 	kind: "widget",
+	widgetTypes: ["kick-stats"],
+	defaultSize: { w: 3, h: 2 },
 	configFields: KICK_STATS_CONFIG_FIELDS,
 	channelOf,
 	body,
 	badge,
+	onFrame,
 };
 
 export default kickStatsModule;

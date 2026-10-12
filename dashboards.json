@@ -3,7 +3,7 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 161,
+      "version": 162,
       "widgets": [
         {
           "id": "34aad0a5-0102-4cb0-bd3b-d50009aec4f1",
@@ -66,7 +66,8 @@
           "h": 9,
           "visible": true,
           "config": {
-            "channel": "cicero_mt"
+            "channel": "czechcloud",
+            "history": ""
           }
         },
         {
@@ -102,7 +103,8 @@
           "h": 10,
           "visible": true,
           "config": {
-            "channel": "destiny"
+            "channel": "destiny",
+            "history": ""
           }
         }
       ],

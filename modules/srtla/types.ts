@@ -125,3 +125,28 @@ export interface BridgedModule {
 	maxSize?: { w: number; h: number };
 	handleEvent?(event: string, data: unknown): void;
 }
+
+/** Render context the core hands a widget: the live-state bag of the widget's
+ * own device (structurally read; the module knows its own keys). */
+export interface WidgetContext {
+	deviceLive?: Record<string, unknown> | null;
+	device?: Record<string, unknown> | null;
+}
+
+/** Frontend descriptor of a self-contained dashboard widget (local copy so the
+ * core is never imported). The srtla stats widget reads the device's live state
+ * from `ctx` (no dashboard-websocket frames of its own, so `onFrame` is omitted). */
+export interface ChannelWidgetModule<TWidget = unknown> {
+	id: string;
+	kind: "widget";
+	/** Widget types this module composes; the core routes by this table. */
+	widgetTypes: readonly string[];
+	defaultSize: { w: number; h: number };
+	/** Config parameter names this widget accepts, in editor form order. */
+	configFields: readonly string[];
+	/** The widget's channel name from its config ("" — srtla is device-bound). */
+	channelOf(w: TWidget): string;
+	body(w: TWidget, ctx: WidgetContext): unknown;
+	badge(w: TWidget, ctx: WidgetContext): unknown;
+	onFrame?(event: string, data: unknown): void;
+}

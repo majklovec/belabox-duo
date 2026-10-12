@@ -21,36 +21,58 @@ const WIDGET_IDS = ["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "yo
 /**
  * The frontend registry cannot be imported outside the browser graph (it
  * mounts the device store at module init), so its discovery is checked from
- * the files: every modules/<id>/frontend.tsx must default-export a
- * registration whose `id` matches its directory and whose `kind` splits the
- * set into device cards (matching the backend registry) and widgets.
+ * the files: every modules/<id>/frontend.tsx must default-export at least one
+ * registration whose `id` matches its directory, and whose `kind` splits the
+ * set into device cards (matching the backend registry) and widgets. A module
+ * can register several (e.g. a device-card plus a dashboard widget) by
+ * default-exporting an array of them — the registry flattens it.
  */
 const modulesDir = join(import.meta.dir, "..", "modules");
 
-function scanFrontends(): { dir: string; id: string; kind: string }[] {
-	const out: { dir: string; id: string; kind: string }[] = [];
-	for (const dir of readdirSync(modulesDir, { withFileTypes: true })) {
-		if (!dir.isDirectory()) continue;
-		const file = join(modulesDir, dir.name, "frontend.tsx");
-		let src: string;
-		try {
-			src = readFileSync(file, "utf8");
-		} catch {
-			continue; // module without a frontend (backend-only) — fine
+/** The id/kind of the object a `const` declares (empty when it is not one). */
+function regOf(src: string, name: string): { id?: string; kind?: string } {
+	const decl = src.match(new RegExp(`const ${name}[\\s\\S]*?=\\s*`));
+	if (!decl) return {};
+	const body = src.slice((decl.index ?? 0) + decl[0].length);
+	const id = body.match(/\bid:\s*"([^"]+)"/)?.[1];
+	const kind = body.match(/\bkind:\s*"([^"]+)"/)?.[1];
+	return id && kind ? { id, kind } : {};
+}
+
+function scanFrontends(): {
+dir: string;
+registrations: { id: string; kind: string }[];
+}[] {
+const out: { dir: string; registrations: { id: string; kind: string }[] }[] = [];
+for (const dir of readdirSync(modulesDir, { withFileTypes: true })) {
+	if (!dir.isDirectory()) continue;
+	const file = join(modulesDir, dir.name, "frontend.tsx");
+	let src: string;
+	try {
+		src = readFileSync(file, "utf8");
+	} catch {
+		continue; // module without a frontend (backend-only) — fine
 		}
-		// id/kind are read from the object the file default-exports, not the
-		// whole file (helper literals like `kind: "text"` must not win).
-		const name = src.match(/export default (\w+)/)?.[1];
-		const decl = name ? src.match(new RegExp(`const ${name}[\\s\\S]*?=\\s*\\{`)) : undefined;
-		const body = decl ? src.slice((decl.index ?? 0) + decl[0].length) : src;
-		const id = body.match(/\bid:\s*"([^"]+)"/)?.[1];
-		const kind = body.match(/\bkind:\s*"([^"]+)"/)?.[1];
-		expect(id, `${dir}/frontend.tsx has no id` as string).toBeTypeOf("string");
-		expect(kind, `${dir}/frontend.tsx has no kind` as string).toBeTypeOf("string");
-		expect(src, `${dir}/frontend.tsx has no default export` as string).toContain("export default");
-		out.push({ dir: dir.name, id: id as string, kind: kind as string });
+	expect(src, `${dir}/frontend.tsx has no default export` as string).toContain("export default");
+	// The exported id/kind are read from the object(s) the file
+	// default-exports, not the whole file (helper literals like
+	// `kind: "text"` must not win). Handle `export default <obj>` and
+	// `export default [<obj>, <obj>, …]` (a module registering several).
+	const arr = src.match(/export default\s*\[([^\]]*)\]/);
+	const single = src.match(/export default\s*(\w+)/);
+	const names = (arr ? arr[1] : single?.[1] ?? "")
+		.split(",")
+		.map((n) => n.trim())
+		.filter(Boolean);
+	const registrations: { id: string; kind: string }[] = [];
+	for (const name of names) {
+		const reg = regOf(src, name);
+		if (reg.id && reg.kind) registrations.push({ id: reg.id, kind: reg.kind });
 	}
-	return out;
+	expect(registrations.length, `${dir}/frontend.tsx default-exports no registration` as string).toBeGreaterThan(0);
+	out.push({ dir: dir.name, registrations });
+}
+return out;
 }
 
 const ids = (): string[] => allModules().map((mod) => mod.id);
@@ -73,21 +95,22 @@ describe("module registries", () => {
 		expect(new Set(all).size).toBe(all.length);
 	});
 
-	test("frontend discovery: directory name matches registration id", () => {
+	test("frontend discovery: directory name matches a registration id", () => {
 		for (const fe of scanFrontends()) {
-			expect(fe.dir, `${fe.dir}/frontend.tsx declares id ${fe.id}`).toBe(fe.id);
+			// The module's own id (its directory) must be one of the ids it registers.
+			expect(fe.registrations.map((r) => r.id), `${fe.dir}/frontend.tsx doesn't register ${fe.dir}`).toContain(fe.dir);
 		}
 	});
 
 	test("device-card frontends match backend device-module ids exactly", () => {
-		const cardIds = scanFrontends().filter((fe) => fe.kind === "device-card").map((fe) => fe.id);
+		const cardIds = scanFrontends().flatMap((fe) => fe.registrations).filter((r) => r.kind === "device-card").map((r) => r.id);
 		expect([...cardIds].sort()).toEqual([...DEVICE_ORDER].sort());
 	});
 
 	test("widget frontends are separate from device modules", () => {
 		const f = scanFrontends();
 		const backendDeviceIds = new Set(DEVICE_ORDER);
-		const widgetIds = f.filter((fe) => fe.kind === "widget").map((fe) => fe.id);
+		const widgetIds = f.flatMap((fe) => fe.registrations).filter((r) => r.kind === "widget").map((r) => r.id);
 		expect(widgetIds.length).toBeGreaterThanOrEqual(5);
 		expect(widgetIds.filter((id) => backendDeviceIds.has(id)).length).toBe(0);
 	});

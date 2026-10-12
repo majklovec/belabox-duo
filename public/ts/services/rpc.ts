@@ -18,6 +18,7 @@ export class RpcClient {
 	private nextId = 1;
 	private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 	private events = new Map<string, Set<EventHandler>>();
+	private anyHandlers = new Set<(event: string, data?: unknown) => void>();
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private destroyed = false;
 
@@ -38,6 +39,13 @@ export class RpcClient {
 		}
 		set.add(handler);
 		return () => set.delete(handler);
+	}
+
+	/** Subscribe to every broadcast event (name + payload) — lets the core
+	 * forward frames to modules by name without naming any module's frame itself. */
+	onAny(handler: (event: string, data?: unknown) => void): () => void {
+		this.anyHandlers.add(handler);
+		return () => this.anyHandlers.delete(handler);
 	}
 
 	/** One request/response call; rejects on timeout, close, or a `logged` device error. */
@@ -70,6 +78,8 @@ export class RpcClient {
 		this.destroyed = true;
 		clearTimeout(this.reconnectTimer);
 		this.ws?.close();
+		this.events.clear();
+		this.anyHandlers.clear();
 	}
 
 	/** Drop the socket; the auto-reconnect fires and "open" handlers re-fetch state. */
@@ -118,6 +128,7 @@ export class RpcClient {
 
 	private emit(type: string, data?: unknown): void {
 		for (const h of this.events.get(type) ?? []) h(data);
+		for (const h of this.anyHandlers) h(type, data);
 	}
 }
 
