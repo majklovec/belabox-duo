@@ -7,13 +7,21 @@ import { ChannelWidgetModule, type ChannelLive } from "./types";
 import { badge as badgeEl } from "../../public/ts/components/ui";
 import { decorateText } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
-import { KICK_CHAT_CONFIG_FIELDS } from "./backend";
+import { DEFAULT_HISTORY_LINES, KICK_CHAT_CONFIG_FIELDS, historyLengthFromConfig } from "./backend";
 import "./styles.css";
 
 /** The widget's channel name ("" when not configured) — the module owns which
  * config parameter carries it. */
 function channelOf(w: ServerDashboardWidget): string {
   return (w.config?.["channel"] ?? "").trim().toLowerCase();
+}
+
+/** The most recent `historyLength` lines of the channel feed (newest first —
+ * the backend buffer is stored newest-first, so slice from the front). Defaults
+ * via the hub's validated config helper. */
+function liveLines(w: ServerDashboardWidget, live: ChannelLive): ChannelLive["chat"] {
+  const visible = historyLengthFromConfig(w.config) ?? DEFAULT_HISTORY_LINES;
+  return (live.chat ?? []).slice(0, Math.max(1, visible));
 }
 
 /** Card head: the channel badge (not configured, else online/disconnected). */
@@ -75,11 +83,12 @@ function lineSegments(text: string): m.Children {
   );
 }
 
-/** The card body: the chat feed (newest first). */
+/** The card body: the chat feed (newest first, capped by historyLength). */
 function body(w: ServerDashboardWidget, live: ChannelLive): m.Children {
   const channel = channelOf(w);
   if (!channel) return <p class={"muted"}>{t("dash.widget_not_configured")}</p>;
-  const msgs = (live.chat ?? []).map((c) => (
+  const lines = liveLines(w, live);
+  const msgs = (lines ?? []).map((c) => (
     <div class={"kick-chat-line"} key={String(c.id)}>
       {c.username ? (
         <span

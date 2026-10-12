@@ -41,7 +41,10 @@ import { serverLive } from "./services/serverws";
 import { uuid } from "./util";
 import { formatBitrate } from "./util";
 
-export const KICK_CHAT_CAP = 20;
+/** Live chat buffer size per channel — matches the backend rolling-buffer
+ * HISTORY_CAP, so the client keeps everything the server sends (widgets cap
+ * further per their `history` config). */
+export const KICK_CHAT_CAP = 500;
 
 /** Device-independent widget types: their data (the widget's channel, fetched
  * by the control server) is not tied to any device connection. */

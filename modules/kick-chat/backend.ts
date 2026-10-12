@@ -33,7 +33,21 @@ export interface ChatSnapshot {
 
 /** kick-chat widget's configurable parameters (single source for the server
  * validation and the frontend editor). */
-export const KICK_CHAT_CONFIG_FIELDS = ["channel"] as const;
+export const KICK_CHAT_CONFIG_FIELDS = ["channel", "history"] as const;
+/** Default visible history size — matches the backend rolling-history cap. */
+export const DEFAULT_HISTORY_LINES = 500;
+/**
+ * A widget's visible-history size, validated from its config. Non-numeric,
+ * non-positive or absurd values fall back to the default rather than crashing
+ * the frontend (the value renders as-is there).
+ */
+export function historyLengthFromConfig(config: Record<string, string> | undefined): number {
+	const value = (config?.["history"] ?? "").trim().replace(/^\D+|\s+$/g, "");
+	if (!value) return DEFAULT_HISTORY_LINES;
+	const n = parseInt(value, 10);
+	if (!Number.isFinite(n) || n < 1 || n > 10_000) return DEFAULT_HISTORY_LINES;
+	return n;
+}
 
 /** Channel-hub spec from one widget's config (null when no channel set). */
 export function chatSpecFromConfig(config: Record<string, string> | undefined): string | null {
