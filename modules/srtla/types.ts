@@ -136,6 +136,13 @@ export interface WidgetContext {
 /** Frontend descriptor of a self-contained dashboard widget (local copy so the
  * core is never imported). The srtla stats widget reads the device's live state
  * from `ctx` (no dashboard-websocket frames of its own, so `onFrame` is omitted). */
+
+/** A config parameter: a bare string (free text) or a `{name, type:"select",
+ * options}` fixed-choice field rendered as a dropdown. */
+export type WidgetConfigField =
+	| string
+	| { name: string; type: "select"; options: readonly string[] };
+
 export interface ChannelWidgetModule<TWidget = unknown> {
 	id: string;
 	kind: "widget";
@@ -143,7 +150,7 @@ export interface ChannelWidgetModule<TWidget = unknown> {
 	widgetTypes: readonly string[];
 	defaultSize: { w: number; h: number };
 	/** Config parameter names this widget accepts, in editor form order. */
-	configFields: readonly string[];
+	configFields: readonly WidgetConfigField[];
 	/** The widget's channel name from its config ("" — srtla is device-bound). */
 	channelOf(w: TWidget): string;
 	body(w: TWidget, ctx: WidgetContext): unknown;

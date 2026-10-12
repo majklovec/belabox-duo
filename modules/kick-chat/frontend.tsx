@@ -13,7 +13,12 @@ import {
 import { badge as badgeEl } from "../../public/ts/components/ui";
 import { decorateText } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
-import { DEFAULT_HISTORY_LINES, KICK_CHAT_CONFIG_FIELDS, historyLengthFromConfig } from "./backend";
+import {
+  DEFAULT_HISTORY_LINES,
+  KICK_CHAT_CONFIG_FIELDS,
+  chatOrderFromConfig,
+  historyLengthFromConfig,
+} from "./backend";
 import "./styles.css";
 
 /** Live chat buffer size per channel — matches the backend rolling-buffer
@@ -57,11 +62,13 @@ function channelOf(w: ServerDashboardWidget): string {
 }
 
 /** The most recent `historyLength` lines of the channel feed (newest first —
- * the backend buffer is stored newest-first, so slice from the front). Defaults
- * via the hub's validated config helper. */
+ * the backend buffer is stored newest-first, so slice from the front), flipped
+ * oldest-first when the widget's `order` config is "bottom" (new messages then
+ * enter the log at the bottom). Defaults via the hub's validated config helpers. */
 function liveLines(w: ServerDashboardWidget, live: ChannelLive): ChannelLive["chat"] {
   const visible = historyLengthFromConfig(w.config) ?? DEFAULT_HISTORY_LINES;
-  return (live.chat ?? []).slice(0, Math.max(1, visible));
+  const lines = (live.chat ?? []).slice(0, Math.max(1, visible));
+  return chatOrderFromConfig(w.config) === "bottom" ? [...lines].reverse() : lines;
 }
 
 /** Card head: the channel badge (not configured, else online/disconnected). */
@@ -124,7 +131,13 @@ function lineSegments(text: string): m.Children {
   );
 }
 
-/** The card body: the chat feed (newest first, capped by historyLength). */
+/**
+ * The card body: the chat feed (capped by historyLength), newest first unless
+ * the widget's `order` config is "bottom" (then oldest first, so new messages
+ * land at the bottom). In "bottom" mode the feed auto-scrolls to the newest
+ * line when the user is already at the bottom (scrolling up to read history
+ * is not interrupted).
+ */
 function body(w: ServerDashboardWidget, _ctx: WidgetContext): m.Children {
   const channel = channelOf(w);
   if (!channel) return <p class={"muted"}>{t("dash.widget_not_configured")}</p>;
@@ -143,10 +156,22 @@ function body(w: ServerDashboardWidget, _ctx: WidgetContext): m.Children {
       <span class={"chat-text"}>{lineSegments(c.text ?? "")}</span>
     </div>
   ));
-  return msgs.length ? (
-    <div class={"kick-chat-feed"}>{msgs}</div>
-  ) : (
-    <p class={"muted"}>{t("kickchat.empty")}</p>
+  if (!msgs.length) return <p class={"muted"}>{t("kickchat.empty")}</p>;
+  if (chatOrderFromConfig(w.config) !== "bottom")
+    return <div class={"kick-chat-feed"} key={channel}>{msgs}</div>;
+  return (
+    <div
+      class={"kick-chat-feed"}
+      key={channel}
+      ref={(el: HTMLElement | null) => {
+        // Keep the newest line in view, but never yank the user down while
+        // they have scrolled up to read history.
+        if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 2)
+          el.scrollTop = el.scrollHeight;
+      }}
+    >
+      {msgs}
+    </div>
   );
 }
 

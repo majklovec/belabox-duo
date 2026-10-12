@@ -74,6 +74,7 @@ import { arg, argFail, flag, intArg } from "./src/args";
 import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
 import { i18nReady, isLanguage, type Language, translate } from "./src/i18n";
 import { initWidgetHub, syncWidgetHub, widgetConfigFields, widgetHubSnapshot } from "./src/registry";
+import { configFieldName } from "./public/types";
 import { LOG_MAX, type LogEntry, type LogEvent, type LogLevel } from "./src/logMessages";
 import { parseJsonObject, textOf } from "./src/util";
 import { COLOR_RE, isRole, type Role } from "./src/validate";
@@ -511,16 +512,17 @@ function parseWidgets(raw: unknown): ServerDashboardWidget[] {
 			// is added first and its config filled in via the widget editor.
 			const cfg = (item.config && typeof item.config === "object" ? item.config : {}) as Record<string, unknown>;
 			const fields = widgetConfigFields(type);
+			const fieldNames = fields.map(configFieldName);
 			const config: Record<string, string> = {};
-			for (const key of fields) {
-				const v = cfg[key];
+			for (const name of fieldNames) {
+				const v = cfg[name];
 				if (v !== undefined) {
-					if (typeof v !== "string") throw new ApiError(`config.${key} must be a string`);
-					config[key] = v.trim();
-				} else config[key] = "";
+					if (typeof v !== "string") throw new ApiError(`config.${name} must be a string`);
+					config[name] = v.trim();
+				} else config[name] = "";
 			}
 			for (const key of Object.keys(cfg)) {
-				if (!fields.includes(key)) throw new ApiError(`Unknown config field: ${key}`);
+				if (!fieldNames.includes(key)) throw new ApiError(`Unknown config field: ${key}`);
 			}
 			return { id, deviceId: typeof deviceId === "string" ? deviceId : "", type: type as WidgetType, name, ...grid, visible, config };
 		}
@@ -567,8 +569,8 @@ function normalizeDashboard(raw: Record<string, unknown>, index: number): Server
 		let config: Record<string, string> | undefined;
 		if (independent) {
 			const kept: Record<string, string> = {};
-			for (const key of widgetConfigFields(type)) {
-				if (typeof cfgRaw[key] === "string") kept[key] = cfgRaw[key];
+			for (const name of widgetConfigFields(type).map(configFieldName)) {
+				if (typeof cfgRaw[name] === "string") kept[name] = cfgRaw[name];
 			}
 			if (Object.keys(kept).length > 0) config = kept;
 		}

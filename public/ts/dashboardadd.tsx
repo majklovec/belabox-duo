@@ -8,7 +8,8 @@
  * conflict reloads the server copy; the widget is not added twice. */
 import m from "mithril";
 import type { ServerDashboard, ServerDashboardWidget, WidgetType } from "../types";
-import { Page, button, field, fieldGroup, input, serverNav } from "./components/ui";
+import { configFieldName } from "../types";
+import { Page, button, field, fieldGroup, input, options, select, serverNav } from "./components/ui";
 import {
 	devices,
 	independentTypes,
@@ -79,7 +80,16 @@ function typeGroups(): { device: string; label: string; types: WidgetType[] }[] 
 function widgetConfigFor(type: WidgetType): { config: Record<string, string> } | {} {
 	const fields = widgetModule(type)?.configFields ?? [];
 	if (fields.length === 0) return {};
-	return { config: Object.fromEntries(fields.map((name) => [name, (state.config[name] ?? "").trim()])) };
+	return {
+		config: Object.fromEntries(
+			fields.map((f) => {
+				const name = configFieldName(f);
+				let v = (state.config[name] ?? "").trim();
+				if (typeof f !== "string" && f.type === "select" && v === "") v = f.options[0] ?? "";
+				return [name, v];
+			}),
+		),
+	};
 }
 
 const optionValue = (device: string, type: WidgetType): string => (device ? `${device}|${type}` : type);
@@ -216,15 +226,26 @@ const App: m.Component = {
 									</select>,
 								),
 								...(type
-									? (widgetModule(type)?.configFields ?? []).map((name) =>
-											field(
-												t(`dash.widget_${name}`),
-												input(state.config, name, {
-													type: "text",
-													placeholder: t(`dash.widget_${name}`),
-												}),
-											),
-										)
+									? (widgetModule(type)?.configFields ?? []).map((f) => {
+											const name = configFieldName(f);
+											return typeof f !== "string" && f.type === "select"
+												? field(
+														t(`dash.widget_${name}`),
+														select(
+															state.config,
+															name,
+															options(f.options.map((opt) => [opt, t(`dash.widget_${name}.${opt}`)])),
+															{ type: "select" },
+														),
+													)
+												: field(
+														t(`dash.widget_${name}`),
+														input(state.config, name, {
+															type: "text",
+															placeholder: t(`dash.widget_${name}`),
+														}),
+												  );
+									  })
 									: []),
 								<div class={"dash-config-actions dash-add-actions"}>
 									{[

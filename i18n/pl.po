@@ -1196,6 +1196,16 @@ msgstr "Status"
 msgid "dash.widget_channel"
 msgstr "Kanał"
 
+msgid "dash.widget_history"
+msgstr "Wiersze historii"
+
+msgid "dash.widget_order"
+msgstr "Nowe wiadomości"
+msgid "dash.widget_order.top"
+msgstr "Na górze"
+msgid "dash.widget_order.bottom"
+msgstr "Na dole"
+
 msgid "dash.widget_not_configured"
 msgstr "Niez skonfigurowano – podaj nazwę kanału"
 

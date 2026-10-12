@@ -1196,6 +1196,18 @@ msgstr "Stav"
 msgid "dash.widget_channel"
 msgstr "Kanál"
 
+msgid "dash.widget_history"
+msgstr "Délka historie zpráv"
+
+msgid "dash.widget_order"
+msgstr "Nové zprávy nahoru/dolu"
+
+msgid "dash.widget_order.top"
+msgstr "Nahoru"
+
+msgid "dash.widget_order.bottom"
+msgstr "Dolů"
+
 msgid "dash.widget_not_configured"
 msgstr "Není nastaveno – zadejte název kanálu"
 

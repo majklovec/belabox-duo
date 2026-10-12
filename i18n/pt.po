@@ -1196,6 +1196,16 @@ msgstr "Estado"
 msgid "dash.widget_channel"
 msgstr "Canal"
 
+msgid "dash.widget_history"
+msgstr "Linhas de histórico"
+
+msgid "dash.widget_order"
+msgstr "Novas mensagens"
+msgid "dash.widget_order.top"
+msgstr "No topo"
+msgid "dash.widget_order.bottom"
+msgstr "Na parte inferior"
+
 msgid "dash.widget_not_configured"
 msgstr "Não configurado – defina um canal"
 

@@ -33,9 +33,16 @@ export interface ChatSnapshot {
 
 /** kick-chat widget's configurable parameters (single source for the server
  * validation and the frontend editor). */
-export const KICK_CHAT_CONFIG_FIELDS = ["channel", "history"] as const;
+export const KICK_CHAT_CONFIG_FIELDS = [
+	"channel",
+	"history",
+	{ name: "order", type: "select", options: ["top", "bottom"] },
+] as const;
 /** Default visible history size — matches the backend rolling-history cap. */
 export const DEFAULT_HISTORY_LINES = 500;
+/** Where new messages enter the feed: "top" (the default, newest first) or
+ * "bottom" (oldest first, new lines arrive at the bottom). */
+export type ChatOrder = "top" | "bottom";
 /**
  * A widget's visible-history size, validated from its config. Non-numeric,
  * non-positive or absurd values fall back to the default rather than crashing
@@ -47,6 +54,15 @@ export function historyLengthFromConfig(config: Record<string, string> | undefin
 	const n = parseInt(value, 10);
 	if (!Number.isFinite(n) || n < 1 || n > 10_000) return DEFAULT_HISTORY_LINES;
 	return n;
+}
+
+/**
+ * A widget's new-message placement, validated from its config. Anything that
+ * is not "bottom" falls back to "top" (the historic default, newest first).
+ */
+export function chatOrderFromConfig(config: Record<string, string> | undefined): ChatOrder {
+	const value = (config?.["order"] ?? "").trim().toLowerCase();
+	return value === "bottom" ? "bottom" : "top";
 }
 
 /** Channel-hub spec from one widget's config (null when no channel set). */

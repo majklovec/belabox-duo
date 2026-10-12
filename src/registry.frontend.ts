@@ -15,7 +15,7 @@
  * graph.
  */
 import m from "mithril";
-import type { ServerDashboardWidget, Status } from "../public/types";
+import type { ServerDashboardWidget, Status, WidgetConfigField } from "../public/types";
 import { setFrontendEventSink, type DeviceCard } from "../public/ts/device/store";
 import MANIFEST from "../modules/.generated.frontend";
 
@@ -44,7 +44,7 @@ interface ChannelWidgetModule<TWidget = unknown> {
 	widgetTypes: readonly string[];
 	/** Grid cell count for a widget of this module's types (grid policy). */
 	defaultSize: { w: number; h: number };
-	configFields: readonly string[];
+	configFields: readonly WidgetConfigField[];
 	channelOf(w: TWidget): string;
 	body(w: TWidget, ctx: WidgetContext): unknown;
 	badge(w: TWidget, ctx: WidgetContext): unknown;

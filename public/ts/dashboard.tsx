@@ -16,6 +16,7 @@ import type {
   WidgetType,
 } from "../types";
 import { badge, button, widgetTable, type Child } from "./components/ui";
+import { configFieldName } from "../types";
 import { createCardHost, type DeviceCard } from "./device/store";
 /* REFACTOR-modules.md §7: the core names no module by id. Per-device cards
  * (encoder / srtla) are reached through the generated manifest
@@ -565,28 +566,57 @@ function configEditorForm(w: ServerDashboardWidget): m.Vnode {
   return (
     <div class={"dash-config-form"}>
       {[
-        ...fields.map((name) => (
-          <label key={name}>
-            {[
-              <span>{t(`dash.widget_${name}`)}</span>,
-              <input
-                class={"dash-config-input"}
-                value={s.values[name] ?? ""}
-                placeholder={t(`dash.widget_${name}`)}
-                oninput={(e: Event) => {
-                  s.values[name] = (e.target as HTMLInputElement).value;
-                }}
-              />,
-            ]}
-          </label>
-        )),
+        ...fields.map((field) => {
+          const name = configFieldName(field);
+          const isSelect = typeof field !== "string" && field.type === "select";
+          return (
+            <label key={name}>
+              {[
+                <span>{t(`dash.widget_${name}`)}</span>,
+                isSelect ? (
+                  <select
+                    class={"dash-config-input"}
+                    value={s.values[name] ?? (field.type === "select" ? field.options[0] : "")}
+                    onchange={(e: Event) => {
+                      s.values[name] = (e.target as HTMLSelectElement).value;
+                    }}
+                  >
+                    {field.type === "select"
+                      ? field.options.map((opt) =>
+                          <option key={opt} value={opt}>
+                            {t(`dash.widget_${name}.${opt}`)}
+                          </option>,
+                        )
+                      : []}
+                  </select>
+                ) : (
+                  <input
+                    class={"dash-config-input"}
+                    value={s.values[name] ?? ""}
+                    placeholder={t(`dash.widget_${name}`)}
+                    oninput={(e: Event) => {
+                      s.values[name] = (e.target as HTMLInputElement).value;
+                    }}
+                  />
+                ),
+              ]}
+            </label>
+          );
+        }),
         <div class={"dash-config-actions"} key={"actions"}>
           {[
             button(t("ui.save"), {
               onclick: (e: Event) => {
                 e.preventDefault();
                 w.config = Object.fromEntries(
-                  fields.map((name) => [name, (s.values[name] ?? "").trim()]),
+                  fields.map((field) => {
+                    const nm = configFieldName(field);
+                    let v = (s.values[nm] ?? "").trim();
+                    if (typeof field !== "string" && field.type === "select" && v === "") {
+                      v = field.options[0] ?? "";
+                    }
+                    return [nm, v];
+                  }),
                 );
                 widgetConfigState.delete(key);
                 widgetConfigSaver?.(w);

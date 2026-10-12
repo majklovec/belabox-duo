@@ -1196,6 +1196,16 @@ msgstr "Статус"
 msgid "dash.widget_channel"
 msgstr "Канал"
 
+msgid "dash.widget_history"
+msgstr "Строк истории"
+
+msgid "dash.widget_order"
+msgstr "Новые сообщения"
+msgid "dash.widget_order.top"
+msgstr "Сверху"
+msgid "dash.widget_order.bottom"
+msgstr "Снизу"
+
 msgid "dash.widget_not_configured"
 msgstr "Не настроено – укажите канал"
 

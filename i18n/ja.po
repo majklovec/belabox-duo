@@ -1196,6 +1196,16 @@ msgstr "ステータス"
 msgid "dash.widget_channel"
 msgstr "チャンネル"
 
+msgid "dash.widget_history"
+msgstr "履歴行数"
+
+msgid "dash.widget_order"
+msgstr "新しいメッセージ"
+msgid "dash.widget_order.top"
+msgstr "上"
+msgid "dash.widget_order.bottom"
+msgstr "下"
+
 msgid "dash.widget_not_configured"
 msgstr "未設定 – チャンネル名を入力してください"
 

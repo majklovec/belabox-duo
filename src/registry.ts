@@ -28,7 +28,7 @@ import { pushModuleEvent } from "./push";
 import { MODULE_CONFIG_KEYS, type PersistentState, state } from "./state";
 import { buildModuleCore, type ModuleStatus } from "./module-core";
 import { provideCapability } from "./capabilities";
-import type { ServerDashboard } from "../public/types";
+import type { ServerDashboard, WidgetConfigField } from "../public/types";
 
 const MODULES_DIR = fileURLToPath(new URL("../modules", import.meta.url));
 
@@ -62,7 +62,7 @@ interface ModuleRegistration {
 	hub?: {
 		widgetType: string;
 		snapshotKey: string;
-		configFields: readonly string[];
+		configFields: readonly WidgetConfigField[];
 		channelSpec: (config: Record<string, string> | undefined) => string | null;
 		create: (publish: (msg: string) => void) => ChannelHub;
 		enabled?(config: Record<string, unknown> | undefined): boolean;
@@ -311,7 +311,7 @@ export const settingsModules = (): PersistentState["settings"]["modules"] | unde
 interface WidgetEntry {
 	type: string;
 	snapshotKey: string;
-	configFields: readonly string[];
+	configFields: readonly WidgetConfigField[];
 	spec: (config: Record<string, string> | undefined) => string | null;
 	hub: ChannelHub | null;
 }
@@ -325,7 +325,7 @@ const WIDGETS: WidgetEntry[] = ALL_MODULES.filter((m) => m.hub).map((m) => ({
 }));
 
 /** Config parameter names per widget type (server validation + dashboard editor). */
-export const widgetConfigFields = (type: string): readonly string[] => WIDGETS.find((w) => w.type === type)?.configFields ?? [];
+export const widgetConfigFields = (type: string): readonly WidgetConfigField[] => WIDGETS.find((w) => w.type === type)?.configFields ?? [];
 
 /** Wire the channel widget backends to the dashboard websocket topic. */
 export function initWidgetHub(publish: (msg: string) => void): void {

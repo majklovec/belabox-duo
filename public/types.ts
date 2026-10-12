@@ -350,6 +350,19 @@ export interface ModulesView {
 export type WidgetType = "obs" | "stats" | "status" | "relay" | "encoder" | "combined" | "kick-stats" | "kick-chat" | "tiktok-chat" | "twitch-chat" | "youtube-chat";
 
 /**
+ * A channel widget's config parameter, declared by its module in editor order.
+ * A bare string is a free-text field (its value is the parameter name);
+ * `{name, type:"select", options}` is a fixed-choice field rendered as a
+ * dropdown (the stored value is one of `options`).
+ */
+export type WidgetConfigField =
+	| string
+	| { name: string; type: "select"; options: readonly string[] };
+
+/** The parameter name a config field writes to the widget's `config` record. */
+export const configFieldName = (f: WidgetConfigField): string => (typeof f === "string" ? f : f.name);
+
+/**
  * Server-side dashboards: composed in the control server's dashboards page from
  * widgets that each pull one module's view off a selected device.
  */

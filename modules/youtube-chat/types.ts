@@ -40,6 +40,12 @@ export interface WidgetContext {
 	device?: Record<string, unknown> | null;
 }
 
+/** A config parameter: a bare string (free text) or a `{name, type:"select",
+ * options}` fixed-choice field rendered as a dropdown. */
+export type WidgetConfigField =
+	| string
+	| { name: string; type: "select"; options: readonly string[] };
+
 /** Frontend descriptor the dashboard registry renders. The module owns its
  * live state (fed by `onFrame`); `body`/`badge` render from it plus, where
  * relevant, the widget's device state in `ctx`. */
@@ -50,7 +56,7 @@ export interface ChannelWidgetModule<TWidget = unknown> {
 	widgetTypes: readonly string[];
 	defaultSize: { w: number; h: number };
 	/** Config parameter names this widget accepts, in editor form order. */
-	configFields: readonly string[];
+	configFields: readonly WidgetConfigField[];
 	/** The widget's channel name from its config ("" when not configured). */
 	channelOf(w: TWidget): string;
 	/** Render the widget body from the module's live state. */

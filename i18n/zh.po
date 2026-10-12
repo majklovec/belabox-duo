@@ -1196,6 +1196,16 @@ msgstr "状态"
 msgid "dash.widget_channel"
 msgstr "频道"
 
+msgid "dash.widget_history"
+msgstr "历史行数"
+
+msgid "dash.widget_order"
+msgstr "新消息"
+msgid "dash.widget_order.top"
+msgstr "顶部"
+msgid "dash.widget_order.bottom"
+msgstr "底部"
+
 msgid "dash.widget_not_configured"
 msgstr "未配置 – 请填写频道名"
 
