@@ -3,7 +3,7 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 167,
+      "version": 168,
       "widgets": [
         {
           "id": "34aad0a5-0102-4cb0-bd3b-d50009aec4f1",
@@ -53,22 +53,6 @@
           "visible": false,
           "config": {
             "channel": ""
-          }
-        },
-        {
-          "id": "fa89a066-3bb3-4247-b48b-752d578720a7",
-          "deviceId": "",
-          "type": "kick-chat",
-          "name": "Chat Kick",
-          "x": 0,
-          "y": 8,
-          "w": 8,
-          "h": 9,
-          "visible": true,
-          "config": {
-            "channel": "czechcloud",
-            "history": "20",
-            "order": "bottom"
           }
         },
         {
