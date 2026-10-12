@@ -384,7 +384,7 @@ msgid "dev.row.bitrate"
 msgstr "Bitrate"
 
 msgid "dev.row.encoder"
-msgstr "Kódér"
+msgstr "Kodér"
 
 msgid "dev.row.latency"
 msgstr "Zpoždění"

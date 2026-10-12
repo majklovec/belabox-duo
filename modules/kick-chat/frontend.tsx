@@ -3,22 +3,22 @@
 // websocket frames it cares about (`widget.snapshot`, `kick.chat`); no
 // per-widget transport state. The core only forwards frames (`onFrame`).
 import m from "mithril";
+import { badge as badgeEl } from "../../public/ts/components/ui";
+import { t } from "../../public/ts/i18n";
+import { decorateText } from "../../public/ts/util";
 import type { ServerDashboardWidget } from "../../public/types";
 import {
+  chatOrderFromConfig,
+  DEFAULT_HISTORY_LINES,
+  historyLengthFromConfig,
+  KICK_CHAT_CONFIG_FIELDS,
+} from "./backend";
+import type {
+  ChannelLive,
   ChannelWidgetModule,
   ChatLive,
-  type ChannelLive,
-  type WidgetContext,
+  WidgetContext,
 } from "./types";
-import { badge as badgeEl } from "../../public/ts/components/ui";
-import { decorateText } from "../../public/ts/util";
-import { t } from "../../public/ts/i18n";
-import {
-  DEFAULT_HISTORY_LINES,
-  KICK_CHAT_CONFIG_FIELDS,
-  chatOrderFromConfig,
-  historyLengthFromConfig,
-} from "./backend";
 import "./styles.css";
 
 /** Live chat buffer size per channel — matches the backend rolling-buffer
@@ -50,8 +50,12 @@ function onFrame(event: string, data: unknown): void {
       | { channel?: string; reconnect: boolean; messages: ChatLive[] };
     if (!e.channel) return;
     if ("message" in e)
-      liveFor(e.channel).chat = [e.message, ...(liveFor(e.channel).chat ?? [])].slice(0, CAP);
-    else if ("messages" in e) liveFor(e.channel).chat = e.messages.slice(0, CAP);
+      liveFor(e.channel).chat = [
+        e.message,
+        ...(liveFor(e.channel).chat ?? []),
+      ].slice(0, CAP);
+    else if ("messages" in e)
+      liveFor(e.channel).chat = e.messages.slice(0, CAP);
   }
 }
 
@@ -65,10 +69,15 @@ function channelOf(w: ServerDashboardWidget): string {
  * the backend buffer is stored newest-first, so slice from the front), flipped
  * oldest-first when the widget's `order` config is "bottom" (new messages then
  * enter the log at the bottom). Defaults via the hub's validated config helpers. */
-function liveLines(w: ServerDashboardWidget, live: ChannelLive): ChannelLive["chat"] {
+function liveLines(
+  w: ServerDashboardWidget,
+  live: ChannelLive,
+): ChannelLive["chat"] {
   const visible = historyLengthFromConfig(w.config) ?? DEFAULT_HISTORY_LINES;
   const lines = (live.chat ?? []).slice(0, Math.max(1, visible));
-  return chatOrderFromConfig(w.config) === "bottom" ? [...lines].reverse() : lines;
+  return chatOrderFromConfig(w.config) === "bottom"
+    ? [...lines].reverse()
+    : lines;
 }
 
 /** Card head: the channel badge (not configured, else online/disconnected). */
@@ -138,39 +147,60 @@ function lineSegments(text: string): m.Children {
  * line when the user is already at the bottom (scrolling up to read history
  * is not interrupted).
  */
+
+const chatAutoScroll = new WeakMap<HTMLElement, boolean>();
+
 function body(w: ServerDashboardWidget, _ctx: WidgetContext): m.Children {
   const channel = channelOf(w);
-  if (!channel) return <p class={"muted"}>{t("dash.widget_not_configured")}</p>;
+  if (!channel) return <p class="muted">{t("dash.widget_not_configured")}</p>;
+
   const l = live.get(channel) ?? { chat: [] };
   const lines = liveLines(w, l);
-  const msgs = (lines ?? []).map((c) => (
-    <div class={"kick-chat-line"} key={String(c.id)}>
-      {c.username ? (
-        <span
-          class={"chat-user"}
-          style={c.color ? `color:${c.color}` : undefined}
-        >
-          {c.username}
-        </span>
-      ) : null}
-      <span class={"chat-text"}>{lineSegments(c.text ?? "")}</span>
-    </div>
-  ));
-  if (!msgs.length) return <p class={"muted"}>{t("kickchat.empty")}</p>;
-  if (chatOrderFromConfig(w.config) !== "bottom")
-    return <div class={"kick-chat-feed"} key={channel}>{msgs}</div>;
+  const bottom = chatOrderFromConfig(w.config) === "bottom";
+
+  if (!lines?.length) return <p class="muted">{t("kickchat.empty")}</p>;
+
   return (
     <div
-      class={"kick-chat-feed"}
+      class="kick-chat-feed"
       key={channel}
-      ref={(el: HTMLElement | null) => {
-        // Keep the newest line in view, but never yank the user down while
-        // they have scrolled up to read history.
-        if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 2)
-          el.scrollTop = el.scrollHeight;
+      oncreate={(vnode) => {
+        const el = vnode.dom as HTMLElement;
+        chatAutoScroll.set(el, true);
+        if (bottom) {
+          requestAnimationFrame(() => {
+            if (el.isConnected) el.scrollTop = el.scrollHeight;
+          });
+        }
+      }}
+      onscroll={(event) => {
+        const el = event.currentTarget as HTMLElement;
+        const distance = el.scrollHeight - el.clientHeight - el.scrollTop;
+        chatAutoScroll.set(el, distance <= 30);
+      }}
+      onupdate={(vnode) => {
+        const el = vnode.dom as HTMLElement;
+        if (bottom && chatAutoScroll.get(el)) {
+          requestAnimationFrame(() => {
+            if (el.isConnected && chatAutoScroll.get(el))
+              el.scrollTop = el.scrollHeight;
+          });
+        }
       }}
     >
-      {msgs}
+      {lines.map((c) => (
+        <div class="kick-chat-line" key={String(c.id)}>
+          {c.username && (
+            <span
+              class="chat-user"
+              style={c.color ? `color:${c.color}` : undefined}
+            >
+              {c.username}
+            </span>
+          )}
+          <span class="chat-text">{lineSegments(c.text ?? "")}</span>
+        </div>
+      ))}
     </div>
   );
 }

@@ -3,7 +3,7 @@
     {
       "id": "24c2efae-b4e6-4739-8331-05cef01c69fd",
       "name": "Dash",
-      "version": 168,
+      "version": 203,
       "widgets": [
         {
           "id": "34aad0a5-0102-4cb0-bd3b-d50009aec4f1",
@@ -12,8 +12,8 @@
           "name": "Stats Kick",
           "x": 0,
           "y": 0,
-          "w": 3,
-          "h": 6,
+          "w": 4,
+          "h": 5,
           "visible": true,
           "config": {
             "channel": "cicero_mt"
@@ -71,11 +71,27 @@
           "deviceId": "7db2c627-5a08-4c59-a89f-1fd0eb193a17",
           "type": "obs",
           "name": "OBS Studio",
-          "x": 3,
+          "x": 4,
           "y": 0,
-          "w": 5,
-          "h": 8,
+          "w": 4,
+          "h": 15,
           "visible": true
+        },
+        {
+          "id": "5e01e6ae-d437-4b8f-ac4b-767a8cdae5d1",
+          "deviceId": "",
+          "type": "kick-chat",
+          "name": "Chat Kick",
+          "x": 0,
+          "y": 5,
+          "w": 4,
+          "h": 5,
+          "visible": true,
+          "config": {
+            "channel": "destiny",
+            "history": "100",
+            "order": "bottom"
+          }
         }
       ],
       "columns": 12
