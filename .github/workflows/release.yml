@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       new_tag: ${{ steps.tag.outputs.new_tag }}
+      changelog: ${{ steps.changelog.outputs.changes }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,14 +26,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           exclude_types: other,doc,chore
-
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          body: ${{ steps.changelog.outputs.changes }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - id: tag
         uses: anothrNick/github-tag-action@1.71.0
@@ -184,5 +177,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.new_tag }}
+          name: Release ${{ needs.version.outputs.new_tag }}
+          body: ${{ needs.version.outputs.changelog }}
           files: artifacts/*
-          generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
