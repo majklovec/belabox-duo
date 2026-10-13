@@ -26,6 +26,9 @@ import "./styles.css";
  * per its own `history` config). */
 const CAP = 500;
 
+/** Distance from the bottom of the chat container at which auto-scroll engages. */
+const DISTANCE_THRESHOLD = 50;
+
 /** Live kick-chat data per channel, accumulated from the dashboard websocket. */
 const live = new Map<string, ChannelLive>();
 const liveFor = (channel: string): ChannelLive => {
@@ -176,7 +179,7 @@ function body(w: ServerDashboardWidget, _ctx: WidgetContext): m.Children {
       onscroll={(event) => {
         const el = event.currentTarget as HTMLElement;
         const distance = el.scrollHeight - el.clientHeight - el.scrollTop;
-        chatAutoScroll.set(el, distance <= 30);
+        chatAutoScroll.set(el, distance <= DISTANCE_THRESHOLD);
       }}
       onupdate={(vnode) => {
         const el = vnode.dom as HTMLElement;
