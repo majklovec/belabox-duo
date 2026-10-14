@@ -29,7 +29,6 @@ import {
   type ObsPanel,
   type ObsRequestResult,
 } from "../../modules/obs-controller/frontend";
-import { switcherCard } from "../../modules/low-bitrate-switcher/frontend";
 import {
   deviceCardBody,
   dispatchWidgetFrame,
@@ -428,7 +427,7 @@ function obsPanelFor(w: ServerDashboardWidget, conn: Connection): ObsPanel {
   return panel;
 }
 
-/** The full control panel (preview, scenes, output actions, VU meter) plus the low-bitrate switcher card. */
+/** The OBS controls, including the switcher section when enabled. */
 function obsWidget(
   w: ServerDashboardWidget,
   conn: Connection | undefined,
@@ -437,18 +436,13 @@ function obsWidget(
   if (!conn || !d?.online)
     return <p class={"muted"}>{t("dev.badge.offline")}</p>;
   const status = conn.card.st.status;
-  // The dashboard widget card is shared by all widget types, so scope the module CSS
-  // with the same .mod-obs-controller class the device page's card root gets. The
-  // switcher card renders under the panel while enabled on that device.
-  const switcherOn = status?.modules["low-bitrate-switcher"]?.enabled === true;
   return (
     <div class={"mod-obs-controller"}>
-      {[
-        obsPanelFor(w, conn).component(),
-        status && switcherOn
-          ? switcherCard(conn.card, status, conn.live.switcher ?? null)
-          : null,
-      ]}
+      {obsPanelFor(w, conn).component(
+        status
+          ? { host: conn.card, status, live: conn.live.switcher ?? null }
+          : undefined,
+      )}
     </div>
   );
 }

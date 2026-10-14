@@ -65,9 +65,8 @@ const App: m.Component = {
 		const children = [
 			!obsOnly && hasEncoder && moduleCard("encoder", status),
 			!obsOnly && hasRelay && [moduleCard("srtla", status), interfacesCard(status), moduleCard("modems", status)],
+			// The OBS card carries the low-bitrate switcher inside it (one card).
 			obsOn && moduleCard("obs-controller", status),
-			// Always offered once OBS is on; the card's head toggle switches the module itself.
-			obsOn && moduleCard("low-bitrate-switcher", status),
 		];
 		return (
 			<Page

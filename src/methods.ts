@@ -55,7 +55,6 @@ import type {
 	EncoderState,
 	ModemInfo,
 	SrtlaState,
-	SwitcherMetricSources,
 	SwitcherStatus,
 } from "../public/types";
 import { encoderServices, modemServices, obsServices, srtlaServices } from "./services";
@@ -135,8 +134,6 @@ export async function buildStatus() {
 		ceracoder: encoderServices.ceracoderConfig(),
 		// null when the switcher is not running; the card shows "idle" then
 		lowBitrateSwitcher: (modFragments.lowBitrateSwitcher as SwitcherStatus | null) ?? null,
-		// The switcher's metric source options (part of the module configuration surface)
-		switcherMetricSources: (modFragments.switcherMetricSources as SwitcherMetricSources) ?? null,
 		// Module system: enabled flags + non-secret settings (secrets => {configured})
 		modules: modulesView(),
 	};
@@ -607,7 +604,8 @@ function methodAllowed(name: string): boolean {
 	const role = effectiveRole();
 	if (name.startsWith("stream.")) return role === "combined";
 	// Module-owned API surface: 409 when the owning module is disabled
-	if (name.startsWith("obs.") && !moduleEnabled(OBS_MODULE)) return false;
+	// (the low-bitrate switcher rides on the OBS module now)
+	if ((name.startsWith("obs.") || name.startsWith("lowBitrateSwitcher.")) && !moduleEnabled(OBS_MODULE)) return false;
 	if (name.startsWith("encoder.") || name.startsWith("ceracoder.") || name === "pipelines.list") return role !== "relay";
 	if (name.startsWith("modems.") || name.startsWith("srtla.") || name === "reconfigure") return role !== "encoder";
 	return true;

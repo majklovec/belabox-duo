@@ -27,12 +27,6 @@ export function configureModule(id: string, config: Record<string, unknown>): vo
             // Subprocess wiring follows the process role and applies on restart
             break;
         }
-        case "low-bitrate-switcher": {
-            // Only the `enabled` toggle is handled here; the full settings go
-            // through the module's own lowBitrateSwitcher.save method
-            if (typeof config.enabled === "boolean") m["low-bitrate-switcher"].enabled = config.enabled;
-            break;
-        }
     }
 }
 
@@ -51,7 +45,22 @@ export function modulesView(): object {
             obsPassword: obs.obsPassword ? { configured: true } : { configured: false },
             sceneEvents: obs.sceneEvents,
         },
-        // No secrets in the switcher settings: the whole slice goes to the client
-        "low-bitrate-switcher": m["low-bitrate-switcher"],
+        // No secrets in the switcher settings: the switcher rides on the obs
+        // slice, so its view is synthesized from there (backfill guarantees the
+        // fields exist).
+        "low-bitrate-switcher": {
+            enabled: obs.switcherEnabled !== false,
+            obsSourceName: obs.obsSourceName ?? "",
+            failBehaviour: obs.failBehaviour ?? "pause",
+            autoSwitch: obs.autoSwitch ?? true,
+            onlySwitchWhenStreaming: obs.onlySwitchWhenStreaming ?? false,
+            instantlySwitchOnRecover: obs.instantlySwitchOnRecover ?? true,
+            retryAttempts: obs.retryAttempts ?? 5,
+            pollIntervalMs: obs.pollIntervalMs ?? 1000,
+            triggers: obs.triggers ?? { low: 500, offline: 400, rtt: 1500 },
+            scenes: obs.scenes ?? { normal: "", low: "", offline: "" },
+            optionalScenes: obs.optionalScenes ?? { starting: "", ending: "", privacy: "" },
+            logToFile: obs.logToFile ?? true,
+        },
     };
 }

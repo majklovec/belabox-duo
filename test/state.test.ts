@@ -8,114 +8,113 @@ import {
 } from "../src/state";
 
 /**
- * Regression: the crash `TypeError: undefined is not an object (evaluating
- * 'cfg.sources[key]')` at startup — configs written by the always-on switcher
- * seed carried only `{ enabled: true }` until the card form saved, which made
- * the module dereference the missing `sources` on boot.
+ * Regression for the switcher merge: pre-merge configs stored the switcher
+ * under a top-level `modules["low-bitrate-switcher"]` slice (or the older
+ * camelCase `lowBitrateSwitcher` key). The switcher now rides on the OBS
+ * module, so `fromConfig` folds the legacy slice into
+ * `modules["obs-controller"]` (its `enabled` becoming `switcherEnabled`),
+ * filling missing fields with the defaults. The obs slice must always end up
+ * with a complete switcher set.
  */
-const SWITCHER = "low-bitrate-switcher";
+const OBS = "obs-controller";
+const LEGACY = "low-bitrate-switcher";
 
-/** The stored slice type of `ModulesState["low-bitrate-switcher"]`. */
-type StoredSlice = { enabled: boolean } & SwitcherConfig;
+/** The switcher fields as they now live on the obs module slice (plus the obs
+ * url, which the migration test inspects to prove the obs fields survive). */
+type ObsSwitcherFields = SwitcherConfig & { switcherEnabled?: boolean; obsUrl?: string };
 
-type SwitcherSlice = {
-    enabled?: boolean;
-    sources?: { encoder?: { enabled?: boolean; deviceId?: string }; relay?: { enabled?: boolean; deviceId?: string } };
-    triggers?: { low?: number; offline?: number; rtt?: number };
-    scenes?: { normal?: string; low?: string; offline?: string };
-    optionalScenes?: { starting?: string; ending?: string; privacy?: string };
-    logToFile?: boolean;
-    autoSwitch?: boolean;
-    onlySwitchWhenStreaming?: boolean;
-    instantlySwitchOnRecover?: boolean;
-    failBehaviour?: "pause" | "ignore";
-    retryAttempts?: number;
-    pollIntervalMs?: number;
-};
-
-function expectCompleteSlice(label: string, slice: SwitcherSlice): void {
-    expect(slice.enabled, `${label}: enabled`).toBe(true);
-    expect(slice.sources, `${label}: sources`).toBeDefined();
-    expect(slice.sources?.encoder, `${label}: sources.encoder`).toBeDefined();
-    expect(slice.sources?.relay, `${label}: sources.relay`).toBeDefined();
-    expect(slice.triggers, `${label}: triggers`).toBeDefined();
-    expect(typeof slice.triggers?.low, `${label}: triggers.low`).toBe("number");
-    expect(slice.scenes, `${label}: scenes`).toBeDefined();
-    expect(slice.optionalScenes, `${label}: optionalScenes`).toBeDefined();
-    expect(typeof slice.retryAttempts, `${label}: retryAttempts`).toBe("number");
-    expect(typeof slice.pollIntervalMs, `${label}: pollIntervalMs`).toBe("number");
-    expect(typeof slice.logToFile, `${label}: logToFile`).toBe("boolean");
-    expect(typeof slice.autoSwitch, `${label}: autoSwitch`).toBe("boolean");
+function expectCompleteObsSwitcher(label: string, obs: ObsSwitcherFields): void {
+    expect(typeof obs.obsSourceName, `${label}: obsSourceName`).toBe("string");
+    expect(typeof obs.failBehaviour, `${label}: failBehaviour`).toBe("string");
+    expect(obs.triggers, `${label}: triggers`).toBeDefined();
+    expect(typeof obs.triggers?.low, `${label}: triggers.low`).toBe("number");
+    expect(obs.scenes, `${label}: scenes`).toBeDefined();
+    expect(obs.optionalScenes, `${label}: optionalScenes`).toBeDefined();
+    expect(typeof obs.retryAttempts, `${label}: retryAttempts`).toBe("number");
+    expect(typeof obs.pollIntervalMs, `${label}: pollIntervalMs`).toBe("number");
+    expect(typeof obs.logToFile, `${label}: logToFile`).toBe("boolean");
+    expect(typeof obs.autoSwitch, `${label}: autoSwitch`).toBe("boolean");
 }
 
-describe("switcher module slice is never incomplete", () => {
-    test("defaultModules seeds a complete slice", () => {
-        expectCompleteSlice("default", defaultModules("relay")[SWITCHER] as SwitcherSlice);
+describe("switcher fields fold into the obs module slice", () => {
+    test("defaultModules seeds a complete obs switcher slice", () => {
+        expectCompleteObsSwitcher("default", defaultModules("relay")[OBS] as ObsSwitcherFields);
     });
 
-    test("a fresh config (no stored modules) gets a complete slice", () => {
+    test("a fresh config (no stored modules) gets a complete obs switcher slice", () => {
         const cfg: Partial<DeviceConfig> = { role: "relay" };
         const st = fromConfig(cfg);
-        expectCompleteSlice("fresh", st.settings.modules?.[SWITCHER] as SwitcherSlice);
+        expectCompleteObsSwitcher("fresh", st.settings.modules?.[OBS] as ObsSwitcherFields);
     });
 
-    test("the crashed shape ({ enabled: true } only) is backfilled", () => {
-        // (casts: the point is the stored modules map is incomplete)
+    test("a legacy low-bitrate-switcher slice migrates into the obs slice", () => {
+        // (cast: the point is the stored modules map is a pre-merge shape)
         const cfg: Partial<DeviceConfig> = {
             role: "relay",
-            modules: { [SWITCHER]: { enabled: true } as StoredSlice } as ModulesState,
+            modules: { [LEGACY]: { enabled: true } } as unknown as ModulesState,
         };
         const st = fromConfig(cfg);
-        expectCompleteSlice("stale", st.settings.modules?.[SWITCHER] as SwitcherSlice);
+        const obs = st.settings.modules?.[OBS] as ObsSwitcherFields;
+        expectCompleteObsSwitcher("migrated", obs);
+        expect(obs.switcherEnabled, "migrated: switcherEnabled").toBe(true);
+        expect(
+            st.settings.modules as unknown as Record<string, unknown>,
+            "migrated: no legacy slice",
+        ).not.toHaveProperty(LEGACY);
     });
 
-    test("stored values win when filling the gaps", () => {
-        // (casts: the point is the stored slice is partial)
+    test("the crashed shape ({ enabled: true } only) migrates complete", () => {
+        const cfg: Partial<DeviceConfig> = {
+            role: "relay",
+            modules: { [LEGACY]: { enabled: true } } as unknown as ModulesState,
+        };
+        const st = fromConfig(cfg);
+        expectCompleteObsSwitcher("stale", st.settings.modules?.[OBS] as ObsSwitcherFields);
+    });
+
+    test("stored legacy values win when filling the obs gaps", () => {
         const cfg: Partial<DeviceConfig> = {
             role: "relay",
             modules: {
-                [SWITCHER]: {
+                [LEGACY]: {
                     enabled: true,
                     pollIntervalMs: 5000,
                     triggers: { rtt: 900 },
-                    sources: { relay: { enabled: true, deviceId: "dev-9" } },
-                } as StoredSlice,
-            } as ModulesState,
+                    obsSourceName: "SRTLA-1",
+                },
+            } as unknown as ModulesState,
         };
         const st = fromConfig(cfg);
-        const sw = st.settings.modules?.[SWITCHER] as SwitcherSlice;
-        expectCompleteSlice("overrides", sw);
-        expect(sw.pollIntervalMs).toBe(5000);
-        expect(sw.triggers?.rtt).toBe(900);
-        expect(typeof sw.triggers?.low, "low backfilled").toBe("number");
-        expect(sw.sources?.relay?.deviceId).toBe("dev-9");
-        expect(sw.sources?.relay?.enabled).toBe(true);
-        expect(sw.sources?.encoder?.enabled).toBe(false);
+        const obs = st.settings.modules?.[OBS] as ObsSwitcherFields;
+        expectCompleteObsSwitcher("overrides", obs);
+        expect(obs.pollIntervalMs).toBe(5000);
+        expect(obs.triggers?.rtt).toBe(900);
+        expect(typeof obs.triggers?.low, "low backfilled").toBe("number");
+        expect(obs.obsSourceName).toBe("SRTLA-1");
     });
 
-    test("a full stored slice is left untouched", () => {
-        const full: SwitcherSlice = {
-            enabled: true,
-            sources: {
-                encoder: { enabled: true, deviceId: "enc-1" },
-                relay: { enabled: true, deviceId: "rl-1" },
-            },
-            failBehaviour: "ignore",
-            autoSwitch: false,
-            onlySwitchWhenStreaming: true,
-            instantlySwitchOnRecover: false,
-            retryAttempts: 3,
-            pollIntervalMs: 750,
-            triggers: { low: 200, offline: 100, rtt: 300 },
-            scenes: { normal: "A", low: "B", offline: "C" },
-            optionalScenes: { starting: "S", ending: "E", privacy: "P" },
-            logToFile: false,
-        };
+    test("an obs slice without switcher fields absorbs a legacy switcher slice", () => {
         const cfg: Partial<DeviceConfig> = {
             role: "relay",
-            modules: { [SWITCHER]: full as StoredSlice } as ModulesState,
+            modules: {
+                [OBS]: {
+                    enabled: true,
+                    obsUrl: "ws://1.2.3.4:4455",
+                    obsPassword: "pw",
+                    sceneEvents: true,
+                },
+                [LEGACY]: {
+                    enabled: false,
+                    pollIntervalMs: 5000,
+                    obsSourceName: "SRTLA-1",
+                },
+            } as unknown as ModulesState,
         };
         const st = fromConfig(cfg);
-        expect(st.settings.modules?.[SWITCHER]).toEqual(full as StoredSlice);
+        const obs = st.settings.modules?.[OBS] as ObsSwitcherFields;
+        expect(obs.obsUrl, "keeps obs url").toBe("ws://1.2.3.4:4455");
+        expect(obs.obsSourceName, "legacy value fills the gap").toBe("SRTLA-1");
+        expect(obs.pollIntervalMs, "legacy value fills the gap").toBe(5000);
+        expect(obs.switcherEnabled, "legacy enabled=false -> switcherEnabled false").toBe(false);
     });
 });

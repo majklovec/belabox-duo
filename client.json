@@ -1,0 +1,100 @@
+{
+  "autostart": false,
+  "color": "#3b82f6",
+  "hostname": "combined",
+  "language": "en",
+  "remoteToken": "token",
+  "remoteUrl": "ws://192.168.1.136:8090/device",
+  "role": "combined",
+  "uuid": "54d4c237-01b4-439b-ad52-14de42c4484a",
+  "ceracoder": {
+    "balancer": "adaptive",
+    "minBitrate": 300,
+    "adaptive": {
+      "decrInterval": 200,
+      "decrStep": 100,
+      "incrInterval": 500,
+      "incrStep": 30
+    },
+    "aimd": {
+      "decrInterval": 200,
+      "decrMult": 0.75,
+      "incrInterval": 500,
+      "incrStep": 50
+    }
+  },
+  "encoder": {
+    "audioCodec": "aac",
+    "audioSource": "default",
+    "bitrateOverlay": false,
+    "delay": 0,
+    "host": "127.0.0.1",
+    "latency": 2000,
+    "maxBitrate": 6000,
+    "minBitrate": 300,
+    "pipeline": "test/h265_test_pattern",
+    "port": "6000",
+    "streamid": "test"
+  },
+  "modems": {},
+  "modules": {
+    "encoder": {
+      "enabled": true
+    },
+    "low-bitrate-switcher": {
+      "autoSwitch": true,
+      "enabled": true,
+      "failBehaviour": "pause",
+      "instantlySwitchOnRecover": true,
+      "logToFile": true,
+      "obsSourceName": "",
+      "onlySwitchWhenStreaming": false,
+      "pollIntervalMs": 1000,
+      "retryAttempts": 5,
+      "optionalScenes": {
+        "ending": "",
+        "privacy": "",
+        "starting": ""
+      },
+      "scenes": {
+        "low": "",
+        "normal": "",
+        "offline": ""
+      },
+      "sources": {
+        "encoder": {
+          "deviceId": "",
+          "enabled": false
+        },
+        "relay": {
+          "deviceId": "",
+          "enabled": false
+        }
+      },
+      "triggers": {
+        "low": 500,
+        "offline": 400,
+        "rtt": 1500
+      }
+    },
+    "modems": {
+      "enabled": true
+    },
+    "obs-controller": {
+      "enabled": false,
+      "obsPassword": "",
+      "obsUrl": "",
+      "sceneEvents": true
+    },
+    "relay": {
+      "enabled": true
+    }
+  },
+  "srtla": {
+    "listenPort": "6000",
+    "mode": "enhanced",
+    "quality": true,
+    "remoteHost": "192.168.1.136",
+    "remotePort": "5000"
+  }
+}

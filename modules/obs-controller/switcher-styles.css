@@ -9,3 +9,6 @@
   margin-left: 0.5rem;
   flex: 1;
 }
+.mod-switcher .lbs-text {
+  flex: 1;
+}

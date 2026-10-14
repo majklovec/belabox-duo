@@ -63,9 +63,23 @@ export interface ObsModuleConfig {
     obsUrl: string;
     obsPassword: string;
     sceneEvents: boolean;
+    // The low-bitrate switcher, merged into this module: it rides on the OBS
+    // client above and shares its lifecycle. `switcherEnabled` defaults to on.
+    switcherEnabled?: boolean;
+    obsSourceName?: string;
+    failBehaviour?: "pause" | "ignore";
+    autoSwitch?: boolean;
+    onlySwitchWhenStreaming?: boolean;
+    instantlySwitchOnRecover?: boolean;
+    retryAttempts?: number;
+    pollIntervalMs?: number;
+    triggers?: SwitcherConfig["triggers"];
+    scenes?: SwitcherConfig["scenes"];
+    optionalScenes?: SwitcherConfig["optionalScenes"];
+    logToFile?: boolean;
 }
 /** All module keys the registry knows, and their on-disk shape. */
-export const ALL_MODULES = ["relay", "encoder", "obs-controller", "low-bitrate-switcher"] as const;
+export const ALL_MODULES = ["relay", "encoder", "obs-controller"] as const;
 
 /**
  * Registry module ID → persisted settings key. `srtla` reads the legacy
@@ -84,17 +98,15 @@ export type ModuleId = (typeof ALL_MODULES)[number];
 export const OBS_MODULE = "obs-controller" as const;
 
 /**
- * The switcher slice's core-side defaults — the same values the frontend form
- * carries, so a slice seeded (or backfilled) on first run is complete and the
- * module can start before the card form has ever saved.
+ * The switcher's core-side defaults — the same values the frontend form
+ * carries, so the obs slice seeded (or backfilled) on first run is complete
+ * and the engine can start before the card form has ever saved. The switcher
+ * rides on the OBS module (no separate `enabled` flag; `switcherEnabled`
+ * defaults to on).
  */
-const SWITCHER_DEFAULTS: ModulesState["low-bitrate-switcher"] = {
-    enabled: true,
-    sources: {
-        encoder: { enabled: false, deviceId: "" },
-        relay: { enabled: false, deviceId: "" },
-    },
-    failBehaviour: "pause",
+const SWITCHER_DEFAULTS = {
+    obsSourceName: "",
+    failBehaviour: "pause" as const,
     autoSwitch: true,
     onlySwitchWhenStreaming: false,
     instantlySwitchOnRecover: true,
@@ -111,7 +123,6 @@ export interface ModulesState {
     encoder: { enabled: boolean };
     modems: { enabled: boolean };
     "obs-controller": ObsModuleConfig;
-    "low-bitrate-switcher": { enabled: boolean } & SwitcherConfig;
 }
 
 /** Permanent device parameters persisted to the config file (no process state). */
@@ -229,55 +240,55 @@ export function defaultModules(role?: Role): ModulesState {
         relay: { enabled: on.has("relay") },
         encoder: { enabled: on.has("encoder") },
         modems: { enabled: on.has("modems") },
-        "obs-controller": { enabled: false, obsUrl: "", obsPassword: "", sceneEvents: true },
-        // The card form refines the settings on first save; the module is
-        // always on — it rides on OBS — and starts on the complete defaults.
-        "low-bitrate-switcher": { ...SWITCHER_DEFAULTS },
+        // The low-bitrate switcher rides on this slice (its fields default
+        // here); the card form refines them on first save.
+        "obs-controller": {
+            enabled: false,
+            obsUrl: "",
+            obsPassword: "",
+            sceneEvents: true,
+            ...SWITCHER_DEFAULTS,
+        },
     };
 }
 
 /**
- * Stored module maps predate newer settings (e.g. the switcher slice); fill
- * missing keys with the defaults for the role so the map always has the
- * full shape. Stored values win over the defaults. Configs written before
- * the switcher merged into obs-controller carry it as a top-level modules
- * key — move it into the obs slice once, here.
+ * Stored module maps predate the switcher's merge into obs-controller: the
+ * switcher's fields arrive either as the legacy top-level `modules["low-bitrate-switcher"]`
+ * slice (or the older camelCase `lowBitrateSwitcher` key) and are folded into
+ * the obs slice once, here. Missing switcher fields are filled with the
+ * defaults; stored values win over the defaults.
  */
 function backfillModules(stored: Partial<ModulesState> | undefined, role?: Role): ModulesState {
     if (!stored) return defaultModules(role);
-    // Pre-merge configs kept the switcher as a top-level modules slice under the
-    // legacy camelCase key; move it to the module's own key once, here
-    const { lowBitrateSwitcher: legacy, ...rest } =
-        stored as Partial<ModulesState> & { lowBitrateSwitcher?: Record<string, unknown> };
+    // The legacy switcher slices, wherever a pre-merge config kept them.
+    const legacySlice = (stored as Record<string, unknown>)["low-bitrate-switcher"] as Record<string, unknown> | undefined;
+    const legacyKey = (stored as Record<string, unknown>)["lowBitrateSwitcher"] as Record<string, unknown> | undefined;
+    const legacy = legacySlice ?? legacyKey;
+    const { "low-bitrate-switcher": _drop, ...rest } =
+        stored as Partial<ModulesState> & Record<string, unknown>;
+    delete (rest as Record<string, unknown>)["lowBitrateSwitcher"];
     const out: ModulesState = { ...defaultModules(role), ...rest };
-    if (legacy)
-        out["low-bitrate-switcher"] = {
-            ...(legacy as Record<string, unknown>),
-            enabled: (legacy as { enabled?: boolean }).enabled !== false,
-        } as ModulesState["low-bitrate-switcher"];
-    // Pre-merge configs enabled the switcher under the OBS slice's flag: when
-    // that flag was stored as true and the switcher slice carries no explicit
-    // flag of its own, it carries over to the new slice
-    const storedObs = rest["obs-controller"] as { switcherEnabled?: boolean } | undefined;
-    if (storedObs?.switcherEnabled === true && (out["low-bitrate-switcher"] as { enabled?: boolean }).enabled !== false)
-        out["low-bitrate-switcher"].enabled = true;
-    // Slices stored before a field existed (e.g. the first `{ enabled: true }`
-    // seed) are completed field by field; stored values win over the defaults
-    const sw = out["low-bitrate-switcher"] as unknown as Record<string, unknown>;
+    const obs: Record<string, unknown> = { ...out["obs-controller"], ...(legacy ?? {}) };
+    // The legacy slice's `enabled` flag becomes the obs slice's switcherEnabled.
+    if (typeof legacy?.["enabled"] === "boolean") obs["switcherEnabled"] = legacy["enabled"];
+    // Complete the switcher fields; stored values win over the defaults.
     const rec = (v: unknown): Record<string, unknown> | undefined =>
         v && typeof v === "object" ? (v as Record<string, unknown>) : undefined;
-    const fill = (key: string, fallback: object): void => {
-        sw[key] = { ...fallback, ...rec(sw[key]) };
-    };
-    fill("sources", {
-        encoder: { ...SWITCHER_DEFAULTS.sources.encoder, ...rec(rec(sw.sources)?.["encoder"]) },
-        relay: { ...SWITCHER_DEFAULTS.sources.relay, ...rec(rec(sw.sources)?.["relay"]) },
-    });
-    fill("triggers", SWITCHER_DEFAULTS.triggers);
-    fill("scenes", SWITCHER_DEFAULTS.scenes);
-    fill("optionalScenes", SWITCHER_DEFAULTS.optionalScenes);
-    for (const key of ["failBehaviour", "autoSwitch", "onlySwitchWhenStreaming", "instantlySwitchOnRecover", "retryAttempts", "pollIntervalMs", "logToFile"] as const)
-        sw[key] ??= SWITCHER_DEFAULTS[key];
+    for (const key of ["triggers", "scenes", "optionalScenes"] as const)
+        obs[key] = { ...SWITCHER_DEFAULTS[key], ...rec(obs[key]) };
+    for (const key of [
+        "obsSourceName",
+        "failBehaviour",
+        "autoSwitch",
+        "onlySwitchWhenStreaming",
+        "instantlySwitchOnRecover",
+        "retryAttempts",
+        "pollIntervalMs",
+        "logToFile",
+    ] as const)
+        obs[key] ??= SWITCHER_DEFAULTS[key];
+    out["obs-controller"] = obs as unknown as ObsModuleConfig;
     return out;
 }
 

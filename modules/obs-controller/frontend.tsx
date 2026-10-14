@@ -10,11 +10,30 @@
  * `createObsPanel` below).
  */
 import "./styles.css";
+import "./switcher-styles.css";
 import m from "mithril";
-import { badge, button, Card } from "../../public/ts/components/ui";
+import {
+	actions,
+	badge,
+	brk,
+	button,
+	Card,
+	type Child,
+	checkbox,
+	checkField,
+	definitionList,
+	field,
+	fieldGroup,
+	form as formBox,
+	input,
+	numberAttrs,
+	options,
+	select,
+} from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
-import { obsRequest, st } from "../../public/ts/device/store";
-import type { Status } from "../../public/types";
+import { card, obsRequest, st, type DeviceCard } from "../../public/ts/device/store";
+import { since } from "../../public/ts/util";
+import type { Status, SwitcherModuleView, SwitcherStatus } from "../../public/types";
 import type { BridgedModule } from "./types";
 
 // ----------------------------------------------------------------------
@@ -44,15 +63,20 @@ export interface ObsPanelDeps {
 	/** Runs when the last render unmounts (dropped timers, unsubscribed pushes). */
 	onDestroy?: () => void;
 }
+export interface ObsSwitcherContext {
+	host: DeviceCard;
+	status: Status;
+	live: SwitcherStatus | null;
+}
 export interface ObsPanelState {
 	connected: boolean;
 	streaming: boolean;
 	recording: boolean;
 	scene: string | null;
 }
-/** A built panel: render its body, add its head extras, feed it pushes. */
+/** A built panel: render its body, optionally with switcher state, and feed it pushes. */
 export interface ObsPanel {
-	component(): m.Vnode;
+	component(switcher?: ObsSwitcherContext): m.Vnode;
 	head(): m.Vnode[];
 	handleEvent(event: string, data: unknown): void;
 	state: ObsPanelState;
@@ -88,8 +112,8 @@ function micIcon(muted: boolean): m.Vnode {
 }
 
 /**
- * Build the panel. `component()` renders the card body; `head()` the card
- * header extras (connection badge + refresh); `handleEvent` feeds pushes.
+ * Build the panel. `component()` renders OBS controls and the optional switcher
+ * section; `head()` adds connection status; `handleEvent` feeds pushes.
  */
 export function createObsPanel({ send, onEvent, mirror, startConnected, onDestroy }: ObsPanelDeps): ObsPanel {
 	/* Panel-local UI state. */
@@ -120,6 +144,8 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 
 	/** Action keys with a request in flight (disables their buttons). */
 	const pending = new Set<string>();
+	let switcherForm: SwitcherForm | undefined;
+	let switcherLive: SwitcherStatus | null = null;
 	let mounts = 0;
 	let tickTimer = 0;
 	let rafId = 0;
@@ -403,6 +429,11 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 	};
 
 	function handleEvent(event: string, data: unknown): void {
+		if (event === "lowBitrateSwitcher.state") {
+			switcherLive = (data as SwitcherStatus) ?? null;
+			m.redraw();
+			return;
+		}
 		if (event !== "obs.event") return;
 		const ev = data as ObsEvent;
 		// Synthetic drop event from the backend (no eventType field)
@@ -483,7 +514,61 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		return [badge(ui.connected ? t("obs.connected") : t("obs.offline"), ui.connected ? "on" : "off")];
 	}
 
-	function component(): m.Vnode {
+	function component(switcher?: ObsSwitcherContext): m.Vnode {
+		const switcherEnabled =
+			switcher?.status.modules["low-bitrate-switcher"]?.enabled === true;
+		if (switcherEnabled && switcherForm === undefined) {
+			switcherForm = loadForm(switcher.status);
+		}
+		const f = switcherForm;
+		const s =
+			switcher?.live ??
+			switcherLive ??
+			switcher?.status.lowBitrateSwitcher ??
+			null;
+		const srtMissing = !!(
+			s &&
+			(s.srt === null || (s.srt.bitrateKbps === null && s.srt.rttMs === null))
+		);
+		const numberField = (
+			label: string,
+			key:
+				| "lowBitrate"
+				| "offlineBitrate"
+				| "rtt"
+				| "retryAttempts"
+				| "pollInterval",
+			min: number,
+			max: number,
+			placeholder: string,
+		) =>
+			field(
+				label,
+				f ? input(f, key, numberAttrs(min, max, placeholder)) : null,
+			);
+		const sceneField = (
+			label: string,
+			key:
+				| "sceneNormal"
+				| "sceneLow"
+				| "sceneOffline"
+				| "sceneStarting"
+				| "sceneEnding"
+				| "scenePrivacy",
+			optional = false,
+		) =>
+			field(
+				label,
+				f
+					? select(
+							f,
+							key,
+							options(sceneOptions(ui.scenes, optional)),
+							{ class: "lbs-select" },
+						)
+					: null,
+			);
+
 		/* Countdown / meta text for the preview bar. */
 		const meta = (): string => {
 			if (!ui.connected) return t("obs.offline");
@@ -653,6 +738,176 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 						</div>,
 					]
 				)}
+				{switcherEnabled && switcher && f ? (
+					<div class={"mod-switcher"}>
+						<h3 class={"obs-section"}>{t("lowbs.title")}</h3>
+						{definitionList([
+							[
+								t("lowbs.row_state"),
+								s ? (
+									stateBadge(s.state)
+								) : (
+									<span>
+										{badge(t("lowbs.idle"), "off")}
+										<span class={"muted"}>{t("lowbs.idle_hint")}</span>
+									</span>
+								),
+							],
+							[
+								t("lowbs.row_desired"),
+								s ? (
+									<span>
+										{[
+											stateBadge(s.desiredState),
+											s.desiredState !== s.state && (
+												<span
+													class={"muted"}
+												>{` · ${t("lowbs.row_retries")} ${s.retryCount}/${f.retryAttempts}`}</span>
+											),
+										]}
+									</span>
+								) : null,
+							],
+							[t("lowbs.row_scene"), s?.currentScene ?? null],
+							[
+								t("lowbs.row_srt_bitrate"),
+								s?.srt?.bitrateKbps !== null &&
+								s?.srt?.bitrateKbps !== undefined
+									? `${s.srt.bitrateKbps} kbps`
+									: null,
+							],
+							[
+								t("lowbs.row_srt_rtt"),
+								s?.srt?.rttMs !== null && s?.srt?.rttMs !== undefined
+									? `${s.srt.rttMs} ms`
+									: null,
+							],
+							[t("lowbs.row_updated"), s ? since(s.updatedAt) : null],
+							...(srtMissing
+								? [[t("lowbs.srt_unavailable"), null] as [string, Child]]
+								: []),
+						])}
+						{formBox(
+							{
+								onSubmit: async () => {
+									await switcher.host.act(
+										"switcher-save",
+										"lowBitrateSwitcher.save",
+										{ config: toConfig(f) },
+									);
+								},
+							},
+							checkField(
+								t("lowbs.auto_switch"),
+								checkbox(f, "autoSwitch"),
+							),
+							field(
+								t("lowbs.obs_source"),
+								input(f, "obsSourceName", {
+									type: "text",
+									class: "lbs-text",
+									placeholder: t("lowbs.obs_source_placeholder"),
+								}),
+							),
+							fieldGroup(
+								t("lowbs.group_triggers"),
+								<div class={"lbs-grid"}>
+									{[
+										numberField(
+											t("lowbs.trigger_low_bitrate"),
+											"lowBitrate",
+											0,
+											1e9,
+											"2500",
+										),
+										numberField(
+											t("lowbs.trigger_offline_bitrate"),
+											"offlineBitrate",
+											0,
+											1e9,
+											"500",
+										),
+										numberField(
+											t("lowbs.trigger_rtt"),
+											"rtt",
+											0,
+											1e6,
+											"300",
+										),
+										numberField(
+											t("lowbs.retry_attempts"),
+											"retryAttempts",
+											1,
+											100,
+											"3",
+										),
+										numberField(
+											t("lowbs.poll_interval"),
+											"pollInterval",
+											200,
+											3600000,
+											"1000",
+										),
+									]}
+								</div>,
+							),
+							fieldGroup(
+								t("lowbs.group_scenes"),
+								<div class={"lbs-grid"}>
+									{[
+										sceneField(
+											t("lowbs.scene_normal"),
+											"sceneNormal",
+										),
+										sceneField(
+											t("lowbs.scene_low"),
+											"sceneLow",
+										),
+										sceneField(
+											t("lowbs.scene_offline"),
+											"sceneOffline",
+										),
+										sceneField(
+											t("lowbs.scene_starting"),
+											"sceneStarting",
+											true,
+										),
+										sceneField(
+											t("lowbs.scene_ending"),
+											"sceneEnding",
+											true,
+										),
+										sceneField(
+											t("lowbs.scene_privacy"),
+											"scenePrivacy",
+											true,
+										),
+									]}
+								</div>,
+							),
+							brk(),
+							checkField(
+								t("lowbs.instantly_recover"),
+								checkbox(f, "instantlyRecover"),
+							),
+							checkField(
+								t("lowbs.only_streaming"),
+								checkbox(f, "onlySwitchWhenStreaming"),
+							),
+							checkField(
+								t("lowbs.log_to_file"),
+								checkbox(f, "logToFile"),
+							),
+							brk(),
+							actions(
+								button(t("ui.save"), {
+									type: "submit",
+									disabled: switcher.host.busy.has("switcher-save"),
+								}),
+							),
+						)}
+					</div>
+				) : null}
 			</div>
 		);
 	}
@@ -674,6 +929,108 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 
 	return { component, head, handleEvent, state, destroy };
 }
+
+
+/**
+ * The scene select's options: only OBS's live scene list (plus an empty "—"
+ * entry for the optional scene fields) — no placeholder defaults.
+ */
+const sceneOptions = (scenes: string[], optional = false): [string, string][] => {
+	const out: [string, string][] = scenes.map((name): [string, string] => [
+		name,
+		name,
+	]);
+	if (optional) out.push(["", "—"]);
+	return out;
+};
+
+/** Flat form over the persisted config; strings for the numeric inputs. */
+interface SwitcherForm {
+	autoSwitch: boolean;
+	obsSourceName: string;
+	lowBitrate: string;
+	offlineBitrate: string;
+	rtt: string;
+	retryAttempts: string;
+	pollInterval: string;
+	instantlyRecover: boolean;
+	onlySwitchWhenStreaming: boolean;
+	sceneNormal: string;
+	sceneLow: string;
+	sceneOffline: string;
+	sceneStarting: string;
+	sceneEnding: string;
+	scenePrivacy: string;
+	logToFile: boolean;
+}
+
+/** The module's persisted slice (the defaults below apply where a field is absent). */
+const slice = (status: Status): SwitcherModuleView | undefined =>
+	status.modules["low-bitrate-switcher"] as SwitcherModuleView | undefined;
+
+function loadForm(status: Status): SwitcherForm {
+	const c = slice(status);
+	return {
+		autoSwitch: c?.autoSwitch ?? true,
+		obsSourceName: c?.obsSourceName ?? "",
+		lowBitrate: String(c?.triggers.low ?? 500),
+		offlineBitrate: String(c?.triggers.offline ?? 400),
+		rtt: String(c?.triggers.rtt ?? 1500),
+		retryAttempts: String(c?.retryAttempts ?? 5),
+		pollInterval: String(c?.pollIntervalMs ?? 1000),
+		instantlyRecover: c?.instantlySwitchOnRecover ?? true,
+		onlySwitchWhenStreaming: c?.onlySwitchWhenStreaming ?? false,
+		sceneNormal: c?.scenes.normal ?? "",
+		sceneLow: c?.scenes.low ?? "",
+		sceneOffline: c?.scenes.offline ?? "",
+		sceneStarting: c?.optionalScenes.starting ?? "",
+		sceneEnding: c?.optionalScenes.ending ?? "",
+		scenePrivacy: c?.optionalScenes.privacy ?? "",
+		logToFile: c?.logToFile ?? true,
+	};
+}
+
+function toConfig(f: SwitcherForm): Record<string, unknown> {
+	const num = (s: string): number => {
+		const v = Number(s);
+		return Number.isFinite(v) && v >= 0 ? v : 0;
+	};
+	return {
+		obsSourceName: f.obsSourceName,
+		failBehaviour: "pause",
+		autoSwitch: f.autoSwitch,
+		onlySwitchWhenStreaming: f.onlySwitchWhenStreaming,
+		instantlySwitchOnRecover: f.instantlyRecover,
+		retryAttempts: Math.max(
+			1,
+			Math.min(100, Math.floor(Number(f.retryAttempts) || 1)),
+		),
+		pollIntervalMs: Math.max(200, Math.floor(Number(f.pollInterval) || 1000)),
+		triggers: {
+			low: num(f.lowBitrate),
+			offline: num(f.offlineBitrate),
+			rtt: num(f.rtt),
+		},
+		scenes: {
+			normal: f.sceneNormal,
+			low: f.sceneLow,
+			offline: f.sceneOffline,
+		},
+		optionalScenes: {
+			starting: f.sceneStarting,
+			ending: f.sceneEnding,
+			privacy: f.scenePrivacy,
+		},
+		logToFile: f.logToFile,
+	};
+}
+
+const stateBadge = (state: SwitcherStatus["state"]): Child =>
+	state === "NORMAL"
+		? badge(t("lowbs.state_normal"), "on")
+		: state === "LOW"
+			? badge(t("lowbs.state_low"), "warn")
+			: badge(t("lowbs.state_offline"), "off");
 
 // ----------------------------------------------------------------------
 // Device page binding — the module registry renders this one instance
@@ -697,7 +1054,7 @@ const obsControllerModule: BridgedModule = {
 	minSize: { w: 4, h: 4 },
 	component: (status?: Status) => (
 		<Card title={t("obs.card")} class={"mod-obs-controller"} headActions={panel.head()}>
-			{panel.component()}
+			{panel.component(status ? { host: card, status, live: null } : undefined)}
 		</Card>
 	),
 	handleEvent: (event, data) => {

@@ -9,12 +9,11 @@ import { modulesView } from "../src/modules";
 /**
  * Registry order of the device modules: the result of the registry's topological
  * sort over declared `dependencies` (id-sorted within equal ranks). The
- * low-bitrate-switcher declares obs-controller as its only start dependency,
- * which places it behind the obs module; a new start dependency shifts the
- * positions accordingly and this expectation must be revisited.
+ * low-bitrate switcher no longer has its own module — it rides on the
+ * obs-controller module — so it no longer appears here. A new start dependency
+ * shifts the positions accordingly and this expectation must be revisited.
  */
-// low-bitrate-switcher starts after its dependency obs-controller
-const DEVICE_ORDER = ["encoder", "obs-controller", "low-bitrate-switcher", "modems", "srtla"];
+const DEVICE_ORDER = ["encoder", "modems", "obs-controller", "srtla"];
 /** The channel widget modules (device-independent dashboard widgets). */
 const WIDGET_IDS = ["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"];
 
@@ -78,7 +77,7 @@ return out;
 const ids = (): string[] => allModules().map((mod) => mod.id);
 
 describe("module registries", () => {
-	// The device modules are discovered from modules/*/backend.ts, the 5 of
+	// The device modules are discovered from modules/*/backend.ts, the 4 of
 	// them in the canonical dependency order (the registry's start order).
 	test("backend registry enumerates the device modules in order", () => {
 		const deviceIds = ids().filter((id) => DEVICE_ORDER.includes(id));
@@ -145,9 +144,9 @@ describe("module registries", () => {
 	 * the core's own code does not mention). Per-device widget cards go through
 	 * `deviceCardBody(id, …)` (manifest), not a direct import.
 	 *
-	 * Two documented seams remain: `dashboard.ts` imports `modules/obs-controller/frontend`
-	 * for the stateful obs panel and `modules/low-bitrate-switcher/frontend` for the
-	 * switcher card. Their transport types are module-owned and cannot be typed
+	 * One documented seam remains: `dashboard.ts` imports `modules/obs-controller/frontend`
+	 * for the stateful obs panel and the switcher card it carries (the
+	 * low-bitrate switcher no longer has its own frontend entry point). Its
 	 * through a generic `Panel` signature without the core re-declaring module types
 	 * (§6 forbids shared types) — so they are allow-listed here, not ban-able. Any
 	 * other `modules/<id>/…` import is an offence.
@@ -159,7 +158,7 @@ describe("module registries", () => {
 		const moduleIds = new Set<string>();
 		for (const dir of readdirSync(modulesDir, { withFileTypes: true })) if (dir.isDirectory()) moduleIds.add(dir.name);
 		/** The sanctioned core→module seams (path suffixes). */
-		const allow = new Set<string>([".generated", "modules/obs-controller/frontend", "modules/low-bitrate-switcher/frontend"]);
+		const allow = new Set<string>([".generated", "modules/obs-controller/frontend"]);
 		const walk = (dir: string): string[] =>
 			readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
 		const filesOf = (root: string): string[] => walk(root).filter((f) => f.endsWith(".ts") || f.endsWith(".tsx"));

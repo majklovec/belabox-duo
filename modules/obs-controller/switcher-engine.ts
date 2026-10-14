@@ -1,16 +1,17 @@
 /**
  * The low-bitrate switcher engine — the pure state machine of the
- * low-bitrate-switcher module: decides NORMAL / LOW / OFFLINE from metrics,
- * accumulates retry counts, and drives scene switches. No device wiring here
+ * obs-controller module's switcher: decides NORMAL / LOW / OFFLINE from
+ * metrics, accumulates retry counts, and drives scene switches. No device
+ * wiring here
  * (no OBS, no sources, no disk): everything comes through `SwitcherDeps`, so
  * the whole behaviour is unit-testable.
  */
 import type {
-	SwitcherActiveSources,
 	SwitcherConfig,
 	SwitcherMetrics,
 	SwitcherState,
 	SwitcherStatus,
+	SwitcherSrtSample,
 } from "../../public/types";
 
 /** One OBS sample as the engine sees it (from the selected controller). */
@@ -27,10 +28,8 @@ export interface SwitcherDeps {
 	obs(): ObsSnapshot | null;
 	/** Switch the OBS program scene; resolves true when OBS accepted it. */
 	setScene(scene: string): Promise<boolean>;
-	/** One merged sample of the active sources; null when none is available. */
+	/** One SRT sample via OBS; null when none is available. */
 	metrics(): Promise<SwitcherMetrics | null>;
-	/** Resolution outcome of the enabled sources (read once at start). */
-	sources(): SwitcherActiveSources;
 	log(level: "info" | "warn" | "error", message: string): void;
 	/** Notified after every poll cycle (the backend pushes the status then). */
 	onUpdate?(): void;
@@ -70,6 +69,8 @@ export class SwitcherEngine {
 	private scene: string | null = null;
 	private streaming = false;
 	private obsConnected = false;
+	/** The last SRT sample the engine saw (kept when a poll has no metrics). */
+	private srt: SwitcherSrtSample | null = null;
 	private updatedAt = 0;
 
 	constructor(
@@ -113,7 +114,8 @@ export class SwitcherEngine {
 			currentScene: this.scene,
 			streaming: this.streaming,
 			obsConnected: this.obsConnected,
-			sources: this.deps.sources(),
+			obsSourceName: this.config.obsSourceName || null,
+			srt: this.srt,
 			updatedAt: this.updatedAt,
 		};
 	}
@@ -126,11 +128,13 @@ export class SwitcherEngine {
 	}
 
 	private async runPoll(): Promise<void> {
-		// Engine master switch off: stay put, refresh the OBS snapshot only.
+		// Engine master switch off: never switch scenes, but keep sampling SRT
+		// so the card can still show the live bitrate / RTT (monitor-only).
 		if (!this.config.autoSwitch) {
 			this.sampleObs();
 			this.active = false;
 			this.resetRetry();
+			await this.sampleSrtForDisplay();
 			return;
 		}
 
@@ -150,8 +154,12 @@ export class SwitcherEngine {
 			}
 			// "ignore": keep evaluating, but scene switches are off the table below.
 		} else if (this.config.onlySwitchWhenStreaming && !obs.streaming) {
+			// No scene switching while the program is off, but the SRT *receive*
+			// keeps flowing (SRTLA is an in-bound source) — keep showing its
+			// live bitrate / RTT so the card is useful before the stream starts.
 			this.active = false;
 			this.resetRetry();
+			await this.sampleSrtForDisplay();
 			return;
 		}
 
@@ -167,11 +175,16 @@ export class SwitcherEngine {
 		if (metrics === null) {
 			this.active = false;
 			this.resetRetry();
-			this.deps.log("warn", "no active source is available");
+			this.deps.log("warn", "no SRT sample is available from OBS");
 			return;
 		}
 		this.active = true;
 		this.updatedAt = this.deps.now();
+		this.srt = {
+			connected: metrics.connected ?? false,
+			bitrateKbps: metrics.bitrateKbps,
+			rttMs: metrics.rttMs,
+		};
 
 		// The desired state moved on: the new target's count starts from zero
 		const desired = determineState(metrics, this.config);
@@ -217,6 +230,23 @@ export class SwitcherEngine {
 			this.obsConnected = false;
 		}
 		return obs;
+	}
+
+	/**
+	 * Refresh just the SRT numbers for the card (monitor-only paths: autoSwitch
+	 * off, or the program stream not started). A `null` sample is kept as-is —
+	 * the last good numbers stay on the card until a fresh one arrives.
+	 */
+	private async sampleSrtForDisplay(): Promise<void> {
+		const metrics = await this.deps.metrics();
+		if (metrics !== null) {
+			this.updatedAt = this.deps.now();
+			this.srt = {
+				connected: metrics.connected ?? false,
+				bitrateKbps: metrics.bitrateKbps,
+				rttMs: metrics.rttMs,
+			};
+		}
 	}
 
 	private async doSwitch(): Promise<void> {

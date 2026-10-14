@@ -170,31 +170,26 @@ export interface ChannelLive {
 }
 
 // ----------------------------------------------------------------------
-// Low-bitrate switcher wire types (the low-bitrate-switcher module; status + UI)
+// Low-bitrate switcher wire types (sub-component of the obs-controller module)
 // ----------------------------------------------------------------------
 
 /** The switcher's state machine states — each maps to a scene. */
 export type SwitcherState = "NORMAL" | "LOW" | "OFFLINE";
 
 /**
- * One merged metrics sample from the active sources. A field is null when no
- * active source provides it (its triggers are skipped, not treated as a fault).
+ * One OBS SRT sample as the engine sees it (from the obs-srtla-source vendor
+ * stats). A field is null when the sample does not carry it (its triggers are
+ * skipped, not treated as a fault).
  */
 export interface SwitcherMetrics {
-	/** Live stream bitrate in kbps (null: not available). */
+	/** Recent SRT receive bitrate in kbps (byte delta over the poll interval). */
 	bitrateKbps: number | null;
-	/** Round-trip time in ms (null: not available). */
+	/** SRT round-trip time in ms (instantaneous `msRTT`). */
 	rttMs: number | null;
-	/** Upstream connected (null: no source reports it). */
+	/** SRT connection up (null: no sample this poll). */
 	connected: boolean | null;
-	/** Encoder / stream is live (null: not available). */
+	/** OBS / stream is live (null: not available). */
 	streaming: boolean | null;
-}
-
-/** The enabled flag plus which registered device a source reads metrics from. */
-export interface SwitcherSourceConfig {
-	enabled: boolean;
-	deviceId: string;
 }
 
 /** What the switcher does when its obs-controller is disconnected. */
@@ -222,17 +217,15 @@ export interface SwitcherOptionalScenes {
 }
 
 /**
- * The low-bitrate switcher's settings (persisted as the
- * `settings.modules["low-bitrate-switcher"]` slice; the `enabled` flag of the
- * same slice decides whether the module runs). Flat on purpose: the module
- * applies it field by field and the frontend form carries the defaults —
- * there is no core-side factory or normalizer.
+ * The low-bitrate switcher's settings (persisted inside the
+ * `settings.modules["obs-controller"]` slice, which the switcher now rides
+ * on; the slice's `switcherEnabled` flag decides whether it runs). Flat on
+ * purpose: the module applies it field by field and the frontend form
+ * carries the defaults — there is no core-side factory or normalizer.
  */
 export interface SwitcherConfig {
-	sources: {
-		encoder: SwitcherSourceConfig;
-		relay: SwitcherSourceConfig;
-	};
+	/** The OBS source name whose SRTLA source exposes the SRT stats. */
+	obsSourceName: string;
 	failBehaviour: SwitcherFailBehaviour;
 	/** Master switch for the automatic switching (the module `enabled` flag is separate). */
 	autoSwitch: boolean;
@@ -242,7 +235,7 @@ export interface SwitcherConfig {
 	instantlySwitchOnRecover: boolean;
 	/** Consecutive bad polls before a switch happens. */
 	retryAttempts: number;
-	/** Sampling period of the sources, ms. */
+	/** Sampling period of the SRT stats poll, ms. */
 	pollIntervalMs: number;
 	triggers: SwitcherTriggers;
 	scenes: SwitcherScenes;
@@ -251,37 +244,21 @@ export interface SwitcherConfig {
 }
 
 /**
- * Which sources are active after resolution. Used by the status so the card
- * can show what feeds the engine.
+ * The last SRT sample the switcher saw, for display on the card. A field is
+ * null when the sample did not carry it (first poll: no bitrate delta yet).
  */
-export interface SwitcherActiveSources {
-	encoder: string | null;
-	relay: string | null;
-}
-
-/** One registered device the switcher may read (a metric source option). */
-export interface SwitcherDeviceOption {
-	/** Device uuid — the value a source persists in `deviceId`. */
-	id: string;
-	hostname?: string;
-	role?: string;
-	online: boolean;
-}
-
-/**
- * The registered devices each switcher source slot can read from (part of the
- * low-bitrate-switcher module's configuration surface, provided by the module
- * itself). The renderer shows a select per slot fed by this list: the encoder
- * slot lists encoder/combined devices, the relay slot relay/combined ones.
- */
-export interface SwitcherMetricSources {
-	encoder: SwitcherDeviceOption[];
-	relay: SwitcherDeviceOption[];
+export interface SwitcherSrtSample {
+	/** SRT connection up at the time of the sample. */
+	connected: boolean;
+	/** Recent SRT receive bitrate in kbps (null: not yet measurable). */
+	bitrateKbps: number | null;
+	/** SRT round-trip time in ms (null: not available). */
+	rttMs: number | null;
 }
 
 /** The module's live state, merged into the status payload and pushed per change. */
 export interface SwitcherStatus {
-	/** Module started with a valid config and at least one source available. */
+	/** Module started with a valid config and the SRT sample is available. */
 	active: boolean;
 	/** The state the engine currently acts as. */
 	state: SwitcherState;
@@ -295,7 +272,10 @@ export interface SwitcherStatus {
 	streaming: boolean;
 	/** The selected obs-controller is identified (websocket up). */
 	obsConnected: boolean;
-	sources: SwitcherActiveSources;
+	/** The OBS source name being polled for SRT stats. */
+	obsSourceName: string | null;
+	/** The last SRT sample (bitrate / RTT as OBS reports); null when none yet. */
+	srt: SwitcherSrtSample | null;
 	/** Last successful poll (epoch ms; 0 when none). */
 	updatedAt: number;
 }
@@ -325,8 +305,6 @@ export interface Status {
 	ceracoder: CeraConfig | null;
 	/** Live state of the low-bitrate switcher (null when the module is stopped). */
 	lowBitrateSwitcher?: SwitcherStatus | null;
-	/** Metric source options of the low-bitrate switcher (null on older builds). */
-	switcherMetricSources?: SwitcherMetricSources | null;
 	/** Module system: enabled flags + non-secret settings (secrets come back as `{configured}`). */
 	modules: ModulesView;
 }

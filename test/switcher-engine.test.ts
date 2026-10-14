@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-    type SwitcherActiveSources,
     type SwitcherConfig,
     type SwitcherMetrics,
 } from "../public/types";
@@ -9,9 +8,7 @@ import {
     SwitcherEngine,
     type ObsSnapshot,
     type SwitcherDeps,
-} from "../modules/low-bitrate-switcher/switcher-engine";
-
-const SOURCES: SwitcherActiveSources = { encoder: "encoder", relay: null };
+} from "../modules/obs-controller/switcher-engine";
 
 interface DepsOpts {
     obs?: ObsSnapshot | null;
@@ -38,7 +35,6 @@ function makeDeps(opts: DepsOpts = {}): {
             opts.metrics === undefined
                 ? { bitrateKbps: 5000, rttMs: 50, connected: true, streaming: true }
                 : opts.metrics,
-        sources: () => SOURCES,
         log: (level, message) => logs.push([level, message]),
         onUpdate: () => {
             updated.count += 1;
@@ -60,7 +56,7 @@ const cfg = (patch: Partial<SwitcherConfig> = {}): SwitcherConfig => ({
     scenes: { normal: "LIVE", low: "LOW", offline: "BRB" },
     optionalScenes: { starting: "STARTING", ending: "ENDING", privacy: "PRIVACY" },
     logToFile: true,
-    sources: { encoder: { enabled: false, deviceId: "" }, relay: { enabled: false, deviceId: "" } },
+    obsSourceName: "SRTLA",
     ...patch,
 });
 
@@ -255,6 +251,21 @@ describe("SwitcherEngine", () => {
         });
     });
 
+    test("onlySwitchWhenStreaming still displays SRT while not streaming", async () => {
+        // SRTLA is an in-bound source: the receive keeps flowing before the
+        // program stream starts, so the card should show the live numbers even
+        // though no scene switching is allowed yet.
+        const { deps, scenes } = makeDeps({ metrics: { bitrateKbps: 5200, rttMs: 40, connected: true, streaming: false }, obs: { connected: true, streaming: false, scene: "LIVE" } });
+        await withEngine(cfg({ retryAttempts: 2, onlySwitchWhenStreaming: true }), deps, async (engine) => {
+            await engine.tick();
+            expect(engine.status().active).toBe(false);
+            expect(engine.status().state).toBe("NORMAL");
+            expect(scenes).toEqual([]);
+            expect(engine.status().srt).toEqual({ connected: true, bitrateKbps: 5200, rttMs: 40 });
+            expect(engine.status().updatedAt).toBe(1_700_000_000_000);
+        });
+    });
+
     test("a failed scene switch keeps counting toward the next attempt", async () => {
         const { deps, scenes } = makeDeps({ metrics: offline, setSceneOk: false });
         await withEngine(cfg({ retryAttempts: 2 }), deps, async (engine) => {
@@ -268,12 +279,12 @@ describe("SwitcherEngine", () => {
         });
     });
 
-    test("no source available: module idles with a warning", async () => {
+    test("no SRT sample available: module idles with a warning", async () => {
         const { deps, logs } = makeDeps({ metrics: null });
         await withEngine(cfg({ retryAttempts: 2 }), deps, async (engine) => {
             await engine.tick();
             expect(engine.status().active).toBe(false);
-            expect(logs.some(([level, m]) => level === "warn" && m.includes("no active source"))).toBe(true);
+            expect(logs.some(([level, m]) => level === "warn" && m.includes("no SRT sample"))).toBe(true);
         });
     });
 

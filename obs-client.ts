@@ -34,15 +34,24 @@
  * reshape, or interpret fields inside `d`.
  *
  * The ObsClient class lives in src/obs/client.ts (pure lib, no CLI) and is
- * used in-process by the relay's `obs-controller` and `low-bitrate-switcher`
- * modules; this entry imports it and keeps the standalone proxy below.
+ * used in-process by the relay's `obs-controller` module (OBS client + the
+ * low-bitrate switcher it now owns); this entry imports it and keeps the
+ * standalone proxy below.
  *
  * Runtime: Bun (global WebSocket + WebCrypto). No Node shims.
  */
 
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
-import type { SwitcherConfig, SwitcherDeviceOption } from "./public/types";
+import type { SwitcherConfig, SwitcherMetrics } from "./public/types";
+import {
+	collectSrtSample,
+	type SrtBaseline,
+} from "./modules/obs-controller/srt-metrics";
+import {
+	SwitcherEngine,
+	type ObsSnapshot,
+} from "./modules/obs-controller/switcher-engine";
 import { arg, argFail, flag, intArg } from "./src/args";
 import { ApiError, optionalStringList, requireString } from "./src/params";
 import { errorMessage, scrubUrl, textOf } from "./src/util";
@@ -66,14 +75,12 @@ const DEFAULT_SWITCHER_SLICE: SwitcherConfig & { enabled: boolean } = {
 	scenes: { normal: "", low: "", offline: "" },
 	optionalScenes: { starting: "", ending: "", privacy: "" },
 	logToFile: true,
-	sources: {
-		encoder: { enabled: false, deviceId: "" },
-		relay: { enabled: false, deviceId: "" },
-	},
+	obsSourceName: "",
 };
 
 // Shape-checked merge of a modules.configure payload into the slice —
-// invalid values are kept as-is (the box persists, it does not run the engine)
+// invalid values are kept as-is (the engine re-reads the corrected slice on
+// the next save; it must never receive a malformed config)
 function mergeBoxSwitcherConfig(
 	cur: SwitcherConfig & { enabled: boolean },
 	raw: Record<string, unknown>,
@@ -83,10 +90,6 @@ function mergeBoxSwitcherConfig(
 		triggers: { ...cur.triggers },
 		scenes: { ...cur.scenes },
 		optionalScenes: { ...cur.optionalScenes },
-		sources: {
-			encoder: { ...cur.sources.encoder },
-			relay: { ...cur.sources.relay },
-		},
 	};
 	if (typeof raw.enabled === "boolean") next.enabled = raw.enabled;
 	for (const key of [
@@ -134,20 +137,7 @@ function mergeBoxSwitcherConfig(
 		if (typeof v === "string" && v.length > 0 && v.length <= 255)
 			next.optionalScenes[key] = v;
 	}
-	for (const key of ["encoder", "relay"] as const) {
-		const s =
-			raw.sources &&
-			typeof (raw.sources as Record<string, unknown>) === "object"
-				? ((raw.sources as Record<string, unknown>)[key] as
-						| Record<string, unknown>
-						| undefined)
-				: undefined;
-		if (s && typeof s === "object") {
-			if (typeof s.enabled === "boolean") next.sources[key].enabled = s.enabled;
-			if (typeof s.deviceId === "string")
-				next.sources[key].deviceId = s.deviceId;
-		}
-	}
+	if (typeof raw.obsSourceName === "string") next.obsSourceName = raw.obsSourceName;
 	return next;
 }
 
@@ -255,8 +245,8 @@ async function main(): Promise<void> {
 
 	// Stable device identity: the uuid is assigned once and persisted, so the
 	// control server (and its dashboards) keep seeing the same device. The
-	// state file also carries the switcher's slice (the box persists settings
-	// only; the engine itself runs on the full box). Pre-extraction state
+	// state file also carries the switcher's slice (the engine that runs it
+	// lives in this box, over this OBS connection). Pre-extraction state
 	// files stored the switcher under the obs slice (switcherEnabled + nested
 	// switcher) — that shape is merged into the flat slice once, here.
 	const stored = (await Bun.file(stateFile)
@@ -294,12 +284,18 @@ async function main(): Promise<void> {
 		log: (msg, ...rest) => console.log(`[obs] ${msg}`, ...rest),
 	});
 
+	// The switcher engine runs here (this is the box that talks to OBS and is
+	// where the card renders), so the OBS SRT numbers reach the dashboard.
+	let engine: SwitcherEngine | null = null;
+	let srtBaseline: SrtBaseline | null = null;
+	let obsScene: string | null = null;
+	let obsStreaming = false;
+
 	let sock: Bun.WebSocket | null = null;
 	let stopped = false;
 	let backoff = BACKOFF_MIN_MS;
 	let pingTimer: ReturnType<typeof setInterval> | null = null;
 	let statusTimer: ReturnType<typeof setInterval> | null = null;
-	let registryTimer: ReturnType<typeof setInterval> | null = null;
 	let lastSeen = 0;
 
 	const send = (msg: string): void => {
@@ -310,6 +306,140 @@ async function main(): Promise<void> {
 		send(
 			JSON.stringify({ type: "event", event: "status", data: buildStatus() }),
 		);
+
+	// Throttled engine/SRT log (a bad source name would otherwise log every
+	// poll); the box keeps its own log file, this box logs to stdout.
+	let lastSwitcherWarnAt = 0;
+	const switcherLog = (level: "info" | "warn" | "error", message: string): void => {
+		if (level === "warn") {
+			const now = Date.now();
+			if (now - lastSwitcherWarnAt < 30_000) return;
+			lastSwitcherWarnAt = now;
+		}
+		console.log(`[switcher:${level}] ${message}`);
+	};
+
+	// The switcher's live state, pushed each poll so the dashboard card shows
+	// the current SRT numbers (the server fans the event out to this device's
+	// viewers).
+	const pushSwitcherState = (): void =>
+		send(
+			JSON.stringify({
+				type: "event",
+				event: "lowBitrateSwitcher.state",
+				data: engine?.status() ?? null,
+			}),
+		);
+
+	// The obs-websocket client as the engine sees it. This box owns the
+	// connection, so the snapshot is always present (connected=false until the
+	// websocket is identified) — the engine handles the disconnected state via
+	// its failBehaviour.
+	const obsSnapshot = (): ObsSnapshot => ({
+		connected: obs.connected && obs.identified,
+		streaming: obsStreaming,
+		scene: obsScene,
+	});
+
+	const obsSetScene = async (name: string): Promise<boolean> => {
+		try {
+			const res = await obs.sendRequest({
+				requestType: "SetCurrentProgramScene",
+				requestId: crypto.randomUUID(),
+				// obs-websocket 5 wants camelCase `sceneName` (PascalCase is rejected).
+				requestData: { sceneName: name },
+			});
+			return res.requestStatus.result;
+		} catch {
+			return false;
+		}
+	};
+
+	const collectSrtMetrics = async (): Promise<SwitcherMetrics | null> => {
+		const sourceName = (switcherSlice.obsSourceName ?? "").trim();
+		if (!sourceName) return null;
+		const { sample, baseline } = await collectSrtSample(
+			obs,
+			sourceName,
+			srtBaseline,
+			obsStreaming,
+			(message) => switcherLog("warn", message),
+		);
+		srtBaseline = baseline;
+		return sample;
+	};
+
+	// obs-websocket 5 delivers these payloads with camelCase keys — the scene
+	// as `sceneName` (events) / `currentProgramSceneName` (requests) and the
+	// output as `outputActive`. Tolerate the older PascalCase forms too, so
+	// the tracking works across obs-websocket versions.
+	const readScene = (d: Record<string, unknown> | null | undefined): string | null => {
+		if (!d) return null;
+		for (const k of ["sceneName", "currentProgramSceneName", "CurrentProgramSceneName"])
+			if (typeof d[k] === "string") return d[k] as string;
+		return null;
+	};
+	const readStreaming = (d: Record<string, unknown> | null | undefined): boolean => {
+		if (!d) return false;
+		if (typeof d["outputActive"] === "boolean") return d["outputActive"] as boolean;
+		for (const k of ["outputState", "OutputState"])
+			if (typeof d[k] === "number") return (d[k] as number) === 1;
+		return false;
+	};
+
+	// Warm the scene / streaming tracking from OBS (the connect + reconnect
+	// state-replay re-emits these, which keep the values current).
+	const warmStartObs = async (): Promise<void> => {
+		try {
+			const [sc, st] = await Promise.all([
+				obs.sendRequest({
+					requestType: "GetCurrentProgramScene",
+					requestId: crypto.randomUUID(),
+					requestData: {},
+				}),
+				obs.sendRequest({
+					requestType: "GetStreamStatus",
+					requestId: crypto.randomUUID(),
+					requestData: {},
+				}),
+			]);
+			const s = readScene(sc.responseData);
+			if (s) obsScene = s;
+			obsStreaming = readStreaming(st.responseData);
+		} catch {
+			// Identification is in flight; the event handlers pick it up
+		}
+	};
+
+	const stopEngine = (): void => {
+		engine?.stop();
+		engine = null;
+		srtBaseline = null;
+	};
+
+	// (Re)start the engine against the current slice. The `SwitcherEngine`
+	// captures the slice object, and a save rebuilds that object — so a config
+	// change recreates the engine rather than patching it in place.
+	const startEngine = (): void => {
+		stopEngine();
+		if (!switcherSlice.enabled || !switcherSlice.obsSourceName) {
+			pushSwitcherState();
+			return;
+		}
+		engine = new SwitcherEngine(switcherSlice, {
+			obs: obsSnapshot,
+			setScene: obsSetScene,
+			metrics: collectSrtMetrics,
+			log: switcherLog,
+			onUpdate: pushSwitcherState,
+			now: () => Date.now(),
+		});
+		engine.start();
+		void warmStartObs();
+		console.log(
+			`[switcher] started (OBS source: "${switcherSlice.obsSourceName}")`,
+		);
+	};
 
 	// Outgoing requests (this box asks the control server for its device
 	// registry, for the switcher's metric source options).
@@ -385,19 +515,6 @@ async function main(): Promise<void> {
 		}
 	};
 
-	// The control server's registry, cached for the switcher's source options.
-	let deviceList: SwitcherDeviceOption[] | null = null;
-	const refreshDeviceList = async (): Promise<void> => {
-		try {
-			const result = (await serverRequest(
-				"devices.list",
-			)) as SwitcherDeviceOption[];
-			deviceList = Array.isArray(result) ? result : [];
-		} catch {
-			// No registry (yet); the next refresh retries
-		}
-	};
-
 	const pushObsEvent = (
 		eventType: string,
 		eventIntent: number,
@@ -415,17 +532,10 @@ async function main(): Promise<void> {
 	const buildStatus = (): Record<string, unknown> => ({
 		role: "obs",
 		setupRequired: false,
-		// The switcher's metric source options — the registered devices, by role
-		// (empty until the first registry query succeeds)
-		switcherMetricSources: {
-			encoder: (deviceList ?? []).filter(
-				(d) => d.role === "encoder" || d.role === "combined",
-			),
-			relay: (deviceList ?? []).filter(
-				(d) => d.role === "relay" || d.role === "combined",
-			),
-		},
 		state: { obs: { connected: obs.identified, url: scrubUrl(obsUrl) } },
+		// Live switcher state (replayed to newly-connected dashboard viewers;
+		// the lowBitrateSwitcher.state events carry the live updates)
+		lowBitrateSwitcher: engine?.status() ?? null,
 		modules: {
 			relay: { enabled: false },
 			encoder: { enabled: false },
@@ -435,7 +545,7 @@ async function main(): Promise<void> {
 				obsPassword: obsPassword ? { configured: true } : "",
 				sceneEvents: true,
 			},
-			// The switcher's persisted slice (the engine itself never runs here)
+			// The switcher's persisted slice + the engine that runs over this box
 			[SWITCHER_MODULE]: switcherSlice,
 		},
 	});
@@ -551,6 +661,7 @@ async function main(): Promise<void> {
 					if (id === SWITCHER_MODULE)
 						switcherSlice = mergeBoxSwitcherConfig(switcherSlice, config);
 					await writeBoxState();
+					startEngine();
 					pushStatus();
 					result = { ok: true };
 					break;
@@ -565,6 +676,7 @@ async function main(): Promise<void> {
 							: params;
 					switcherSlice = mergeBoxSwitcherConfig(switcherSlice, config);
 					await writeBoxState();
+					startEngine();
 					pushStatus();
 					result = { ok: true };
 					break;
@@ -589,7 +701,17 @@ async function main(): Promise<void> {
 	}
 
 	for (const name of FORWARDED_EVENTS) {
-		obs.on(name, (_data, event) => {
+		obs.on(name, (data, event) => {
+			// Track the engine's inputs from the forwarded events (these also
+			// re-arrive via the reconnect state-replay, keeping them current).
+			// obs-websocket 5 payloads use `sceneName` / `outputActive`.
+			if (data) {
+				if (name === "CurrentProgramSceneChanged") {
+					const s = readScene(data);
+					if (s) obsScene = s;
+				}
+				if (name === "StreamStateChanged") obsStreaming = readStreaming(data);
+			}
 			pushObsEvent(name, event.eventIntent, event.eventData);
 			pushStatus(); // the event proves the OBS link is alive
 		});
@@ -610,8 +732,7 @@ async function main(): Promise<void> {
 	function clearTimers(): void {
 		if (pingTimer) clearInterval(pingTimer);
 		if (statusTimer) clearInterval(statusTimer);
-		if (registryTimer) clearInterval(registryTimer);
-		pingTimer = statusTimer = registryTimer = null;
+		pingTimer = statusTimer = null;
 	}
 
 	function connect(): void {
@@ -647,13 +768,6 @@ async function main(): Promise<void> {
 				}),
 			);
 			pushStatus();
-			// Keep the device registry fresh for the switcher's source options
-			deviceList = null;
-			void refreshDeviceList().then(pushStatus);
-			registryTimer = setInterval(
-				() => void refreshDeviceList().then(pushStatus),
-				PING_INTERVAL_MS,
-			);
 			pingTimer = setInterval(() => {
 				if (Date.now() - lastSeen > LIVENESS_TIMEOUT_MS) {
 					console.warn(
@@ -710,6 +824,7 @@ async function main(): Promise<void> {
 		if (stopped) return;
 		stopped = true;
 		clearTimers();
+		stopEngine();
 		obs.disconnect();
 		sock?.close(1001, "shutting down");
 		sock = null;
@@ -723,6 +838,7 @@ async function main(): Promise<void> {
 			"[obs-client] sending token over unencrypted ws:// — prefer wss://",
 		);
 	}
+	startEngine(); // polls OBS locally; state events queue until the link opens
 	connect();
 }
 

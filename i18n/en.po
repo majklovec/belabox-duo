@@ -1269,6 +1269,12 @@ msgstr "Low bitrate switcher"
 msgid "lowbs.idle"
 msgstr "idle"
 
+msgid "lowbs.idle_hint"
+msgstr "No engine running yet. Set the OBS SRT source above, pick the scenes, and save — the switcher starts once its config is stored."
+
+msgid "lowbs.srt_unavailable"
+msgstr "No SRT stats from OBS — check that obs-websocket 5 is loaded and the source name matches the SRTLA source in OBS."
+
 msgid "lowbs.state_normal"
 msgstr "normal"
 
@@ -1285,7 +1291,7 @@ msgid "lowbs.row_desired"
 msgstr "Desired"
 
 msgid "lowbs.row_retries"
-msgstr "retry %1/%2"
+msgstr "retry"
 
 msgid "lowbs.row_scene"
 msgstr "Program scene"
@@ -1293,20 +1299,20 @@ msgstr "Program scene"
 msgid "lowbs.row_updated"
 msgstr "Last update"
 
+msgid "lowbs.row_srt_bitrate"
+msgstr "SRT bitrate"
+
+msgid "lowbs.row_srt_rtt"
+msgstr "SRT RTT"
+
 msgid "lowbs.enable_switcher"
 msgstr "Low-bitrate switcher"
 
 msgid "lowbs.auto_switch"
 msgstr "Automatic switching"
 
-msgid "lowbs.group_sources"
-msgstr "Metric sources"
-
-msgid "lowbs.source_encoder"
-msgstr "Encoder"
-
-msgid "lowbs.source_relay"
-msgstr "Relay"
+msgid "lowbs.obs_source"
+msgstr "OBS SRT source"
 
 msgid "lowbs.group_triggers"
 msgstr "Triggers"

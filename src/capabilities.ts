@@ -48,7 +48,6 @@ import type {
 	EncoderState,
 	ModemInfo,
 	SrtlaState,
-	SwitcherStatus,
 } from "../public/types";
 import type { SrtlaOptions, SrtlaOptionsResult, SrtlaTarget } from "./state";
 import type { SrtlaControlState, SrtlaMode, SrtlaStatsEvent } from "./srtlaControl";
@@ -97,11 +96,6 @@ export interface ObsServices {
 	client(): ObsClient | null;
 	subscriptionMask(names: string[]): number;
 	configure(config: Record<string, unknown>): void;
-}
-
-/** `stream.switcher` — the low-bitrate switcher status (obs sub-component). */
-export interface SwitcherServices {
-	status(): SwitcherStatus | null;
 }
 
 export type { SrtlaTarget };
