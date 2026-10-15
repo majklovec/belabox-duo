@@ -9,6 +9,33 @@
   line-height: 1.5;
 }
 
+/* Card-head status: one platform icon per channel, green when online, red
+   while disconnected. */
+.dash-widget-badge .chat-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.chat-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-status-icon svg {
+  width: 1em;
+  height: 1em;
+}
+
+.chat-status-icon.on {
+  color: var(--ok, #2ea04a);
+}
+
+.chat-status-icon.off {
+  color: var(--bad, #d64545);
+}
+
 /* Per-line platform icon (only shown when the widget mixes platforms). */
 .dash-widget-body .chat-line .chat-icon {
   display: inline-block;
