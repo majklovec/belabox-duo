@@ -29,7 +29,6 @@ import {
   Options,
   Select,
 } from "../../public/ts/components/ui";
-import type { MithrilJSXComponent } from "../../public/ts/jsx";
 import {
   card,
   type DeviceCard,
@@ -37,6 +36,7 @@ import {
   st,
 } from "../../public/ts/device/store";
 import { t } from "../../public/ts/i18n";
+import type { MithrilJSXComponent } from "../../public/ts/jsx";
 import { since } from "../../public/ts/util";
 import type {
   Status,
@@ -852,9 +852,9 @@ export function createObsPanel({
                     : null,
                 ],
                 [t("lowbs.row_updated"), s ? since(s.updatedAt) : null],
-                ...(srtMissing
-                  ? [[t("lowbs.srt_unavailable"), null] as [string, Child]]
-                  : []),
+                //                ...(srtMissing
+                //                  ? [[t("lowbs.srt_unavailable"), null] as [string, Child]]
+                //                  : []),
               ]}
             />
             <Form
@@ -908,11 +908,7 @@ export function createObsPanel({
                       key={prop}
                       label={t(label)}
                       control={
-                        <Select
-                          target={f}
-                          prop={prop}
-                          class={"lbs-select"}
-                        >
+                        <Select target={f} prop={prop} class={"lbs-select"}>
                           <Options pairs={sceneOptions(ui.scenes, optional)} />
                         </Select>
                       }
@@ -1101,7 +1097,9 @@ const obsControllerModule: BridgedModule = (() => {
         class={"mod-obs-controller"}
         headActions={panel.head()}
       >
-        {panel.component(status ? { host: card, status, live: null } : undefined)}
+        {panel.component(
+          status ? { host: card, status, live: null } : undefined,
+        )}
       </Card>
     ),
     handleEvent: (event, data) => {
