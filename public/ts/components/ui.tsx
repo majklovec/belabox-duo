@@ -183,6 +183,35 @@ export const Field = {
 	),
 } as MithrilJSXComponent<{ label: Child; control: m.Children } & m.Attributes>;
 
+/** Numeric bound input wrapped in a standard form Field label/control row. */
+export const NumberField = {
+	view: ({
+		attrs: { label, target, prop, min, max, placeholder, step, ...fieldAttrs },
+	}) => (
+		<Field
+			{...fieldAttrs}
+			label={label}
+			control={
+				target ? (
+					<Input
+						target={target}
+						prop={prop}
+						{...numberAttrs(min, max, placeholder, step)}
+					/>
+				) : null
+			}
+		/>
+	),
+} as MithrilJSXComponent<{
+	label: Child;
+	target?: object;
+	prop: string;
+	min: number;
+	max: number;
+	placeholder?: string;
+	step?: number;
+} & m.Attributes>;
+
 /** A checkbox (or radios) with its caption after it. */
 export const CheckField = {
 	view: ({ attrs: { label, control, class: extraClass, ...extra } }) => (
