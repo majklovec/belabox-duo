@@ -10,31 +10,74 @@
 import type { ChatLive, PublishFn } from "../types";
 import { ChatProvider } from "./base";
 
-/** Kick's public Pusher chat app (protocol 7, anonymous join). */
-const PUSHER_URL =
-	"wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0-rc2&flash=false";
 /** Channel slug -> chatroom id lookup. */
 const KICK_CHANNEL_API = "https://kick.com/api/v2/channels";
 const RESOLVE_TIMEOUT_MS = 10_000;
 /** Give up on the subscribe handshake when it does not complete in time. */
 const SUBSCRIBE_TIMEOUT_MS = 10_000;
 
+/** Kick's public Pusher chat app (protocol 7, anonymous join). The app key
+ * rotates over time: a stale key ends up on no cluster and Pusher answers
+ * `pusher:error` code 4001. Default to a known-good `{ key, cluster }` and
+ * optionally ask a resolver for a fresh one each connect (see
+ * `resolvePusherKey`); on a 4001 the current key is marked stale and the
+ * resolver is asked again on the next connect. */
+const PUSHER_DEFAULT = { key: "34bf7a0ff419a2a775b9", cluster: "us2" };
+const PUSHER_KEY_RE = /^[a-f0-9]{16,40}$/;
+const PUSHER_CLUSTER_RE = /^[a-z0-9-]{2,12}$/;
+const PUSHER_RESOLVER_URL = process.env.SRTLA_KICK_PUSHER_REALTIME_URL ?? "";
+
+const pusherUrl = (k: { key: string; cluster: string }): string =>
+	`wss://ws-${k.cluster}.pusher.com/app/${k.key}?protocol=7&client=js&version=8.3.0&flash=false`;
+
+/** Optional key resolver: `GET <url>[?stale=<oldKey>]` -> `{key, cluster}`,
+ * both validated. Returns null when unconfigured, on error/timeout, or when
+ * the payload is invalid — the caller then keeps its current key. */
+async function resolvePusherKey(stale = ""): Promise<{ key: string; cluster: string } | null> {
+	if (!PUSHER_RESOLVER_URL) return null;
+	const qs = stale ? `?stale=${encodeURIComponent(stale)}` : "";
+	const res = await fetch(PUSHER_RESOLVER_URL + qs, {
+		cache: "no-store",
+		headers: { accept: "application/json" },
+		signal: AbortSignal.timeout(5_000),
+	});
+	if (!res.ok) return null;
+	const data = (await res.json()) as { key?: string; cluster?: string };
+	if (data && PUSHER_KEY_RE.test(String(data.key)) && PUSHER_CLUSTER_RE.test(String(data.cluster)))
+		return { key: String(data.key), cluster: String(data.cluster) };
+	return null;
+}
+
 export class KickChatProvider extends ChatProvider {
 	#chatroom: number | null = null;
 	#ws: WebSocket | null = null;
 	#subscribed = false;
 	#subscribeTimer: ReturnType<typeof setTimeout> | null = null;
+	#pusher: { key: string; cluster: string } = PUSHER_DEFAULT;
+	#staleKey = "";
 
 	constructor(channel: string, publish: PublishFn) {
 		super("kick", channel, publish);
 	}
 
 	protected connect(): void {
-		void resolveChatroom(this.channel)
+		// Refresh the Pusher key before each connect (passing the stale key so
+		// the resolver can avoid handing back the same one), then resolve the
+		// channel and join Pusher.
+		void resolvePusherKey(this.#staleKey)
+			.then((fresh) => {
+				this.#staleKey = "";
+				if (fresh) this.#pusher = fresh;
+				return resolveChatroom(this.channel);
+			})
+			.catch((err: unknown) => {
+				this.#staleKey = "";
+				throw err;
+			})
 			.then((chatroom) => {
 				if (this.stopped) return;
 				this.#chatroom = chatroom;
-				const ws = new WebSocket(PUSHER_URL);
+				const ws = new WebSocket(pusherUrl(this.#pusher));
 				this.#ws = ws;
 				ws.addEventListener("message", (ev: MessageEvent) => this.#onPusherMessage(ev));
 				ws.addEventListener("close", () => this.#onPusherClose());
@@ -42,7 +85,7 @@ export class KickChatProvider extends ChatProvider {
 				this.#armSubscribeTimer();
 			})
 			.catch((err: unknown) => {
-				this.log("resolve failed", err instanceof Error ? err.message : String(err));
+				this.log("connect failed", err instanceof Error ? err.message : String(err));
 				this.scheduleReconnect();
 			});
 	}
@@ -74,6 +117,24 @@ export class KickChatProvider extends ChatProvider {
 			case "pusher:ping":
 				this.#ws.send(JSON.stringify({ event: "pusher:pong", data: {} }));
 				break;
+			case "pusher:error": {
+				const data = msg.data as { code?: number; message?: string } | undefined;
+				// 4001: the app key is not on this cluster — it has rotated.
+				// Mark it stale so the resolver is asked for a fresh key on
+				// the next connect, then drop the connection.
+				if (data?.code === 4001) {
+					this.#staleKey = this.#pusher.key;
+					this.log(
+						"pusher",
+						`key ${this.#pusher.key.slice(0, 6)}… stale (${data.message})`,
+					);
+					this.#ws?.close();
+					return;
+				}
+				this.log("pusher error", JSON.stringify(data));
+				this.#ws?.close();
+				return;
+			}
 			case "pusher_internal:subscription_succeeded":
 				this.#disarmSubscribeTimer();
 				this.#subscribed = true;
