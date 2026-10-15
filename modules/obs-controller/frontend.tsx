@@ -24,7 +24,6 @@ import {
   Field,
   FieldGroup,
   Form,
-  Input,
   NumberField,
   Options,
   Select,
@@ -39,8 +38,8 @@ import { t } from "../../public/ts/i18n";
 import type { MithrilJSXComponent } from "../../public/ts/jsx";
 import { since } from "../../public/ts/util";
 import type {
+  ObsModuleView,
   Status,
-  SwitcherModuleView,
   SwitcherStatus,
 } from "../../public/types";
 import type { BridgedModule } from "./types";
@@ -155,6 +154,8 @@ export function createObsPanel({
   const ui = {
     /** GetSceneList names; the active one is ui.scene. */
     scenes: [] as string[],
+    /** All OBS inputs (GetInputList) — the options of the switcher source select. */
+    inputs: [] as string[],
     /** Metering input names (seeded from GetInputList, then follows InputVolumeMeters) — one row per source. */
     vuInputs: [] as string[],
     /** Per-input mute state, for each row's mic toggle icon. */
@@ -287,7 +288,9 @@ export function createObsPanel({
     if (scene?.currentProgramSceneName)
       ui.scene = scene.currentProgramSceneName;
     if (inputs?.inputs) {
-      ui.vuInputs = inputs.inputs.map((i) => i.inputName);
+      const names = inputs.inputs.map((i) => i.inputName);
+      ui.inputs = names;
+      ui.vuInputs = names;
     }
     if (studio?.studioModeEnabled !== undefined)
       ui.studio = studio.studioModeEnabled;
@@ -307,6 +310,7 @@ export function createObsPanel({
     vuCanvases.clear();
     vuState.clear();
     ui.vuMuted.clear();
+    ui.inputs = [];
     ui.vuInputs = [];
     ui.previewData = null;
     ui.previewFailed = false;
@@ -589,7 +593,8 @@ export function createObsPanel({
 
   function component(switcher?: ObsSwitcherContext): m.Vnode {
     const switcherEnabled =
-      switcher?.status.modules["low-bitrate-switcher"]?.enabled === true;
+      switcher !== undefined &&
+      switcher.status.modules["obs-controller"]?.switcherEnabled !== false;
     if (switcherEnabled && switcherForm === undefined) {
       switcherForm = loadForm(switcher.status);
     }
@@ -875,13 +880,9 @@ export function createObsPanel({
               <Field
                 label={t("lowbs.obs_source")}
                 control={
-                  <Input
-                    target={f}
-                    prop="obsSourceName"
-                    type={"text"}
-                    class={"lbs-text"}
-                    placeholder={t("lowbs.obs_source_placeholder")}
-                  />
+                  <Select target={f} prop="obsSourceName" class={"lbs-select"}>
+                    <Options pairs={nameOptions(ui.inputs, true)} />
+                  </Select>
                 }
               />
               <FieldGroup legend={t("lowbs.group_triggers")}>
@@ -909,7 +910,7 @@ export function createObsPanel({
                       label={t(label)}
                       control={
                         <Select target={f} prop={prop} class={"lbs-select"}>
-                          <Options pairs={sceneOptions(ui.scenes, optional)} />
+                          <Options pairs={nameOptions(ui.scenes, optional)} />
                         </Select>
                       }
                     />
@@ -963,14 +964,15 @@ export function createObsPanel({
 }
 
 /**
- * The scene select's options: only OBS's live scene list (plus an empty "—"
- * entry for the optional scene fields) — no placeholder defaults.
+ * A select's options over a live OBS name list (scenes, inputs): the names
+ * themselves, plus an empty "—" entry for optional fields — no placeholder
+ * defaults.
  */
-const sceneOptions = (
-  scenes: string[],
+const nameOptions = (
+  names: string[],
   optional = false,
 ): [string, string][] => {
-  const out: [string, string][] = scenes.map((name): [string, string] => [
+  const out: [string, string][] = names.map((name): [string, string] => [
     name,
     name,
   ]);
@@ -998,28 +1000,28 @@ interface SwitcherForm {
   logToFile: boolean;
 }
 
-/** The module's persisted slice (the defaults below apply where a field is absent). */
-const slice = (status: Status): SwitcherModuleView | undefined =>
-  status.modules["low-bitrate-switcher"] as SwitcherModuleView | undefined;
+/** The obs module's persisted slice (the defaults below apply where a field is absent). */
+const slice = (status: Status): ObsModuleView | undefined =>
+  status.modules["obs-controller"];
 
 function loadForm(status: Status): SwitcherForm {
   const c = slice(status);
   return {
     autoSwitch: c?.autoSwitch ?? true,
     obsSourceName: c?.obsSourceName ?? "",
-    lowBitrate: String(c?.triggers.low ?? 500),
-    offlineBitrate: String(c?.triggers.offline ?? 400),
-    rtt: String(c?.triggers.rtt ?? 1500),
+    lowBitrate: String(c?.triggers?.low ?? 500),
+    offlineBitrate: String(c?.triggers?.offline ?? 400),
+    rtt: String(c?.triggers?.rtt ?? 1500),
     retryAttempts: String(c?.retryAttempts ?? 5),
     pollInterval: String(c?.pollIntervalMs ?? 1000),
     instantlyRecover: c?.instantlySwitchOnRecover ?? true,
     onlySwitchWhenStreaming: c?.onlySwitchWhenStreaming ?? false,
-    sceneNormal: c?.scenes.normal ?? "",
-    sceneLow: c?.scenes.low ?? "",
-    sceneOffline: c?.scenes.offline ?? "",
-    sceneStarting: c?.optionalScenes.starting ?? "",
-    sceneEnding: c?.optionalScenes.ending ?? "",
-    scenePrivacy: c?.optionalScenes.privacy ?? "",
+    sceneNormal: c?.scenes?.normal ?? "",
+    sceneLow: c?.scenes?.low ?? "",
+    sceneOffline: c?.scenes?.offline ?? "",
+    sceneStarting: c?.optionalScenes?.starting ?? "",
+    sceneEnding: c?.optionalScenes?.ending ?? "",
+    scenePrivacy: c?.optionalScenes?.privacy ?? "",
     logToFile: c?.logToFile ?? true,
   };
 }

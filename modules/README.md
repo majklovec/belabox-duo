@@ -25,6 +25,7 @@ modules/
 ```
 
 Each module ships exactly:
+
 - `backend.ts` — default-exports a backend registration. Runs in Bun on the
   host: **no** mithril/DOM, no browser globals.
 - `frontend.tsx` — default-exports a frontend registration. Runs in the browser
@@ -52,33 +53,33 @@ lowercase lifecycle/event names (`oncreate`, `onclick`, `oninput`).
 
 Default-exports an object the registry validates structurally:
 
-| field | required | purpose |
-|-------|----------|---------|
-| `kind`, `id`, `title` | yes | identity (`id` = directory name) |
-| `configSchema` | yes | `Record<field, {label, type, default, options?, min?, max?, step?}>` — the UI renders the config form from this |
-| `secretFields` | yes | config field names that are masked |
-| `methods` | yes | ordered list of RPC methods this module answers |
-| `events` | yes | ordered list of events it emits |
-| `start({config, emit, log, core})` | yes | bring it up; `core` is the per-role services object (subprocess, srtla, …) |
-| `stop()` | yes | tear down |
-| `dispatch(method, params)` | yes | handle an RPC call routed to this module |
-| `status?()` | no | status fragment merged into `sys.status` (`buildStatus` asks it; the core never imports the module for this) |
-| `services?` | no | `{ capabilities?: Record<string, Capability> }` — see the capability bus |
-| `hub?` | no | channel-widget hub (`widgetType`, `snapshotKey`, `configFields`, `channelSpec`, `create`, `enabled?`) |
-| `dependencies?` | no | ids of modules that must have `start()`ed first (see ordering) |
+| field                              | required | purpose                                                                                                         |
+| ---------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------- |
+| `kind`, `id`, `title`              | yes      | identity (`id` = directory name)                                                                                |
+| `configSchema`                     | yes      | `Record<field, {label, type, default, options?, min?, max?, step?}>` — the UI renders the config form from this |
+| `secretFields`                     | yes      | config field names that are masked                                                                              |
+| `methods`                          | yes      | ordered list of RPC methods this module answers                                                                 |
+| `events`                           | yes      | ordered list of events it emits                                                                                 |
+| `start({config, emit, log, core})` | yes      | bring it up; `core` is the per-role services object (subprocess, srtla, …)                                      |
+| `stop()`                           | yes      | tear down                                                                                                       |
+| `dispatch(method, params)`         | yes      | handle an RPC call routed to this module                                                                        |
+| `status?()`                        | no       | status fragment merged into `sys.status` (`buildStatus` asks it; the core never imports the module for this)    |
+| `services?`                        | no       | `{ capabilities?: Record<string, Capability> }` — see the capability bus                                        |
+| `hub?`                             | no       | channel-widget hub (`widgetType`, `snapshotKey`, `configFields`, `channelSpec`, `create`, `enabled?`)           |
+| `dependencies?`                    | no       | ids of modules that must have `start()`ed first (see ordering)                                                  |
 
 ### Frontend (`modules/<id>/frontend.tsx`)
 
 Default-exports an object the generated manifest re-exports and the frontend
 registry bridges:
 
-| field | purpose |
-|-------|---------|
-| `kind`, `id`, `title`, `configSchema` | identity + config form (mirrors backend) |
-| `component?` | a dashboard-widget component (channel widgets render via `WIDGET_MODULES`) |
-| `cardBody?(host, status)` | a device-card body `(DeviceCard, Status) => Vnode` — registered so the core renders the card by capability, not by import |
-| `configFields?` | config fields that require a device reload (widgets) |
-| `createHub?(publish)`, `eventSink?` | widget hub factory / event sink |
+| field                                 | purpose                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `kind`, `id`, `title`, `configSchema` | identity + config form (mirrors backend)                                                                                  |
+| `component?`                          | a dashboard-widget component (channel widgets render via `WIDGET_MODULES`)                                                |
+| `cardBody?(host, status)`             | a device-card body `(DeviceCard, Status) => Vnode` — registered so the core renders the card by capability, not by import |
+| `configFields?`                       | config fields that require a device reload (widgets)                                                                      |
+| `createHub?(publish)`, `eventSink?`   | widget hub factory / event sink                                                                                           |
 
 ## Discovery (the core names no module)
 

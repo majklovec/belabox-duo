@@ -74,7 +74,7 @@ import {
 	requirePort,
 	requireString,
 } from "./params";
-import { configureModule, moduleEnabled, modulesView } from "./modules";
+import { configureModule, moduleEnabled, safeModules } from "./modules";
 import { removePipelineRepository, syncPipelineRepository } from "./pipelineRepos";
 import { applyRemoteSettings } from "./remote";
 import { detectInterfaces, isMonitorRunning, type ModemConfig, reconfigure, resolveSelection, setSelection } from "./routing";
@@ -135,7 +135,7 @@ export async function buildStatus() {
 		// null when the switcher is not running; the card shows "idle" then
 		lowBitrateSwitcher: (modFragments.lowBitrateSwitcher as SwitcherStatus | null) ?? null,
 		// Module system: enabled flags + non-secret settings (secrets => {configured})
-		modules: modulesView(),
+		modules: safeModules(),
 	};
 }
 
@@ -516,7 +516,7 @@ const methods: Record<string, Method> = {
 	"log.list": () => ({ entries: logEntries() }),
 
 	// ---------------------------------------------------------------- modules
-	"modules.list": () => ({ modules: modulesView() }),
+	"modules.list": () => ({ modules: safeModules() }),
 	"modules.enable": (p) => {
 		const id = oneOf(requireString(p, "id"), "id", ALL_MODULES);
 		const modules = (state.settings.modules ??= defaultModules(ROLE));
@@ -524,7 +524,7 @@ const methods: Record<string, Method> = {
 		saveState();
 		// relay has no running state to re-apply; real modules go through the registry
 		void restartRegisteredModule(id);
-		return { ok: true, modules: modulesView() };
+		return { ok: true, modules: safeModules() };
 	},
 	"modules.disable": (p) => {
 		const id = oneOf(requireString(p, "id"), "id", ALL_MODULES);
@@ -533,7 +533,7 @@ const methods: Record<string, Method> = {
 		saveState();
 		// relay has no running state to re-apply; real modules go through the registry
 		void restartRegisteredModule(id);
-		return { ok: true, modules: modulesView() };
+		return { ok: true, modules: safeModules() };
 	},
 	"modules.configure": (p) => {
 		const id = oneOf(requireString(p, "id"), "id", ALL_MODULES);
@@ -549,7 +549,7 @@ const methods: Record<string, Method> = {
 			configureModule(id, config);
 			saveState();
 		}
-		return { ok: true, modules: modulesView() };
+		return { ok: true, modules: safeModules() };
 	},
 
 	// -------------------------------------------------------------------- obs

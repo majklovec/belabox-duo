@@ -5,12 +5,12 @@
  * card per viewer websocket so its widgets run the module cards against the
  * widget's own device. */
 import m from "mithril";
-import { label, type LogEvent, methodLog } from "../../../src/logMessages";
+import { type LogEvent, label, methodLog } from "../../../src/logMessages";
 import { errorMessage } from "../../../src/util";
 import type {
 	CeraBalancer,
 	DeviceInfo,
-	ModulesView,
+	modulesView,
 	Pipeline,
 	Role,
 	SrtlaStats,
@@ -18,10 +18,10 @@ import type {
 	Status,
 } from "../../types";
 import type { KeysOf } from "../components/ui";
-import { type Level } from "../icons";
 import { t } from "../i18n";
-import { setHeaderColor, uuid } from "../util";
+import type { Level } from "../icons";
 import { type Params, RpcClient, RpcError, socketUrl } from "../services/rpc";
+import { setHeaderColor, uuid } from "../util";
 import { applyLog, log } from "./log";
 
 const newFields = () => ({
@@ -53,7 +53,8 @@ const newCera = () => ({
 // Start / Stop style buttons, enabled only when the streaming state allows their action.
 const STATE_BUTTONS = {
 	"encoder-start": (s) => !s.state.encoder.running,
-	"encoder-stop": (s) => s.state.encoder.running || (s.role === "combined" && s.state.srtla.running),
+	"encoder-stop": (s) =>
+		s.state.encoder.running || (s.role === "combined" && s.state.srtla.running),
 	"encoder-bitrate": (s) => s.state.encoder.running,
 	"srtla-start": (s) => !s.state.srtla.running,
 	"srtla-stop": (s) => s.state.srtla.running,
@@ -85,7 +86,11 @@ export interface DeviceCard {
 	/** Keys of requests in flight (buttons, toggles) — their controls are disabled meanwhile. */
 	busy: Set<string>;
 	enabled: (id: StateButton) => boolean;
-	act: <T = unknown>(key: string | null, method: string, params?: Params) => Promise<T | undefined>;
+	act: <T = unknown>(
+		key: string | null,
+		method: string,
+		params?: Params,
+	) => Promise<T | undefined>;
 	press: (id: StateButton, method: string, params?: Params) => void;
 	/** Apply a `status` push: state + form prefill; warms the pipeline list. */
 	applyStatus: (status: Status) => void;
@@ -106,7 +111,13 @@ export function createCardHost(opts: {
 	logFn?: (level: Level, section: string, message: string) => void;
 }): DeviceCard {
 	const { rpc, logFn } = opts;
-	const st: CardState = { status: null, stats: null, statsAt: 0, pipelines: [], pipelineDir: "" };
+	const st: CardState = {
+		status: null,
+		stats: null,
+		statsAt: 0,
+		pipelines: [],
+		pipelineDir: "",
+	};
 	const fields = newFields();
 	const cera = newCera();
 	const touched = new Set<string>();
@@ -116,10 +127,17 @@ export function createCardHost(opts: {
 	let pipelinesLoaded = false;
 
 	const enabled = (id: StateButton): boolean =>
-		!busy.has(id) && !awaiting.has(id) && !!st.status && STATE_BUTTONS[id](st.status);
+		!busy.has(id) &&
+		!awaiting.has(id) &&
+		!!st.status &&
+		STATE_BUTTONS[id](st.status);
 
 	/** Run a method; logs failures the device did not. While it runs, `busy` holds `key`. */
-	async function act<T = unknown>(key: string | null, method: string, params?: Params): Promise<T | undefined> {
+	async function act<T = unknown>(
+		key: string | null,
+		method: string,
+		params?: Params,
+	): Promise<T | undefined> {
 		if (key) {
 			if (busy.has(key)) return undefined;
 			busy.add(key);
@@ -138,7 +156,11 @@ export function createCardHost(opts: {
 		} catch (err) {
 			if (logFn && !(err instanceof RpcError && err.logged)) {
 				const { section, action } = methodLog(method);
-				logFn("error", section, t("mlog.failed", label(action), errorMessage(err)));
+				logFn(
+					"error",
+					section,
+					t("mlog.failed", label(action), errorMessage(err)),
+				);
 			}
 			return undefined;
 		} finally {
@@ -154,9 +176,15 @@ export function createCardHost(opts: {
 
 	// ------------------------------------------------------------------ prefill
 	/** Fill an empty form field from the device's settings, unless the user is typing in it. */
-	function prefill<T extends object>(target: T, key: KeysOf<T, string>, value: unknown, name: string = key): void {
+	function prefill<T extends object>(
+		target: T,
+		key: KeysOf<T, string>,
+		value: unknown,
+		name: string = key,
+	): void {
 		if (target[key] || value == null || value === "") return;
-		if ((document.activeElement as HTMLInputElement | null)?.name === name) return;
+		if ((document.activeElement as HTMLInputElement | null)?.name === name)
+			return;
 		(target as Record<string, unknown>)[key] = String(value);
 	}
 
@@ -165,7 +193,11 @@ export function createCardHost(opts: {
 		const combined = status.role === "combined";
 		for (const key of ["listenPort", "remoteHost", "remotePort"] as const) {
 			// Combined devices take the receiver from this card; fall back to the saved target
-			prefill(fields, key, srtla[key] ?? (combined ? srtlaTarget?.[key] : undefined));
+			prefill(
+				fields,
+				key,
+				srtla[key] ?? (combined ? srtlaTarget?.[key] : undefined),
+			);
 		}
 		if (status.role === "relay") return;
 
@@ -175,33 +207,56 @@ export function createCardHost(opts: {
 			prefill(fields, "encPort", cfg?.port);
 		}
 		// belacoder keeps the min in the encoder config; ceracoder's lives in its own section
-		prefill(fields, "minBitrate", cfg?.minBitrate ?? status.ceracoder?.minBitrate);
+		prefill(
+			fields,
+			"minBitrate",
+			cfg?.minBitrate ?? status.ceracoder?.minBitrate,
+		);
 		prefill(fields, "maxBitrate", cfg?.maxBitrate);
 		prefill(fields, "latency", cfg?.latency);
 		prefill(fields, "delay", cfg?.delay);
 		prefill(fields, "streamid", cfg?.streamid);
 
 		// Pipeline select: keep the choice while the pipeline is still there
-		if (!fields.pipeline && !touched.has("pipeline") && cfg?.pipeline) fields.pipeline = cfg.pipeline;
-		if (!st.pipelines.some((p) => p.id === fields.pipeline)) fields.pipeline = "";
+		if (!fields.pipeline && !touched.has("pipeline") && cfg?.pipeline)
+			fields.pipeline = cfg.pipeline;
+		if (!st.pipelines.some((p) => p.id === fields.pipeline))
+			fields.pipeline = "";
 
 		// Audio sources change as USB devices come and go; keep the current choice if still present
 		const saved = cfg?.audioSource;
-		const savedPresent = !!saved && status.audioSources.some((a) => a.id === saved);
-		if (fields.audioSource && !status.audioSources.some((a) => a.id === fields.audioSource)) {
-			fields.audioSource = savedPresent ? saved : (status.audioSources[0]?.id ?? "");
-		} else if (!fields.audioSource && !touched.has("audioSource") && savedPresent) {
+		const savedPresent =
+			!!saved && status.audioSources.some((a) => a.id === saved);
+		if (
+			fields.audioSource &&
+			!status.audioSources.some((a) => a.id === fields.audioSource)
+		) {
+			fields.audioSource = savedPresent
+				? saved
+				: (status.audioSources[0]?.id ?? "");
+		} else if (
+			!fields.audioSource &&
+			!touched.has("audioSource") &&
+			savedPresent
+		) {
 			fields.audioSource = saved;
 		}
-		if (!touched.has("audioCodec") && cfg?.audioCodec) fields.audioCodec = cfg.audioCodec;
-		if (!touched.has("bitrateOverlay") && cfg) fields.bitrateOverlay = !!cfg.bitrateOverlay;
+		if (!touched.has("audioCodec") && cfg?.audioCodec)
+			fields.audioCodec = cfg.audioCodec;
+		if (!touched.has("bitrateOverlay") && cfg)
+			fields.bitrateOverlay = !!cfg.bitrateOverlay;
 
 		const c = status.ceracoder;
 		if (c) {
 			if (!touched.has("balancer")) cera.balancer = c.balancer;
 			for (const group of ["adaptive", "aimd"] as const) {
 				for (const [key, value] of Object.entries(c[group])) {
-					prefill(cera[group] as Record<string, string>, key, value, `${group}.${key}`);
+					prefill(
+						cera[group] as Record<string, string>,
+						key,
+						value,
+						`${group}.${key}`,
+					);
 				}
 			}
 		}
@@ -209,7 +264,9 @@ export function createCardHost(opts: {
 
 	async function loadPipelines(): Promise<void> {
 		pipelinesLoaded = true;
-		const result = await act<{ dir: string; pipelines: Pipeline[] } | undefined>(null, "pipelines.list");
+		const result = await act<
+			{ dir: string; pipelines: Pipeline[] } | undefined
+		>(null, "pipelines.list");
 		if (!result || !Array.isArray(result.pipelines)) {
 			pipelinesLoaded = false;
 			return;
@@ -220,8 +277,11 @@ export function createCardHost(opts: {
 		// scripts are copied over later): don't latch the flag, so the next
 		// status push re-fetches until the directory actually has pipelines.
 		if (st.pipelines.length === 0) pipelinesLoaded = false;
-		const current = fields.pipeline || st.status?.state.encoder.config?.pipeline || "";
-		fields.pipeline = result.pipelines.some((p) => p.id === current) ? current : "";
+		const current =
+			fields.pipeline || st.status?.state.encoder.config?.pipeline || "";
+		fields.pipeline = result.pipelines.some((p) => p.id === current)
+			? current
+			: "";
 		m.redraw();
 	}
 
@@ -255,7 +315,20 @@ export function createCardHost(opts: {
 		pipelinesLoaded = false;
 	};
 
-	return { st, fields, cera, touched, busy, enabled, act, press, applyStatus, handleStats, loadPipelines, onReconnect };
+	return {
+		st,
+		fields,
+		cera,
+		touched,
+		busy,
+		enabled,
+		act,
+		press,
+		applyStatus,
+		handleStats,
+		loadPipelines,
+		onReconnect,
+	};
 }
 
 // ----------------------------------------------------------------------
@@ -281,8 +354,13 @@ export const st = Object.assign(card.st, {
 	device: null as DeviceInfo | null,
 	autostartBusy: false,
 	// Module system: persisted settings + live module state
-	modules: {} as ModulesView,
-	obs: { connected: false, scene: null as string | null, streaming: false, recording: false },
+	modules: {} as modulesView,
+	obs: {
+		connected: false,
+		scene: null as string | null,
+		streaming: false,
+		recording: false,
+	},
 });
 
 /** Form fields; strings as typed, converted on submit. */
@@ -302,12 +380,15 @@ export const press = card.press;
 let frontendEventSink: ((event: string, data: unknown) => void) | null = null;
 
 /** Injected by the module registry at module-evaluation time. */
-export const setFrontendEventSink = (sink: (event: string, data: unknown) => void): void => {
+export const setFrontendEventSink = (
+	sink: (event: string, data: unknown) => void,
+): void => {
 	frontendEventSink = sink;
 };
 
 /** Route one push to the dispatcher the registry registered. */
-const dispatchFrontendEvent = (event: string, data: unknown): void => frontendEventSink?.(event, data);
+const dispatchFrontendEvent = (event: string, data: unknown): void =>
+	frontendEventSink?.(event, data);
 
 // ----------------------------------------------------------------------
 // OBS passthrough helpers (obs-websocket v5 payloads travel verbatim;
@@ -324,17 +405,26 @@ export function obsRequest<T = Record<string, unknown>>(
 	requestType: string,
 	requestData: Record<string, unknown> = {},
 ): Promise<ObsRequestResponse<T> | undefined> {
-	return act(
-		null,
-		"obs.request",
-		{ requestType, requestId: uuid(), requestData },
-	) as Promise<ObsRequestResponse<T> | undefined>;
+	return act(null, "obs.request", {
+		requestType,
+		requestId: uuid(),
+		requestData,
+	}) as Promise<ObsRequestResponse<T> | undefined>;
 }
 
 export function obsBatch(
-	requests: Array<{ requestType: string; requestData?: Record<string, unknown> }>,
+	requests: Array<{
+		requestType: string;
+		requestData?: Record<string, unknown>;
+	}>,
 	opts?: { haltOnFailure?: boolean; executionType?: 0 | 1 | 2 },
-): Promise<{ requestId: string; results: ObsRequestResponse<Record<string, unknown>>[] } | undefined> {
+): Promise<
+	| {
+			requestId: string;
+			results: ObsRequestResponse<Record<string, unknown>>[];
+	  }
+	| undefined
+> {
 	return act(null, "obs.requestBatch", {
 		requestId: uuid(),
 		requests: requests.map((r) => ({ ...r, requestId: uuid() })),
@@ -344,7 +434,9 @@ export function obsBatch(
 }
 
 async function loadAppearance(): Promise<void> {
-	const result = await rpc.call<{ settings: { color: string } }>("settings.get").catch(() => null);
+	const result = await rpc
+		.call<{ settings: { color: string } }>("settings.get")
+		.catch(() => null);
 	if (result) setHeaderColor(result.settings.color);
 }
 
@@ -390,4 +482,6 @@ rpc.on("log", (data) => applyLog(data as LogEvent));
 // Module events (carried with a `module` tag, routed by their name here)
 // ----------------------------------------------------------------------
 rpc.on("obs.event", (data) => dispatchFrontendEvent("obs.event", data));
-rpc.on("lowBitrateSwitcher.state", (data) => dispatchFrontendEvent("lowBitrateSwitcher.state", data));
+rpc.on("lowBitrateSwitcher.state", (data) =>
+	dispatchFrontendEvent("lowBitrateSwitcher.state", data),
+);

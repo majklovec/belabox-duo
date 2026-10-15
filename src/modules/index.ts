@@ -3,7 +3,7 @@
  * in modules/registry.backend.ts; this file keeps the role/core-facing
  * helpers that are not module-specific:
  *   - moduleEnabled / methodAllowed gate the module-owned methods (409)
- *   - modulesView() is the secret-free module map put into the status
+ *   - safeModules() is the secret-free module map put into the status
  *   - configureModule() applies relay/encoder toggles (applied at role start)
  */
 import { type ModulesState, state } from "../state";
@@ -30,37 +30,17 @@ export function configureModule(id: string, config: Record<string, unknown>): vo
     }
 }
 
-/** The module map for the status: secrets are replaced by `configured` flags. */
-export function modulesView(): object {
+/** The persisted module map for the status; secret strings come back as `{configured}`. */
+export function safeModules(): object {
     const m = mods();
     if (!m) return {};
-    const obs = m["obs-controller"];
-    return {
-        relay: m.relay,
-        encoder: m.encoder,
-        modems: m.modems,
-        "obs-controller": {
-            enabled: obs.enabled,
-            obsUrl: obs.obsUrl,
-            obsPassword: obs.obsPassword ? { configured: true } : { configured: false },
-            sceneEvents: obs.sceneEvents,
-        },
-        // No secrets in the switcher settings: the switcher rides on the obs
-        // slice, so its view is synthesized from there (backfill guarantees the
-        // fields exist).
-        "low-bitrate-switcher": {
-            enabled: obs.switcherEnabled !== false,
-            obsSourceName: obs.obsSourceName ?? "",
-            failBehaviour: obs.failBehaviour ?? "pause",
-            autoSwitch: obs.autoSwitch ?? true,
-            onlySwitchWhenStreaming: obs.onlySwitchWhenStreaming ?? false,
-            instantlySwitchOnRecover: obs.instantlySwitchOnRecover ?? true,
-            retryAttempts: obs.retryAttempts ?? 5,
-            pollIntervalMs: obs.pollIntervalMs ?? 1000,
-            triggers: obs.triggers ?? { low: 500, offline: 400, rtt: 1500 },
-            scenes: obs.scenes ?? { normal: "", low: "", offline: "" },
-            optionalScenes: obs.optionalScenes ?? { starting: "", ending: "", privacy: "" },
-            logToFile: obs.logToFile ?? true,
-        },
-    };
+    const mask = (cfg: Record<string, unknown>) =>
+        Object.fromEntries(
+            Object.entries(cfg).map(([k, v]) =>
+                /password|token/i.test(k) && typeof v === "string" ? [k, { configured: v !== "" }] : [k, v],
+            ),
+        );
+    return Object.fromEntries(
+        Object.entries(m as unknown as Record<string, Record<string, unknown>>).map(([id, cfg]) => [id, mask(cfg)]),
+    );
 }

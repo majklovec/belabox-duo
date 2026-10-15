@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { allModules } from "../src/registry";
 import { defaultModules, state } from "../src/state";
 import { modulesForRole } from "../src/validate";
-import { modulesView } from "../src/modules";
+import { safeModules } from "../src/modules";
 
 /**
  * Registry order of the device modules: the result of the registry's topological
@@ -202,7 +202,7 @@ describe("modems role presets", () => {
 		const saved = state.settings.modules;
 		try {
 			state.settings.modules = defaultModules("relay");
-			const view = modulesView() as { modems?: { enabled: boolean } };
+			const view = safeModules() as { modems?: { enabled: boolean } };
 			expect(view.modems).toEqual({ enabled: true });
 		} finally {
 			state.settings.modules = saved;

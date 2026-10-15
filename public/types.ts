@@ -36,26 +36,29 @@ export interface ModemInfo {
 
 /** A GStreamer pipeline file under PIPELINES_DIR. */
 export interface Pipeline {
-	id: string;       // path relative to PIPELINES_DIR
-	group: string;    // first directory component ("" for top-level files)
-	name: string;     // file name
-	asrc: boolean;    // captures from an ALSA card (source can be changed / removed)
-	acodec: boolean;  // encodes AAC (can be switched to Opus)
+	id: string; // path relative to PIPELINES_DIR
+	group: string; // first directory component ("" for top-level files)
+	name: string; // file name
+	asrc: boolean; // captures from an ALSA card (source can be changed / removed)
+	acodec: boolean; // encodes AAC (can be switched to Opus)
 	overlay: boolean; // has the bitrate text overlay
 }
 
 /** An available audio capture source (ALSA card id + display name). */
-export interface AudioSource { id: string; name: string; }
+export interface AudioSource {
+	id: string;
+	name: string;
+}
 
 /** Complete encoder start / restart configuration (drafts kept in state). */
 export interface EncoderConfig {
 	pipeline: string;
-	host: string;         // SRT destination (the relay, or 127.0.0.1 when combined)
+	host: string; // SRT destination (the relay, or 127.0.0.1 when combined)
 	port: string;
-	minBitrate: number;   // kbps
-	maxBitrate: number;   // kbps
-	latency: number;      // SRT latency, ms
-	delay: number;        // audio delay, ms
+	minBitrate: number; // kbps
+	maxBitrate: number; // kbps
+	latency: number; // SRT latency, ms
+	delay: number; // audio delay, ms
 	streamid?: string;
 	audioSource?: string; // ALSA card id, "default" or "none"
 	audioCodec?: "aac" | "opus";
@@ -66,7 +69,7 @@ export interface EncoderConfig {
 export interface EncoderState {
 	running: boolean;
 	pid?: number;
-	config?: EncoderConfig;   // last used; kept after stop so the UI can prefill
+	config?: EncoderConfig; // last used; kept after stop so the UI can prefill
 	startedAt?: number;
 	restarts?: number;
 	lastError?: string;
@@ -76,18 +79,18 @@ export type CeraBalancer = "adaptive" | "fixed" | "aimd";
 
 /** Tuning of the adaptive (default) ceracoder balancer. */
 export interface AdaptiveTuning {
-	incrStep: number;      // Kbps
-	decrStep: number;      // Kbps
-	incrInterval: number;  // ms
-	decrInterval: number;  // ms
+	incrStep: number; // Kbps
+	decrStep: number; // Kbps
+	incrInterval: number; // ms
+	decrInterval: number; // ms
 }
 
 /** Tuning of the AIMD ceracoder balancer. */
 export interface AimdTuning {
-	incrStep: number;      // Kbps
-	decrMult: number;      // fraction of the bitrate kept on congestion (0-1)
-	incrInterval: number;  // ms
-	decrInterval: number;  // ms
+	incrStep: number; // Kbps
+	decrMult: number; // fraction of the bitrate kept on congestion (0-1)
+	incrInterval: number; // ms
+	decrInterval: number; // ms
 }
 
 /** Bitrate bounds (kbps) shared by wire validation and the UI, single source. */
@@ -96,7 +99,7 @@ export const BITRATE_KBPS = { min: 300, max: 30_000 } as const;
 /** ceracoder parameters persisted in the device config (`ceracoder` section). */
 export interface CeraConfig {
 	balancer: CeraBalancer;
-	minBitrate: number;    // Kbps
+	minBitrate: number; // Kbps
 	adaptive: AdaptiveTuning;
 	aimd: AimdTuning;
 }
@@ -123,7 +126,13 @@ export interface SrtlaState {
 // ----------------------------------------------------------------------
 
 /** Widget types owned by a channel widget module (device-independent widgets). */
-export const WIDGET_MODULE_IDS = ["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"] as const;
+export const WIDGET_MODULE_IDS = [
+	"kick-stats",
+	"kick-chat",
+	"tiktok-chat",
+	"twitch-chat",
+	"youtube-chat",
+] as const;
 export type WidgetModuleId = (typeof WIDGET_MODULE_IDS)[number];
 
 /** One viewer-count sample for the kick-stats line chart (oldest first). */
@@ -280,8 +289,13 @@ export interface SwitcherStatus {
 	updatedAt: number;
 }
 
+export type {
+	SrtlaLinkStats,
+	SrtlaMode,
+	SrtlaStats,
+	SrtlaStatsEvent,
+} from "../src/srtlaControl";
 export type { Role, StreamTarget };
-export type { SrtlaLinkStats, SrtlaMode, SrtlaStats, SrtlaStatsEvent } from "../src/srtlaControl";
 
 export interface Status {
 	role: Role;
@@ -306,7 +320,7 @@ export interface Status {
 	/** Live state of the low-bitrate switcher (null when the module is stopped). */
 	lowBitrateSwitcher?: SwitcherStatus | null;
 	/** Module system: enabled flags + non-secret settings (secrets come back as `{configured}`). */
-	modules: ModulesView;
+	modules: modulesView;
 }
 
 export interface ObsModuleView {
@@ -314,18 +328,40 @@ export interface ObsModuleView {
 	obsUrl: string;
 	obsPassword: string | { configured: boolean };
 	sceneEvents: boolean;
+	// The low-bitrate switcher rides on the obs slice; `switcherEnabled`
+	// defaults to on and its settings come through untouched (no secrets).
+	switcherEnabled?: boolean;
+	obsSourceName?: string;
+	failBehaviour?: "pause" | "ignore";
+	autoSwitch?: boolean;
+	onlySwitchWhenStreaming?: boolean;
+	instantlySwitchOnRecover?: boolean;
+	retryAttempts?: number;
+	pollIntervalMs?: number;
+	triggers?: SwitcherConfig["triggers"];
+	scenes?: SwitcherConfig["scenes"];
+	optionalScenes?: SwitcherConfig["optionalScenes"];
+	logToFile?: boolean;
 }
-/** The low-bitrate switcher module's view (its whole slice is non-secret). */
-export type SwitcherModuleView = { enabled: boolean } & SwitcherConfig;
-export interface ModulesView {
+export interface modulesView {
 	relay: { enabled: boolean };
 	encoder: { enabled: boolean };
 	modems: { enabled: boolean };
 	"obs-controller": ObsModuleView;
-	"low-bitrate-switcher": SwitcherModuleView;
 }
 /** A dashboard widget type, backed by (or showing) one of a device's modules. */
-export type WidgetType = "obs" | "stats" | "status" | "relay" | "encoder" | "combined" | "kick-stats" | "kick-chat" | "tiktok-chat" | "twitch-chat" | "youtube-chat";
+export type WidgetType =
+	| "obs"
+	| "stats"
+	| "status"
+	| "relay"
+	| "encoder"
+	| "combined"
+	| "kick-stats"
+	| "kick-chat"
+	| "tiktok-chat"
+	| "twitch-chat"
+	| "youtube-chat";
 
 /**
  * A channel widget's config parameter, declared by its module in editor order.
@@ -338,7 +374,8 @@ export type WidgetConfigField =
 	| { name: string; type: "select"; options: readonly string[] };
 
 /** The parameter name a config field writes to the widget's `config` record. */
-export const configFieldName = (f: WidgetConfigField): string => (typeof f === "string" ? f : f.name);
+export const configFieldName = (f: WidgetConfigField): string =>
+	typeof f === "string" ? f : f.name;
 
 /**
  * Server-side dashboards: composed in the control server's dashboards page from
@@ -408,9 +445,9 @@ export interface DeviceSummary extends DeviceInfo {
 	srtla?: SrtlaState;
 	encoder?: EncoderState;
 	/** Enabled modules, offered by the dashboards page when composing widgets */
-	modules?: ModulesView;
+	modules?: modulesView;
 	/** Live srtla_send totals, while it pushes link stats. */
-	bitrate?: number;   // bytes/s across all links
+	bitrate?: number; // bytes/s across all links
 	/** Configured encoder maximum, available even without SRTLA telemetry. */
 	maxBitrate?: number; // kbps
 	activeLinks?: number;

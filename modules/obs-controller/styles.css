@@ -141,9 +141,6 @@
   font-size: 0.82rem;
   color: var(--muted);
 }
-.mod-obs-controller .obs-audio-row .obs-vu {
-  flex: 1 1 auto;
-}
 .mod-obs-controller .obs-vu {
   display: block;
   width: 100%;
@@ -151,6 +148,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   background: #0a0a0a;
+  flex: 1 1 auto;
 }
 
 .mod-obs-controller .lbs-grid {
