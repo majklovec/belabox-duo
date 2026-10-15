@@ -37,11 +37,7 @@ import {
 import { t } from "../../public/ts/i18n";
 import type { MithrilJSXComponent } from "../../public/ts/jsx";
 import { since } from "../../public/ts/util";
-import type {
-  ObsModuleView,
-  Status,
-  SwitcherStatus,
-} from "../../public/types";
+import type { ObsModuleView, Status, SwitcherStatus } from "../../public/types";
 import type { BridgedModule } from "./types";
 
 const SWITCHER_NUMBER_FIELDS = [
@@ -403,6 +399,24 @@ export function createObsPanel({
     });
   }
 
+  /** Stream/record action button: active styling + the pending-slot guard. */
+  const ActionButton = {
+    view: ({ attrs: { pendingKey, label, active, cls, run } }) => (
+      <Button
+        label={label}
+        class={active ? `${cls} active`.trim() : `secondary`}
+        disabled={!ui.connected || pending.has(pendingKey)}
+        onclick={run}
+      />
+    ),
+  } as MithrilJSXComponent<{
+    pendingKey: string;
+    label: string;
+    active: boolean;
+    cls: string;
+    run: () => void;
+  }>;
+
   /** Screenshot the program output at full size and download it. */
   async function screenshot(): Promise<void> {
     if (!ui.connected || pending.has("obs.screenshot")) return;
@@ -620,22 +634,6 @@ export function createObsPanel({
       return t("obs.next", remaining);
     };
 
-    /* Actions — state comes from the stream/record/mute/studio events. */
-    const actionBtn = (
-      key: string,
-      label: string,
-      active: boolean,
-      cls: string,
-      run: () => void,
-    ) => (
-      <Button
-        label={label}
-        class={active ? `${cls} active`.trim() : `secondary`}
-        disabled={!ui.connected || pending.has(key)}
-        onclick={run}
-      />
-    );
-
     return (
       <div
         oncreate={() => {
@@ -737,28 +735,40 @@ export function createObsPanel({
               <div class={"obs-deck-col"}>
                 <h3 class={"obs-section"}>{t("obs.output")}</h3>
                 <div class={"obs-actions"}>
-                  {actionBtn(
-                    "obs.stream",
-                    ui.streaming ? t("obs.stop_stream") : t("obs.start_stream"),
-                    ui.streaming,
-                    "obs-action-stream",
-                    () =>
+                  <ActionButton
+                    key={"obs.stream"}
+                    pendingKey={"obs.stream"}
+                    label={
+                      ui.streaming
+                        ? t("obs.stop_stream")
+                        : t("obs.start_stream")
+                    }
+                    active={ui.streaming}
+                    cls={"obs-action-stream"}
+                    run={() =>
                       press(
                         "obs.stream",
                         ui.streaming ? "StopStream" : "StartStream",
-                      ),
-                  )}
-                  {actionBtn(
-                    "obs.record",
-                    ui.recording ? t("obs.stop_record") : t("obs.start_record"),
-                    ui.recording,
-                    "obs-action-record",
-                    () =>
+                      )
+                    }
+                  />
+                  <ActionButton
+                    key={"obs.record"}
+                    pendingKey={"obs.record"}
+                    label={
+                      ui.recording
+                        ? t("obs.stop_record")
+                        : t("obs.start_record")
+                    }
+                    active={ui.recording}
+                    cls={"obs-action-record"}
+                    run={() =>
                       press(
                         "obs.record",
                         ui.recording ? "StopRecord" : "StartRecord",
-                      ),
-                  )}
+                      )
+                    }
+                  />
                 </div>
               </div>
             </div>,
@@ -877,6 +887,7 @@ export function createObsPanel({
                 label={t("lowbs.auto_switch")}
                 control={<Checkbox target={f} prop="autoSwitch" />}
               />
+              <Break />
               <Field
                 label={t("lowbs.obs_source")}
                 control={
@@ -968,10 +979,7 @@ export function createObsPanel({
  * themselves, plus an empty "—" entry for optional fields — no placeholder
  * defaults.
  */
-const nameOptions = (
-  names: string[],
-  optional = false,
-): [string, string][] => {
+const nameOptions = (names: string[], optional = false): [string, string][] => {
   const out: [string, string][] = names.map((name): [string, string] => [
     name,
     name,
