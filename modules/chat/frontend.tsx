@@ -107,10 +107,13 @@ function onFrame(event: string, data: unknown): void {
 }
 
 /** Merge configured channels, newest first by timestamp, and cap history. */
-function mergedLines(w: ServerDashboardWidget): MergedLine[] {
+function mergedLines(
+  w: ServerDashboardWidget,
+  specs: ChatSpec[],
+): MergedLine[] {
   const all: MergedLine[] = [];
 
-  for (const { platform, spec } of chatSpecsOf(w)) {
+  for (const { platform, spec } of specs) {
     for (const line of live.get(spec)?.chat ?? []) {
       all.push({
         line,
@@ -142,16 +145,16 @@ const PLATFORM_ICONS: Record<ChatPlatform, string> = {
   tiktok: `<svg viewBox="0 0 448 512" aria-hidden="true"><path fill="#eef4ff" d="M448,209.91a210.06,210.06,0,0,1-122.77-39.25V349.38A162.55,162.55,0,1,1,185,188.31V278.2a74.62,74.62,0,1,0,52.23,71.18V0l88,0a121.18,121.18,0,0,0,1.86,22.17h0A122.18,122.18,0,0,0,381,102.39a121.43,121.43,0,0,0,67,20.14Z"/></svg>`,
 };
 
-/** The same platform glyphs recolored to `currentColor`, tinted green/red by
- * the channel's online status in the badge row. */
+function toCurrentColor(svg: string): string {
+  return svg.replace(/fill="[^"]+"/g, 'fill="currentColor"');
+}
+
+/** The same platform glyphs recolored to `currentColor` for status badges. */
 const PLATFORM_STATUS_ICONS: Record<ChatPlatform, string> = {
-  twitch: `<svg viewBox="0 0 256 268" aria-hidden="true"><path fill="currentColor" d="M17.46 0L0 46.56v185.21h63.14V268h46.87l36.49-36.23h54.91L256 177.68V0H17.46zm23.07 23.07H232.9v143.14l-41.47 41.47h-69.15L85.79 244.2v-36.52H40.53V23.07zm69.15 104.55h23.07V69.26h-23.07v58.36zm63.14 0h23.07V69.26h-23.07v58.36z"/></svg>`,
-
-  youtube: `<svg viewBox="0 0 576 512" aria-hidden="true"><path fill="currentColor" d="M549.66 124.63a68.28 68.28 0 0 0-48.05-48.28C458.78 64 288 64 288 64S117.22 64 74.39 76.35a68.28 68.28 0 0 0-48.05 48.28C14.48 167.83 14.48 256 14.48 256s0 88.17 11.86 131.37a68.28 68.28 0 0 0 48.05 48.28C117.22 448 288 448 288 448s170.78 0 213.61-12.35a68.28 68.28 0 0 0 48.05-48.28C561.52 344 561.52 256 561.52 256s0-88.17-11.86-131.37zM232.15 337.28V174.72L374.86 256l-142.71 81.28z"/></svg>`,
-
-  kick: `<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><rect x="3.5" y="2" width="5" height="20" rx="1.2"/><polygon points="9,12 21,2.5 21,8.5 11.5,15.5"/><polygon points="9,12 21,21.5 21,15.5 11.5,8.5"/></g></svg>`,
-
-  tiktok: `<svg viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M448,209.91a210.06,210.06,0,0,1-122.77-39.25V349.38A162.55,162.55,0,1,1,185,188.31V278.2a74.62,74.62,0,1,0,52.23,71.18V0l88,0a121.18,121.18,0,0,0,1.86,22.17h0A122.18,122.18,0,0,0,381,102.39a121.43,121.43,0,0,0,67,20.14Z"/></svg>`,
+  twitch: toCurrentColor(PLATFORM_ICONS.twitch),
+  youtube: toCurrentColor(PLATFORM_ICONS.youtube),
+  kick: toCurrentColor(PLATFORM_ICONS.kick),
+  tiktok: toCurrentColor(PLATFORM_ICONS.tiktok),
 };
 
 /** Status badge: one icon per configured platform, green when its channel is
@@ -181,41 +184,177 @@ function badge(w: ServerDashboardWidget, _ctx: WidgetContext): m.Vnode {
   );
 }
 
+// ── Emote URL upgrader (adapted from robdiesalot main-PJhqqCv3.js) ─────
+
+/**
+ * Upgrade an emote image URL to its highest available resolution.
+ * Handles 7TV, BetterTTV, FrankerFaceZ, Twitch, Kick, and YouTube CDNs.
+ * Non-matching URLs pass through unchanged.
+ */
+function upgradeEmoteUrl(raw: string): string {
+  const url = raw;
+
+  // 7TV:  .../emote/{id}/{1-4}x.ext  →  4x.ext
+  if (url.startsWith("https://cdn.7tv.app/")) {
+    return url.replace(/\/[1-4]x(\.\w+)$/, "/4x$1");
+  }
+
+  // BetterTTV:  .../emote/{id}/{1-3}x.ext  →  3x.ext
+  if (url.startsWith("https://cdn.betterttv.net/")) {
+    return url.replace(/\/[1-3]x(\.\w+)?$/, "/3x$1");
+  }
+
+  // FrankerFaceZ:  .../emote/{id}/{1,2,4}  →  4
+  if (url.startsWith("https://cdn.frankerfacez.com/")) {
+    return url.replace(/\/(?:1|2|4)$/, "/4");
+  }
+
+  // Twitch:  .../emoticons/v2/{id}/{type}/{theme}/{1-3}.0  →  3.0
+  if (url.startsWith("https://static-cdn.jtvnw.net/")) {
+    return url.replace(/\/(?:1|2|3)\.0$/, "/3.0");
+  }
+
+  // YouTube:  yt3.ggpht.com images use =s{size} suffixes; =s0 is max.
+  if (
+    url.startsWith("https://yt3.ggpht.com/") ||
+    url.startsWith("https://lh3.googleusercontent.com/")
+  ) {
+    return url.replace(/=s\d+(-[a-z-]+)?$/, "=s0$1");
+  }
+
+  // Kick already serves fullsize in our constructed URLs; nothing to do.
+  return url;
+}
+
+// ── YouTube global emoji shortcodes → Unicode ─────────────────────────
+// YouTube's live-chat API sometimes surfaces global emojis as `:name:`
+// shortcodes rather than inline images. Map the common ones to their
+// Unicode equivalents so they render natively without a CDN lookup.
+
+const YOUTUBE_EMOJI: Record<string, string> = {
+  smile: "😄",
+  heart: "❤️",
+  fire: "🔥",
+  "100": "💯",
+  tada: "🎉",
+  cry: "😢",
+  laughing: "😆",
+  wink: "😉",
+  sunglasses: "😎",
+  thinking: "🤔",
+  thumbsup: "👍",
+  thumbsdown: "👎",
+  pray: "🙏",
+  clap: "👏",
+  eyes: "👀",
+  rocket: "🚀",
+  star: "⭐",
+  check: "✅",
+  x: "❌",
+  warning: "⚠️",
+  heart_eyes: "😍",
+  joy: "😂",
+  sob: "😭",
+  angry: "😠",
+  cool: "😎",
+  sad: "😔",
+  wow: "😮",
+  party: "🥳",
+  hug: "🤗",
+  kiss: "😘",
+  blush: "😊",
+  stuck_out_tongue: "😛",
+  zipper_mouth: "🤐",
+  neutral_face: "😐",
+  smirk: "😏",
+  heartbeat: "💓",
+  sparkles: "✨",
+  boom: "💥",
+  muscle: "💪",
+  ok_hand: "👌",
+  v: "✌️",
+  raised_hands: "🙌",
+  crown: "👑",
+  gem: "💎",
+  gift: "🎁",
+  trophy: "🏆",
+  medal: "🏅",
+  camera: "📷",
+  video_camera: "📹",
+  microphone: "🎤",
+  headphones: "🎧",
+  guitar: "🎸",
+  game: "🎮",
+  dice: "🎲",
+  soccer: "⚽",
+  basketball: "🏀",
+  football: "🏈",
+  baseball: "⚾",
+  tennis: "🎾",
+  "8ball": "🎱",
+  bowling: "🎳",
+};
+
+// ── Segment parser ────────────────────────────────────────────────────
+
 type ChatSegment =
   | { kind: "text"; value: string }
-  | { kind: "emote"; id: string; name: string };
+  | { kind: "emote"; id: string; name: string; url?: string }
+  | { kind: "emoji"; name: string; value: string };
 
-/** Parse Kick's `[emote:<id>:<name>]` syntax into text and emote segments. */
-const EMOTE_RE = /\[emote:(\d+):([^\]]*)\]/g;
+/**
+ * Combined segment regex:
+ *   1. Kick:      [emote:<id>:<name>]
+ *   2. YouTube:   :<shortcode>:            (only known emojis)
+ *   3. Image URL: direct https link to a known emote CDN
+ */
+const SEGMENT_RE =
+  /\[emote:(\d+):([^\]]*)\]|:([a-zA-Z0-9_+-]{1,40}):|(https?:\/\/(?:cdn\.7tv\.app|cdn\.betterttv\.net|cdn\.frankerfacez\.com|static-cdn\.jtvnw\.net|yt3\.ggpht\.com|lh3\.googleusercontent\.com|files\.kick\.com)\/[^\s<>"']+)/g;
 
 function parseSegments(text: string): ChatSegment[] {
   const out: ChatSegment[] = [];
   let last = 0;
 
-  for (const match of text.matchAll(EMOTE_RE)) {
+  for (const match of text.matchAll(SEGMENT_RE)) {
     const index = match.index ?? 0;
+    let segment: ChatSegment;
 
-    if (index > last) {
-      out.push({
-        kind: "text",
-        value: text.slice(last, index),
-      });
+    // ── Kick inline emote: [emote:id:name] ──
+    if (match[1] !== undefined) {
+      segment = {
+        kind: "emote",
+        id: `kick:${match[1]}`,
+        name: match[2].trim(),
+      };
+    } else if (match[3] !== undefined) {
+      // ── YouTube shortcode: :name: ──
+      const name = match[3];
+      const emoji = YOUTUBE_EMOJI[name];
+
+      // Only treat as an emote if the name is a known emoji; otherwise
+      // leave the colons in the surrounding text.
+      if (!emoji) continue;
+      segment = { kind: "emoji", name, value: emoji };
+    } else if (match[4] !== undefined) {
+      // ── Direct image URL from a known emote CDN ──
+      const url = match[4];
+      segment = {
+        kind: "emote",
+        id: url,
+        name: url.split("/").pop() ?? "emote",
+        url,
+      };
+    } else {
+      continue;
     }
 
-    out.push({
-      kind: "emote",
-      id: match[1],
-      name: match[2].trim(),
-    });
-
+    if (index > last) out.push({ kind: "text", value: text.slice(last, index) });
+    out.push(segment);
     last = index + match[0].length;
   }
 
   if (last < text.length) {
-    out.push({
-      kind: "text",
-      value: text.slice(last),
-    });
+    out.push({ kind: "text", value: text.slice(last) });
   }
 
   return out;
@@ -231,6 +370,15 @@ function lineSegments(text: string): m.Children {
       return <span key={index}>{m.trust(decorateText(segment.value))}</span>;
     }
 
+    if (segment.kind === "emoji") {
+      return (
+        <span class="chat-emoji" key={index} title={`:${segment.name}:`}>
+          {segment.value}
+        </span>
+      );
+    }
+
+    // ── emote image ──
     if (failedEmotes.has(segment.id)) {
       return (
         <span class="chat-emote-name" key={index}>
@@ -239,11 +387,15 @@ function lineSegments(text: string): m.Children {
       );
     }
 
+    const rawUrl =
+      segment.url ?? `https://files.kick.com/emotes/${segment.id}/fullsize`;
+    const src = upgradeEmoteUrl(rawUrl);
+
     return (
       <img
         class="chat-emote"
         key={index}
-        src={`https://files.kick.com/emotes/${segment.id}/fullsize`}
+        src={src}
         alt={segment.name}
         loading="lazy"
         onerror={() => {
@@ -358,7 +510,7 @@ function body(w: ServerDashboardWidget, _ctx: WidgetContext): m.Children {
     return <p class="muted">{t("dash.widget_not_configured")}</p>;
   }
 
-  const lines = mergedLines(w);
+  const lines = mergedLines(w, specs);
 
   if (!lines.length) {
     return <p class="muted">{t("chat.empty")}</p>;
