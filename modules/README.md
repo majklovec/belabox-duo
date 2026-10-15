@@ -1,26 +1,24 @@
 # Modules
 
-Every module under `modules/<id>/` is **self-contained**. A module owns one
-cohesive slice of behavior — a subprocess, a poller, a websocket — plus the RPC
-methods it answers, the events it pushes, its device card or dashboard-widget
-UI, and its CSS. It exposes all of that to the core **only** through a
-registration object; the core never imports a module by path, and no core file
-names a module by id.
-
-The core↔module boundary is enforced by `test/registries.test.ts`:
-`"core (src/ + public/ts/) names no module by id"` scans both core trees and
-fails on any module-specific import, and `frontend.tsx imports nothing from /src`.
+The module system in one paragraph: every capability is a self-contained
+`modules/<id>/` directory, and the core (`src/` + `public/`) never imports a
+module by id — it discovers, routes, and renders through the registries and
+the capability bus. A high-level tour (per-module descriptions, how discovery,
+routing, and ordering work, and how to add a module) lives in the
+[main README](../README.md#modules). This file is the detailed reference: the
+layout, the registration contract, discovery mechanics, and the edge cases.
 
 ## Layout
 
 ```
 modules/
   .generated.frontend.ts     # gitignored — produced by scripts/gen-modules.ts
+  .generated.backend.ts      # gitignored — produced by scripts/gen-modules.ts
   README.md
-  encoder/                   # device module
-  srtla/                     # device module
-  modems/                    # device module
-  obs-controller/            # device module
+  encoder/                   # device modules
+  srtla/
+  modems/
+  obs-controller/
   kick-stats/  twitch-chat/  kick-chat/  youtube-chat/  tiktok-chat/   # channel widget modules
 ```
 
@@ -35,12 +33,12 @@ Each module ships exactly:
 - `styles.css` — scoped under `.mod-<id>` (device card) or `.dash-card`
   (dashboard widget).
 - any number of plain helpers for its own use (e.g. obs-controller's
-  `switcher-engine.ts`, kick-stats' `graph-linechart.tsx`).
+  `switcher-engine.ts`, kick-stats' `graph-linechart.tsx`)
 
 There is no shared `modules/types.ts`, no `modules/widgets.ts`, no
 `modules/registry.*.ts` — the old aggregate layer is gone. The only thing in
-`modules/` that spans modules is the **generated** `.generated.frontend.ts`.
-A module's `types.ts` may import core-owned types (`Status` from `public/types`,
+`modules/` that spans modules is the **generated** manifest. A module's
+`types.ts` may import core-owned types (`Status` from `public/types`,
 `Method` from `src/methods`); it must not import another module.
 
 Frontend views are written in TSX and transformed by Bun using the Mithril
@@ -84,7 +82,9 @@ registry bridges:
 ## Discovery (the core names no module)
 
 - **Backend** — `src/registry.ts` `readdirSync`s `modules/*/` and imports each
-  `backend.ts`'s default export. Add a directory, it appears.
+  `backend.ts`'s default export. Add a directory, it appears. (In a compiled
+  binary the runtime scan can't reach disk, so it falls back to the generated
+  `modules/.generated.backend.ts` manifest — same scan, same shape.)
 - **Frontend** — the browser bundle cannot glob at runtime, so
   `scripts/gen-modules.ts` writes `modules/.generated.frontend.ts` (a fixed
   `export const FRONTEND_MANIFEST = [...]` of `{ id, path }` entries) from the
@@ -96,7 +96,7 @@ Tests pin both directions: the frontend registry must import the manifest (and
 contain no `Glob`/`modules/*` import patterns), and the manifest must exist and
 be marked auto-generated.
 
-## Core↔module: registries and the capability bus only
+## Core ↔ module: registries and the capability bus only
 
 - `src/methods.ts` routes RPC methods via the registry's method-owner map
   (built from each module's `methods` array) — it does not import any module.
@@ -114,8 +114,9 @@ be marked auto-generated.
   to re-declare obs types (§6 violation). It is allow-listed in the ban test.
 
 Each module's `frontend.tsx` side-effect-imports its own `styles.css`
-(`import "./styles.css"`); Bun's bundler emits it into the page (see `css.d.ts`),
-so the core never pulls module CSS by id. Components use mithril + CSS classes.
+(`import "./styles.css"`); Bun's bundler emits it into the page (see
+`css.d.ts`), so the core never pulls module CSS by id. Components use mithril +
+CSS classes.
 
 ## Ordering
 
@@ -127,8 +128,9 @@ No module currently declares `dependencies`, so the order is the id sort.
 
 ## Adding a module
 
-1. `mkdir modules/<id>`; write `backend.ts` (default-export registration above),
-   `frontend.tsx` (default-export registration), `types.ts`, `styles.css`.
+1. `mkdir modules/<id>`; write `backend.ts` (default-export registration
+   above), `frontend.tsx` (default-export registration), `types.ts`,
+   `styles.css`.
 2. Device module: register the card as `cardBody` in `frontend.tsx`.
    Channel widget: register `component` + `createHub`/`hub` so it appears in
    `WIDGET_MODULES`.
@@ -137,4 +139,5 @@ No module currently declares `dependencies`, so the order is the id sort.
    `predev` regenerates the frontend manifest. The only core touch is `src/`
    wiring for a brand-new core service the module needs.
 
-Module method and event names are frozen: renaming one is a breaking API change.
+Module method and event names are frozen: renaming one is a breaking API
+change.
