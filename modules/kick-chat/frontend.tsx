@@ -3,7 +3,7 @@
 // websocket frames it cares about (`widget.snapshot`, `kick.chat`); no
 // per-widget transport state. The core only forwards frames (`onFrame`).
 import m from "mithril";
-import { badge as badgeEl } from "../../public/ts/components/ui";
+import { Badge } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import { decorateText } from "../../public/ts/util";
 import type { ServerDashboardWidget } from "../../public/types";
@@ -86,11 +86,14 @@ function liveLines(
 /** Card head: the channel badge (not configured, else online/disconnected). */
 function badge(w: ServerDashboardWidget, _ctx: WidgetContext): m.Vnode {
   const channel = channelOf(w);
-  if (!channel) return badgeEl(t("dash.widget_not_configured"), "warn");
+  if (!channel)
+    return <Badge text={t("dash.widget_not_configured")} kind="warn" />;
   const l = live.get(channel) ?? {};
-  return badgeEl(
-    l.connected === false ? t("dev.badge.offline") : t("dev.badge.online"),
-    l.connected === false ? "off" : "on",
+  return (
+    <Badge
+      text={l.connected === false ? t("dev.badge.offline") : t("dev.badge.online")}
+      kind={l.connected === false ? "off" : "on"}
+    />
   );
 }
 

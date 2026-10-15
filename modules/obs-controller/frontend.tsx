@@ -13,22 +13,22 @@ import "./styles.css";
 import "./switcher-styles.css";
 import m from "mithril";
 import {
-	actions,
-	badge,
-	brk,
-	button,
+	Actions,
+	Badge,
+	Break,
+	Button,
 	Card,
 	type Child,
-	checkbox,
-	checkField,
-	definitionList,
-	field,
-	fieldGroup,
-	form as formBox,
-	input,
+	Checkbox,
+	CheckField,
+	DefinitionList,
+	Field,
+	FieldGroup,
+	Form,
+	Input,
 	numberAttrs,
-	options,
-	select,
+	Options,
+	Select,
 } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import { card, obsRequest, st, type DeviceCard } from "../../public/ts/device/store";
@@ -511,7 +511,12 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 
 	/** Card header extras: connection badge + refresh (host adds the title). */
 	function head(): m.Vnode[] {
-		return [badge(ui.connected ? t("obs.connected") : t("obs.offline"), ui.connected ? "on" : "off")];
+		return [
+			<Badge
+				text={ui.connected ? t("obs.connected") : t("obs.offline")}
+				kind={ui.connected ? "on" : "off"}
+			/>,
+		];
 	}
 
 	function component(switcher?: ObsSwitcherContext): m.Vnode {
@@ -541,11 +546,9 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 			min: number,
 			max: number,
 			placeholder: string,
-		) =>
-			field(
-				label,
-				f ? input(f, key, numberAttrs(min, max, placeholder)) : null,
-			);
+		) => (
+			<Field label={label} control={f ? <Input target={f} prop={key} {...numberAttrs(min, max, placeholder)} /> : null} />
+		);
 		const sceneField = (
 			label: string,
 			key:
@@ -556,18 +559,18 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 				| "sceneEnding"
 				| "scenePrivacy",
 			optional = false,
-		) =>
-			field(
-				label,
-				f
-					? select(
-							f,
-							key,
-							options(sceneOptions(ui.scenes, optional)),
-							{ class: "lbs-select" },
-						)
-					: null,
-			);
+		) => (
+			<Field
+				label={label}
+				control={
+					f ? (
+						<Select target={f} prop={key} class={"lbs-select"}>
+							<Options pairs={sceneOptions(ui.scenes, optional)} />
+						</Select>
+					) : null
+				}
+			/>
+		);
 
 		/* Countdown / meta text for the preview bar. */
 		const meta = (): string => {
@@ -579,12 +582,14 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 		};
 
 		/* Actions — state comes from the stream/record/mute/studio events. */
-		const actionBtn = (key: string, label: string, active: boolean, cls: string, run: () => void) =>
-			button(label, {
-				class: active ? `${cls} active`.trim() : `secondary`,
-				disabled: !ui.connected || pending.has(key),
-				onclick: run,
-			});
+		const actionBtn = (key: string, label: string, active: boolean, cls: string, run: () => void) => (
+			<Button
+				label={label}
+				class={active ? `${cls} active`.trim() : `secondary`}
+				disabled={!ui.connected || pending.has(key)}
+				onclick={run}
+			/>
+		);
 
 		return (
 			<div
@@ -643,15 +648,17 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 								{ui.previewInterval > 0 && !ui.previewPaused ? (
 									<span class={"obs-preview-meta"}>{meta()}</span>
 								) : null}
-								{button(ui.previewPaused ? t("obs.resume") : t("obs.pause"), {
-									class: "secondary",
-									onclick: () => (ui.previewPaused = !ui.previewPaused),
-								})}
-								{button(t("obs.preview_now"), {
-									class: "secondary",
-									disabled: ui.inFlight || ui.previewPaused,
-									onclick: () => void capturePreview(),
-								})}
+								<Button
+									label={ui.previewPaused ? t("obs.resume") : t("obs.pause")}
+									class={"secondary"}
+									onclick={() => (ui.previewPaused = !ui.previewPaused)}
+								/>
+								<Button
+									label={t("obs.preview_now")}
+									class={"secondary"}
+									disabled={ui.inFlight || ui.previewPaused}
+									onclick={() => void capturePreview()}
+								/>
 							</div>
 						</div>,
 						/* Scenes + output actions */
@@ -660,14 +667,17 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 								<h3 class={"obs-section"}>{t("obs.scenes")}</h3>
 								<div class={"obs-scene-deck"}>
 									{ui.scenes.length ? (
-										ui.scenes.map((name) =>
-											button(name, {
-												class: ui.scene === name ? "active" : "secondary",
-												disabled: !ui.connected || pending.has("obs.scene"),
-												onclick: () =>
-													press("obs.scene", "SetCurrentProgramScene", { sceneName: name }),
-											}),
-										)
+										ui.scenes.map((name) => (
+											<Button
+												key={name}
+												label={name}
+												class={ui.scene === name ? "active" : "secondary"}
+												disabled={!ui.connected || pending.has("obs.scene")}
+												onclick={() =>
+													press("obs.scene", "SetCurrentProgramScene", { sceneName: name })
+												}
+											/>
+										))
 									) : (
 										<span class={"muted"}>{t("obs.no_scenes")}</span>
 									)}
@@ -703,11 +713,12 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 										const muteKey = `obs.mute.${name}`;
 										return (
 											<div class={"obs-audio-row"} key={name}>
-												{button(micIcon(muted), {
-													class: muted ? "obs-mic muted" : "obs-mic",
-													title: t(muted ? "obs.unmute" : "obs.mute"),
-													disabled: !ui.connected || pending.has(muteKey),
-													onclick: () =>
+												<Button
+													label={micIcon(muted)}
+													class={muted ? "obs-mic muted" : "obs-mic"}
+													title={t(muted ? "obs.unmute" : "obs.mute")}
+													disabled={!ui.connected || pending.has(muteKey)}
+													onclick={() =>
 														toggle(
 															muteKey,
 															"GetInputMute",
@@ -718,8 +729,9 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 															(next) => {
 																ui.vuMuted.set(name, next);
 															},
-														),
-												})}
+														)
+													}
+												/>
 												<span class={"obs-audio-name"} title={name}>
 													{name}
 												</span>
@@ -741,19 +753,20 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 				{switcherEnabled && switcher && f ? (
 					<div class={"mod-switcher"}>
 						<h3 class={"obs-section"}>{t("lowbs.title")}</h3>
-						{definitionList([
-							[
-								t("lowbs.row_state"),
-								s ? (
-									stateBadge(s.state)
-								) : (
-									<span>
-										{badge(t("lowbs.idle"), "off")}
-										<span class={"muted"}>{t("lowbs.idle_hint")}</span>
-									</span>
-								),
-							],
-							[
+						<DefinitionList
+							rows={[
+								[
+									t("lowbs.row_state"),
+									s ? (
+										stateBadge(s.state)
+									) : (
+										<span>
+											<Badge text={t("lowbs.idle")} kind={"off"} />
+											<span class={"muted"}>{t("lowbs.idle_hint")}</span>
+										</span>
+									),
+								],
+								[
 								t("lowbs.row_desired"),
 								s ? (
 									<span>
@@ -786,31 +799,32 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 							...(srtMissing
 								? [[t("lowbs.srt_unavailable"), null] as [string, Child]]
 								: []),
-						])}
-						{formBox(
-							{
-								onSubmit: async () => {
-									await switcher.host.act(
-										"switcher-save",
-										"lowBitrateSwitcher.save",
-										{ config: toConfig(f) },
-									);
-								},
-							},
-							checkField(
-								t("lowbs.auto_switch"),
-								checkbox(f, "autoSwitch"),
-							),
-							field(
-								t("lowbs.obs_source"),
-								input(f, "obsSourceName", {
-									type: "text",
-									class: "lbs-text",
-									placeholder: t("lowbs.obs_source_placeholder"),
-								}),
-							),
-							fieldGroup(
-								t("lowbs.group_triggers"),
+						]}
+						/>
+						<Form
+							onSubmit={async () => {
+								await switcher.host.act("switcher-save", "lowBitrateSwitcher.save", {
+									config: toConfig(f),
+								});
+							}}
+						>
+							<CheckField
+								label={t("lowbs.auto_switch")}
+								control={<Checkbox target={f} prop="autoSwitch" />}
+							/>
+							<Field
+								label={t("lowbs.obs_source")}
+								control={
+									<Input
+										target={f}
+										prop="obsSourceName"
+										type={"text"}
+										class={"lbs-text"}
+										placeholder={t("lowbs.obs_source_placeholder")}
+									/>
+								}
+							/>
+							<FieldGroup legend={t("lowbs.group_triggers")}>
 								<div class={"lbs-grid"}>
 									{[
 										numberField(
@@ -849,10 +863,9 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 											"1000",
 										),
 									]}
-								</div>,
-							),
-							fieldGroup(
-								t("lowbs.group_scenes"),
+								</div>
+							</FieldGroup>
+							<FieldGroup legend={t("lowbs.group_scenes")}>
 								<div class={"lbs-grid"}>
 									{[
 										sceneField(
@@ -883,29 +896,30 @@ export function createObsPanel({ send, onEvent, mirror, startConnected, onDestro
 											true,
 										),
 									]}
-								</div>,
-							),
-							brk(),
-							checkField(
-								t("lowbs.instantly_recover"),
-								checkbox(f, "instantlyRecover"),
-							),
-							checkField(
-								t("lowbs.only_streaming"),
-								checkbox(f, "onlySwitchWhenStreaming"),
-							),
-							checkField(
-								t("lowbs.log_to_file"),
-								checkbox(f, "logToFile"),
-							),
-							brk(),
-							actions(
-								button(t("ui.save"), {
-									type: "submit",
-									disabled: switcher.host.busy.has("switcher-save"),
-								}),
-							),
-						)}
+								</div>
+							</FieldGroup>
+							<Break />
+							<CheckField
+								label={t("lowbs.instantly_recover")}
+								control={<Checkbox target={f} prop="instantlyRecover" />}
+							/>
+							<CheckField
+								label={t("lowbs.only_streaming")}
+								control={<Checkbox target={f} prop="onlySwitchWhenStreaming" />}
+							/>
+							<CheckField
+								label={t("lowbs.log_to_file")}
+								control={<Checkbox target={f} prop="logToFile" />}
+							/>
+							<Break />
+							<Actions>
+								<Button
+									label={t("ui.save")}
+									type={"submit"}
+									disabled={switcher.host.busy.has("switcher-save")}
+								/>
+							</Actions>
+						</Form>
 					</div>
 				) : null}
 			</div>
@@ -1026,11 +1040,13 @@ function toConfig(f: SwitcherForm): Record<string, unknown> {
 }
 
 const stateBadge = (state: SwitcherStatus["state"]): Child =>
-	state === "NORMAL"
-		? badge(t("lowbs.state_normal"), "on")
-		: state === "LOW"
-			? badge(t("lowbs.state_low"), "warn")
-			: badge(t("lowbs.state_offline"), "off");
+	state === "NORMAL" ? (
+		<Badge text={t("lowbs.state_normal")} kind={"on"} />
+	) : state === "LOW" ? (
+		<Badge text={t("lowbs.state_low")} kind={"warn"} />
+	) : (
+		<Badge text={t("lowbs.state_offline")} kind={"off"} />
+	);
 
 // ----------------------------------------------------------------------
 // Device page binding — the module registry renders this one instance

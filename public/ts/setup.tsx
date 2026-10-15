@@ -5,21 +5,21 @@ import { errorMessage } from "../../src/util";
 import { BITRATE_KBPS, DEFAULT_COLOR, HOSTNAME_RE } from "../../src/validate";
 import type { AudioSource, Pipeline, Role } from "../types";
 import {
-	actions,
-	audioCodecOptions,
-	brk,
-	button,
-	checkbox,
-	checkField,
-	connectionBadge,
-	field,
-	form,
-	input,
+	Actions,
+	AudioCodecOptions,
+	Break,
+	Button,
+	Checkbox,
+	CheckField,
+	ConnectionBadge,
+	Field,
+	Form,
+	Input,
 	numberAttrs,
-	options,
+	Options,
 	Page,
-	schedulerOptions,
-	select,
+	SchedulerOptions,
+	Select,
 } from "./components/ui";
 import { languageOptions, setLanguage, t } from "./i18n";
 import { roleCardIcon } from "./icons";
@@ -231,8 +231,9 @@ const roleCard = (value: Role, name: string, tagline: string): m.Vnode => (
 	</label>
 );
 
-const check = (key: "bitrateOverlay" | "srtlaQuality" | "autostart", label: string) =>
-	checkField(null, [checkbox(f, key), ` ${label}`]);
+const check = (key: "bitrateOverlay" | "srtlaQuality" | "autostart", label: string) => (
+	<CheckField label={label} control={<Checkbox target={f} prop={key} />} />
+);
 
 function stepBody(key: StepKey): m.Vnode {
 	switch (key) {
@@ -241,7 +242,14 @@ function stepBody(key: StepKey): m.Vnode {
 				key,
 				t("ui.language_label"),
 				t("setup.language_desc"),
-				field(t("ui.language_label"), select(f, "language", languageOptions(), {}, setLanguage)),
+				<Field
+					label={t("ui.language_label")}
+					control={
+						<Select target={f} prop="language" onChange={(v) => setLanguage(v)}>
+							{languageOptions()}
+						</Select>
+					}
+				/>,
 			);
 		case "role":
 			return step(
@@ -257,23 +265,36 @@ function stepBody(key: StepKey): m.Vnode {
 				key,
 				t("setup.identity"),
 				t("setup.identity_desc"),
-				field(
-					t("setup.hostname"),
-					input(f, "hostname", {
-						required: true,
-						pattern: HOSTNAME_PATTERN,
-						title: t("setup.hostname_title"),
-					}),
-				),
-				field(t("set.color"), input(f, "color", { type: "color" }, setHeaderColor)),
+				<Field
+					label={t("setup.hostname")}
+					control={
+						<Input
+							target={f}
+							prop="hostname"
+							required={true}
+							pattern={HOSTNAME_PATTERN}
+							title={t("setup.hostname_title")}
+						/>
+					}
+				/>,
+				<Field
+					label={t("set.color")}
+					control={<Input target={f} prop="color" type={"color"} onChange={(v) => setHeaderColor(v)} />}
+				/>,
 			);
 		case "control":
 			return step(
 				key,
 				t("setup.step.control"),
 				t("setup.control_desc"),
-				field(t("set.remote_url"), input(f, "remoteUrl", { placeholder: "wss://control.example/device" })),
-				field(t("setup.control_token"), input(f, "remoteToken", { type: "password", autocomplete: "off" })),
+				<Field
+					label={t("set.remote_url")}
+					control={<Input target={f} prop="remoteUrl" placeholder={"wss://control.example/device"} />}
+				/>,
+				<Field
+					label={t("setup.control_token")}
+					control={<Input target={f} prop="remoteToken" type={"password"} autocomplete={"off"} />}
+				/>,
 			);
 		case "encoder": {
 			const standalone = f.role === "encoder";
@@ -281,33 +302,52 @@ function stepBody(key: StepKey): m.Vnode {
 				key,
 				t("setup.step.encoder"),
 				t("setup.encoder_desc"),
-				field(
-					t("dev.row.pipeline"),
-					select(f, "pipeline", options(state.pipelines.map((p) => [p.id, p.id])), { required: true }),
-				),
-				field(t("dev.field.min_bitrate"), input(f, "minBitrate", BITRATE)),
-				field(t("dev.field.max_bitrate"), input(f, "maxBitrate", BITRATE)),
-				field(
-					t("dev.field.audio_source"),
-					select(f, "audioSource", options(state.audioSources.map((a) => [a.id, a.name])), {
-						required: true,
-					}),
-				),
-				field(t("dev.field.audio_codec"), select(f, "audioCodec", audioCodecOptions())),
-				field(t("dev.field.audio_delay"), input(f, "delay", numberAttrs(-2000, 2000))),
+				<Field
+					label={t("dev.row.pipeline")}
+					control={
+						<Select target={f} prop="pipeline" required={true}>
+							<Options pairs={state.pipelines.map((p) => [p.id, p.id])} />
+						</Select>
+					}
+				/>,
+				<Field label={t("dev.field.min_bitrate")} control={<Input target={f} prop="minBitrate" {...BITRATE} />} />,
+				<Field label={t("dev.field.max_bitrate")} control={<Input target={f} prop="maxBitrate" {...BITRATE} />} />,
+				<Field
+					label={t("dev.field.audio_source")}
+					control={
+						<Select target={f} prop="audioSource" required={true}>
+							<Options pairs={state.audioSources.map((a) => [a.id, a.name])} />
+						</Select>
+					}
+				/>,
+				<Field
+					label={t("dev.field.audio_codec")}
+					control={
+						<Select target={f} prop="audioCodec">
+							<AudioCodecOptions />
+						</Select>
+					}
+				/>,
+				<Field label={t("dev.field.audio_delay")} control={<Input target={f} prop="delay" {...numberAttrs(-2000, 2000)} />} />,
 				// Combined devices stream into their own srtla_send: no target to configure
 				standalone && [
-					field(
-						t("dev.field.stream_host"),
-						input(f, "encoderHost", { placeholder: "192.168.1.10", required: true }),
-					),
-					field(t("dev.field.stream_srt_port"), input(f, "encoderPort", { ...PORT, required: true })),
+					<Field
+						label={t("dev.field.stream_host")}
+						control={<Input target={f} prop="encoderHost" placeholder={"192.168.1.10"} required={true} />}
+					/>,
+					<Field
+						label={t("dev.field.stream_srt_port")}
+						control={<Input target={f} prop="encoderPort" {...PORT} required={true} />}
+					/>,
 				],
-				field(
-					t("dev.field.srt_latency"),
-					input(f, "latency", { ...numberAttrs(100, 10000, undefined, 100), required: true }),
-				),
-				field(t("dev.field.stream_id"), input(f, "streamid", { placeholder: t("ui.optional") })),
+				<Field
+					label={t("dev.field.srt_latency")}
+					control={<Input target={f} prop="latency" {...numberAttrs(100, 10000, undefined, 100)} required={true} />}
+				/>,
+				<Field
+					label={t("dev.field.stream_id")}
+					control={<Input target={f} prop="streamid" placeholder={t("ui.optional")} />}
+				/>,
 				check("bitrateOverlay", t("dev.field.bitrate_overlay")),
 			);
 		}
@@ -317,13 +357,28 @@ function stepBody(key: StepKey): m.Vnode {
 				key,
 				t("setup.step.relay"),
 				t("setup.relay_desc"),
-				field(t("dev.field.srt_listen_port"), input(f, "listenPort", { ...PORT, required: true })),
-				field(
-					t("dev.field.remote_host"),
-					input(f, "srtlaRemoteHost", { placeholder: "rec.example.com", required: needsReceiver }),
-				),
-				field(t("dev.field.remote_port"), input(f, "srtlaRemotePort", { ...PORT, required: needsReceiver })),
-				field(t("dev.scheduler"), select(f, "srtlaMode", schedulerOptions())),
+				<Field
+					label={t("dev.field.srt_listen_port")}
+					control={<Input target={f} prop="listenPort" {...PORT} required={true} />}
+				/>,
+				<Field
+					label={t("dev.field.remote_host")}
+					control={
+						<Input target={f} prop="srtlaRemoteHost" placeholder={"rec.example.com"} required={needsReceiver} />
+					}
+				/>,
+				<Field
+					label={t("dev.field.remote_port")}
+					control={<Input target={f} prop="srtlaRemotePort" {...PORT} required={needsReceiver} />}
+				/>,
+				<Field
+					label={t("dev.scheduler")}
+					control={
+						<Select target={f} prop="srtlaMode">
+							<SchedulerOptions />
+						</Select>
+					}
+				/>,
 				check("srtlaQuality", t("dev.quality_scoring")),
 			);
 		}
@@ -347,16 +402,15 @@ function wizard(): m.Children {
 				</li>
 			))}
 		</ol>,
-		form(
-			{ id: "setup-form", onSubmit: complete },
-			stepBody(steps[current].key),
-			brk(),
-			actions(
-				button(t("ui.back"), { class: "secondary", hidden: current === 0, onclick: goPrev }),
-				button(t("ui.next"), { hidden: last, onclick: goNext }),
-				button(t("setup.save"), { type: "submit", hidden: !last, disabled: state.saving }),
-			),
-		),
+		<Form id={"setup-form"} onSubmit={() => void complete()}>
+			{stepBody(steps[current].key)}
+			<Break />
+			<Actions>
+				<Button label={t("ui.back")} class={"secondary"} hidden={current === 0} onclick={goPrev} />
+				<Button label={t("ui.next")} hidden={last} onclick={goNext} />
+				<Button label={t("setup.save")} type={"submit"} hidden={!last} disabled={state.saving} />
+			</Actions>
+		</Form>,
 		<p class={"muted"} role={"status"}>
 			{state.message}
 		</p>,
@@ -365,7 +419,7 @@ function wizard(): m.Children {
 
 const App: m.Component = {
 	view: () => (
-		<Page title={t("setup.title")} headerRight={connectionBadge(state.connected)}>
+		<Page title={t("setup.title")} headerRight={<ConnectionBadge connected={state.connected} />}>
 			<section class={"card"}>{state.loaded ? wizard() : <p class={"muted"}>{t("setup.loading")}</p>}</section>
 		</Page>
 	),

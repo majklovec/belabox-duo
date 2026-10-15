@@ -41,16 +41,23 @@
     "encoder": {
       "enabled": true
     },
-    "low-bitrate-switcher": {
+    "modems": {
+      "enabled": true
+    },
+    "obs-controller": {
       "autoSwitch": true,
       "enabled": true,
       "failBehaviour": "pause",
       "instantlySwitchOnRecover": true,
       "logToFile": true,
+      "obsPassword": "",
       "obsSourceName": "",
+      "obsUrl": "",
       "onlySwitchWhenStreaming": false,
       "pollIntervalMs": 1000,
       "retryAttempts": 5,
+      "sceneEvents": true,
+      "switcherEnabled": true,
       "optionalScenes": {
         "ending": "",
         "privacy": "",
@@ -76,15 +83,6 @@
         "offline": 400,
         "rtt": 1500
       }
-    },
-    "modems": {
-      "enabled": true
-    },
-    "obs-controller": {
-      "enabled": false,
-      "obsPassword": "",
-      "obsUrl": "",
-      "sceneEvents": true
     },
     "relay": {
       "enabled": true

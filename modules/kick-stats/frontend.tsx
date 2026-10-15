@@ -12,7 +12,7 @@ import {
 	type StatsSample,
 	type WidgetContext,
 } from "./types";
-import { badge as badgeEl } from "../../public/ts/components/ui";
+import { Badge } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import { KICK_STATS_CONFIG_FIELDS } from "./backend";
 import { LineChart } from "./graph-linechart";
@@ -51,10 +51,12 @@ function channelOf(w: ServerDashboardWidget): string {
 /** Card head: the stream badge (not configured, waiting, else streaming/offline). */
 function badge(w: ServerDashboardWidget, _ctx: WidgetContext): m.Vnode {
 	const channel = channelOf(w);
-	if (!channel) return badgeEl(t("dash.widget_not_configured"), "warn");
+	if (!channel) return <Badge text={t("dash.widget_not_configured")} kind="warn" />;
 	const s = (live.get(channel) ?? {}).stats;
-	if (!s) return badgeEl(t("dash.widget_waiting"), "warn");
-	return badgeEl(s.isLive ? t("dev.badge.online") : t("dev.badge.offline"), s.isLive ? "on" : "off");
+	if (!s) return <Badge text={t("dash.widget_waiting")} kind="warn" />;
+	return (
+		<Badge text={s.isLive ? t("dev.badge.online") : t("dev.badge.offline")} kind={s.isLive ? "on" : "off"} />
+	);
 }
 
 /** Stream duration, whole minutes ("1 h 23 min"). */
@@ -83,7 +85,11 @@ function body(w: ServerDashboardWidget, _ctx: WidgetContext): m.Children {
 								` ${t("kickstats.viewers")}`,
 							]}
 						</span>,
-						s.isLive ? badgeEl(t("kickstats.live"), "on") : badgeEl(t("kickstats.offline"), "off"),
+						s.isLive ? (
+							<Badge text={t("kickstats.live")} kind="on" />
+						) : (
+							<Badge text={t("kickstats.offline")} kind="off" />
+						),
 					]}
 				</div>,
 				s.title ? <p class={"kick-title"}>{s.title}</p> : null,

@@ -2,7 +2,7 @@
  * to interfaces by source IP. */
 import m from "mithril";
 import type { SrtlaLinkStats, Status } from "../../types";
-import { badge, button, Card, type Child } from "../components/ui";
+import { Badge, Button, Card, type Child } from "../components/ui";
 import { formatBitrate, formatSpeed, since } from "../util";
 import { t } from "../i18n";
 import { act, busy, st } from "./store";
@@ -22,11 +22,16 @@ export function signal(quality?: number): Child {
 }
 
 function linkState(l: SrtlaLinkStats): m.Vnode {
-	if (l.timed_out) return badge(t("dev.link_timed_out"), "off");
-	if (!l.connected) return badge(t("dev.control_connecting"), "warn");
-	if (l.stall_gated) return badge(t("dev.link_stalled"), "warn");
-	if (l.weak) return <span title={l.weak_reason ?? ""}>{badge(t("dev.link_weak"), "warn")}</span>;
-	return badge(l.sole_carrier ? t("dev.link_sole") : t("dev.link_up"), "on");
+	if (l.timed_out) return <Badge text={t("dev.link_timed_out")} kind="off" />;
+	if (!l.connected) return <Badge text={t("dev.control_connecting")} kind="warn" />;
+	if (l.stall_gated) return <Badge text={t("dev.link_stalled")} kind="warn" />;
+	if (l.weak)
+		return (
+			<span title={l.weak_reason ?? ""}>
+				<Badge text={t("dev.link_weak")} kind="warn" />
+			</span>
+		);
+	return <Badge text={l.sole_carrier ? t("dev.link_sole") : t("dev.link_up")} kind="on" />;
 }
 
 function linkCells(l: SrtlaLinkStats | undefined, total: number): m.Vnode[] {
@@ -129,11 +134,12 @@ export function interfacesCard(status: Status): m.Vnode {
 		<Card
 			title={t("dev.card.interfaces")}
 			headActions={[
-				stale && badge(t("dev.stale", since(st.statsAt)), "warn"),
-				button(t("ui.reconfigure"), {
-					disabled: busy.has("reconfigure"),
-					onclick: () => void act("reconfigure", "reconfigure"),
-				}),
+				stale && <Badge text={t("dev.stale", since(st.statsAt))} kind="warn" />,
+				<Button
+					label={t("ui.reconfigure")}
+					disabled={busy.has("reconfigure")}
+					onclick={() => void act("reconfigure", "reconfigure")}
+				/>,
 			]}
 		>
 			<table class={live ? "" : "no-stats"}>

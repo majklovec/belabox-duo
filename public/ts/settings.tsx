@@ -3,17 +3,17 @@ import m from "mithril";
 import { errorMessage } from "../../src/util";
 import { DEFAULT_COLOR } from "../../src/validate";
 import {
-	actions,
-	brk,
-	button,
+	Actions,
+	Break,
+	Button,
 	Card,
-	connectionBadge,
-	field,
-	form,
-	input,
-	options,
+	ConnectionBadge,
+	Field,
+	Form,
+	Input,
+	Options,
 	Page,
-	select,
+	Select,
 } from "./components/ui";
 import { t } from "./i18n";
 import { RpcClient, socketUrl } from "./services/rpc";
@@ -144,39 +144,55 @@ function settingsCard(): m.Vnode {
 	return (
 		<Card>
 			<p class={"muted"}>{t("set.description")}</p>
-			{form(
-				{ onSubmit: save },
-				field(t("set.hostname"), input(draft, "hostname", { pattern: HOSTNAME_PATTERN })),
-				field(
-					t("set.role"),
-					select(
-						draft,
-						"role",
-						options([
-							["", t("set.role_keep")],
-							["relay", t("role.relay")],
-							["encoder", t("role.encoder")],
-							["combined", t("role.combined")],
-							["obs", t("role.obs")],
-							["custom", t("role.custom")],
-						]),
-					),
-				),
-				brk(),
-				field(t("set.color"), input(draft, "color", { type: "color" }, setHeaderColor)),
-				brk(),
-				field(t("set.remote_url"), input(draft, "remoteUrl", { placeholder: "wss://control.example/device" })),
-				field(
-					t("set.remote_token"),
-					input(draft, "remoteToken", {
-						type: "password",
-						autocomplete: "off",
-						placeholder: tokenPlaceholder,
-					}),
-				),
-				brk(),
-				actions(button(t("set.save"), { type: "submit", disabled: state.saving })),
-			)}
+			<Form onSubmit={save}>
+				<Field
+					label={t("set.hostname")}
+					control={<Input target={draft} prop="hostname" pattern={HOSTNAME_PATTERN} />}
+				/>
+				<Field
+					label={t("set.role")}
+					control={
+						<Select target={draft} prop="role">
+							<Options
+								pairs={[
+									["", t("set.role_keep")],
+									["relay", t("role.relay")],
+									["encoder", t("role.encoder")],
+									["combined", t("role.combined")],
+									["obs", t("role.obs")],
+									["custom", t("role.custom")],
+								]}
+							/>
+						</Select>
+					}
+				/>
+				<Break />
+				<Field
+					label={t("set.color")}
+					control={<Input target={draft} prop="color" type={"color"} onChange={setHeaderColor} />}
+				/>
+				<Break />
+				<Field
+					label={t("set.remote_url")}
+					control={<Input target={draft} prop="remoteUrl" placeholder={"wss://control.example/device"} />}
+				/>
+				<Field
+					label={t("set.remote_token")}
+					control={
+						<Input
+							target={draft}
+							prop="remoteToken"
+							type={"password"}
+							autocomplete={"off"}
+							placeholder={tokenPlaceholder}
+						/>
+					}
+				/>
+				<Break />
+				<Actions>
+					<Button label={t("set.save")} type={"submit"} disabled={state.saving} />
+				</Actions>
+			</Form>
 			<p class={"muted"} role={"status"}>
 				{state.message}
 			</p>
@@ -188,30 +204,38 @@ function repositoriesCard(): m.Vnode {
 	return (
 		<Card title={t("set.repos")}>
 			<p class={"muted"}>{t("set.repos_desc")}</p>
-			{form(
-				{ onSubmit: addRepository },
-				field(
-					t("set.repo_field"),
-					input(state, "repository", {
-						required: true,
-						pattern: REPO_PATTERN,
-						placeholder: "author/repository",
-					}),
-				),
-				actions(
-					button(t("set.repo_add"), { type: "submit", disabled: state.repoBusy }),
-					button(t("set.repo_update_all"), {
-						class: "secondary",
-						disabled: state.repoBusy,
-						onclick: () => void updateAllRepositories(),
-					}),
-				),
-			)}
+			<Form onSubmit={addRepository}>
+				<Field
+					label={t("set.repo_field")}
+					control={
+						<Input
+							target={state}
+							prop="repository"
+							required={true}
+							pattern={REPO_PATTERN}
+							placeholder={"author/repository"}
+						/>
+					}
+				/>
+				<Actions>
+					<Button label={t("set.repo_add")} type={"submit"} disabled={state.repoBusy} />
+					<Button
+						label={t("set.repo_update_all")}
+						class={"secondary"}
+						disabled={state.repoBusy}
+						onclick={() => void updateAllRepositories()}
+					/>
+				</Actions>
+			</Form>
 			{state.repositories.length ? (
 				state.repositories.map((repository) => (
 					<div class={"card-head"} key={repository}>
 						<code>{repository}</code>
-						{button(t("ui.remove"), { class: "danger", onclick: () => void removeRepository(repository) })}
+						<Button
+							label={t("ui.remove")}
+							class={"danger"}
+							onclick={() => void removeRepository(repository)}
+						/>
 					</div>
 				))
 			) : (
@@ -233,7 +257,7 @@ const App: m.Component = {
 				</a>,
 				` ${t("set.title")}`,
 			]}
-			headerRight={connectionBadge(state.connected)}
+			headerRight={<ConnectionBadge connected={state.connected} />}
 		>
 			{settingsCard()}
 			{repositoriesCard()}

@@ -3,7 +3,7 @@
     {
       "id": "1f982e5d-e121-49a7-b4dc-24b169642e4f",
       "name": "Dashboard",
-      "version": 14,
+      "version": 15,
       "widgets": [
         {
           "id": "14306d92-1646-4e89-9f16-26a6911fe513",
@@ -29,7 +29,7 @@
           "config": {
             "channel": "cicero_mt",
             "history": "100",
-            "order": "bottom"
+            "order": "top"
           }
         },
         {

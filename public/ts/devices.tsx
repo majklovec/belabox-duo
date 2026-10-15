@@ -2,7 +2,7 @@
  * list (devices.snapshot / devices.changed over the shared feed websocket). */
 import m from "mithril";
 import type { DeviceSummary } from "../types";
-import { badge, Card, type Child, encoderIssueBadge, Page, serverNav } from "./components/ui";
+import { Badge, Card, type Child, EncoderIssueBadge, hasEncoderIssue, Page, ServerNav } from "./components/ui";
 import { i18nReady, t } from "./i18n";
 import { icon, roleTag } from "./icons";
 import { serverLive } from "./services/serverws";
@@ -30,9 +30,14 @@ serverLive.on({
 
 /** Header badge: the socket state, then the online count once connected. */
 function connBadge(): m.Vnode {
-	if (!state.connected) return badge(t("dev.disconnected"), "off");
+	if (!state.connected) return <Badge text={t("dev.disconnected")} kind="off" />;
 	const online = state.devices?.filter((d) => d.online).length ?? 0;
-	return badge(t("dev.badge.online_count", online, state.devices?.length ?? 0), online ? "on" : "warn");
+	return (
+		<Badge
+			text={t("dev.badge.online_count", online, state.devices?.length ?? 0)}
+			kind={online ? "on" : "warn"}
+		/>
+	);
 }
 
 const hasEncoder = (d: DeviceSummary) => d.role === "encoder" || d.role === "combined";
@@ -43,13 +48,12 @@ function streamState(d: DeviceSummary): Child {
 	const { srtla: s, encoder: e } = d;
 	if (hasEncoder(d)) {
 		if (!e) return "—";
-		const issue = encoderIssueBadge(d.role, e, s);
-		if (issue) return issue;
+		if (hasEncoderIssue(d.role, e, s)) return <EncoderIssueBadge role={d.role} e={e} srtla={s} />;
 	} else if (!s?.running) {
-		return badge(t("dev.badge.stopped"), "off");
+		return <Badge text={t("dev.badge.stopped")} kind="off" />;
 	}
-	if (d.activeLinks === 0) return badge(t("dev.badge.no_links"), "warn");
-	return badge(t("dev.badge.live"), "on");
+	if (d.activeLinks === 0) return <Badge text={t("dev.badge.no_links")} kind="warn" />;
+	return <Badge text={t("dev.badge.live")} kind="on" />;
 }
 
 function bitrate(d: DeviceSummary): Child {
@@ -69,7 +73,7 @@ function bitrate(d: DeviceSummary): Child {
 function row(d: DeviceSummary): m.Vnode {
 	const { srtla: s, encoder: e } = d;
 	// A new vnode per cell: mithril cannot patch one vnode object into two slots
-	const stoppedBadge = () => badge(t("dev.badge.stopped"), "warn");
+	const stoppedBadge = () => <Badge text={t("dev.badge.stopped")} kind="warn" />;
 	return (
 		<tr key={d.id}>
 			<td>
@@ -82,23 +86,36 @@ function row(d: DeviceSummary): m.Vnode {
 				</a>
 			</td>
 			<td class={"muted"}>{d.role ? roleTag(d.role) : "—"}</td>
-			<td>{d.online ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off")}</td>
+			<td>
+				{d.online ? (
+					<Badge text={t("dev.badge.online")} kind="on" />
+				) : (
+					<Badge text={t("dev.badge.offline")} kind="off" />
+				)}
+			</td>
 			<td>{d.online ? since(d.connectedAt) : t("mgmt.last_seen", since(d.lastSeen))}</td>
 			<td>{streamState(d)}</td>
 			<td>{bitrate(d)}</td>
 			<td>{d.online && d.totalLinks !== undefined ? `${d.activeLinks ?? 0}/${d.totalLinks}` : "—"}</td>
 			<td>
 				{hasEncoder(d) && e
-					? e.running
-						? badge(e.config?.pipeline ?? t("dev.badge.streaming"), "on")
-						: stoppedBadge()
+					? e.running ? (
+							<Badge
+								text={e.config?.pipeline ?? t("dev.badge.streaming")}
+								kind="on"
+							/>
+						) : (
+							stoppedBadge()
+						)
 					: "—"}
 			</td>
 			<td>
 				{d.role !== "encoder" && s
-					? s.running
-						? badge(`→ ${s.remoteHost}:${s.remotePort}`, "on")
-						: stoppedBadge()
+					? s.running ? (
+							<Badge text={`→ ${s.remoteHost}:${s.remotePort}`} kind="on" />
+						) : (
+							stoppedBadge()
+						)
 					: "—"}
 			</td>
 		</tr>
@@ -121,7 +138,7 @@ const App: m.Component = {
 	view: () => {
 		const headers = columnHeaders();
 		return (
-			<Page title={t("mgmt.title")} nav={serverNav("devices")} headerRight={connBadge()}>
+			<Page title={t("mgmt.title")} nav={<ServerNav active="devices" />} headerRight={connBadge()}>
 				<Card>
 					<table>
 						<thead>

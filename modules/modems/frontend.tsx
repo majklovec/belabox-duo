@@ -1,7 +1,7 @@
 /* Modems card: one panel per ModemManager modem with its signal and power controls. */
 import m from "mithril";
 import type { Status } from "../../public/types";
-import { actions, badge, button, Card, definitionList } from "../../public/ts/components/ui";
+import { Actions, Badge, Button, Card, DefinitionList } from "../../public/ts/components/ui";
 import { t } from "../../public/ts/i18n";
 import { signal } from "../../public/ts/device/interfaces";
 import { act, busy, st } from "../../public/ts/device/store";
@@ -17,36 +17,40 @@ const stateKind = (state: string) =>
 	state === "connected" ? "on" : state === "disabled" || state === "failed" ? "off" : "warn";
 
 function modemPanel(modem: ModemInfo): m.Vnode {
-	const control = (label: string, method: string, cls = "secondary") =>
-		button(label, {
-			class: cls,
-			disabled: busy.has(`modem:${method}:${modem.index}`) || !!st.status?.state.srtla,
-			onclick: () => modemAction(method, modem.index),
-		});
+	const control = (label: string, method: string, cls = "secondary") => (
+		<Button
+			label={label}
+			class={cls}
+			disabled={busy.has(`modem:${method}:${modem.index}`) || !!st.status?.state.srtla}
+			onclick={() => modemAction(method, modem.index)}
+		/>
+	);
 	const connected = modem.state === "connected";
 	const name = [modem.manufacturer, modem.model].filter(Boolean).join(" ") || t("dev.modem_fallback");
 	return (
 		<article class={"modem"} key={modem.index}>
 			<h3>
 				<span>{`#${modem.index} ${name}`}</span>
-				{badge(modem.state, stateKind(modem.state))}
+				<Badge text={modem.state} kind={stateKind(modem.state)} />
 			</h3>
-			{definitionList([
-				[t("dev.signal"), signal(modem.signalQuality)],
-				[t("dev.operator"), modem.operatorName],
-				[t("dev.tech"), modem.accessTech],
-				[t("dev.registration"), modem.registrationState],
-				[t("dev.power"), modem.powerState],
-				[t("dev.imei"), modem.imei],
-			])}
-			{actions(
-				control(t("ui.enable"), "modems.enable"),
-				control(t("ui.disable"), "modems.disable"),
-				connected
+			<DefinitionList
+				rows={[
+					[t("dev.signal"), signal(modem.signalQuality)],
+					[t("dev.operator"), modem.operatorName],
+					[t("dev.tech"), modem.accessTech],
+					[t("dev.registration"), modem.registrationState],
+					[t("dev.power"), modem.powerState],
+					[t("dev.imei"), modem.imei],
+				]}
+			/>
+			<Actions>
+				{control(t("ui.enable"), "modems.enable")}
+				{control(t("ui.disable"), "modems.disable")}
+				{connected
 					? control(t("ui.disconnect"), "modems.disconnect")
-					: control(t("ui.connect"), "modems.connect"),
-				control(t("ui.reset"), "modems.reset", "danger"),
-			)}
+					: control(t("ui.connect"), "modems.connect")}
+				{control(t("ui.reset"), "modems.reset", "danger")}
+			</Actions>
 		</article>
 	);
 }

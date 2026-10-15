@@ -4,7 +4,7 @@
  * opens. */
 import m from "mithril";
 import type { ServerDashboard } from "../types";
-import { button, Card, Page, input, serverNav } from "./components/ui";
+import { Button, Card, Input, Page, ServerNav } from "./components/ui";
 import { t } from "./i18n";
 import { actionIcon } from "./icons";
 import { serverLive } from "./services/serverws";
@@ -104,12 +104,13 @@ function list(): m.Vnode {
 									>
 										{actionIcon("edit")}
 									</a>,
-									button(actionIcon("delete"), {
-										class: "icon-link dash-delete",
-										title: t("dash.delete"),
-										"aria-label": t("dash.delete"),
-										onclick: () => deleteDashboard(d.id),
-									}),
+									<Button
+										label={actionIcon("delete")}
+										class={"icon-link dash-delete"}
+										title={t("dash.delete")}
+										aria-label={t("dash.delete")}
+										onclick={() => deleteDashboard(d.id)}
+									/>,
 								]}
 							</div>
 						</td>
@@ -124,8 +125,12 @@ function createToolbar(): m.Vnode {
 	return (
 		<div class={"dash-toolbar"}>
 			<span class={"dash-empty-text"}>{t("dash.create_new")}</span>
-			{input(state, "newName", { placeholder: t("dash.new_placeholder") }) as m.Vnode}
-			{button(t("dash.create"), { onclick: createDashboard, disabled: state.saving || !state.newName.trim() })}
+			<Input target={state} prop="newName" placeholder={t("dash.new_placeholder")} />
+			<Button
+				label={t("dash.create")}
+				onclick={createDashboard}
+				disabled={state.saving || !state.newName.trim()}
+			/>
 		</div>
 	);
 }
@@ -147,7 +152,7 @@ function dashboardsCard(): m.Vnode {
 
 const App: m.Component = {
 	view: () => (
-		<Page title={t("dash.title")} nav={serverNav("dashboards")}>
+		<Page title={t("dash.title")} nav={<ServerNav active="dashboards" />}>
 			{dashboardsCard()}
 		</Page>
 	),

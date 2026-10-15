@@ -1,7 +1,7 @@
 /* Device page — a Mithril view over the device store (device/store.ts): header, one card per
  * role-specific function, and the event log. The WebSocket client mutates state and redraws. */
 import m from "mithril";
-import { badge, Page, TitleWithBack } from "./components/ui";
+import { Badge, Page, TitleWithBack } from "./components/ui";
 import { interfacesCard } from "./device/interfaces";
 import { LogCard } from "./device/log";
 import { moduleCard } from "../../src/registry.frontend";
@@ -15,9 +15,9 @@ import { mountPage } from "./util";
 connectDevice();
 
 function connBadge(): m.Vnode {
-	if (!st.socketOpen) return badge(t("dev.disconnected"), "off");
-	if (st.device && !st.device.online) return badge(t("dev.device_offline"), "warn");
-	return badge(t("dev.connected"), "on");
+	if (!st.socketOpen) return <Badge text={t("dev.disconnected")} kind="off" />;
+	if (st.device && !st.device.online) return <Badge text={t("dev.device_offline")} kind="warn" />;
+	return <Badge text={t("dev.connected")} kind="on" />;
 }
 
 async function setAutostart(enabled: boolean): Promise<void> {

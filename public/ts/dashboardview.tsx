@@ -9,7 +9,7 @@
  * the dashboard from the server. */
 import m from "mithril";
 import type { ServerDashboard, ServerDashboardWidget } from "../types";
-import { Page, serverNav, TitleWithBack } from "./components/ui";
+import { Page, ServerNav, TitleWithBack } from "./components/ui";
 import {
   ensureDashboardsWs,
   refreshDevices,
@@ -260,7 +260,7 @@ const App: m.Component = {
   view() {
     if (state.notFound) {
       return (
-        <Page title={t("dash.title")} nav={serverNav("dashboards")}>
+        <Page title={t("dash.title")} nav={<ServerNav active="dashboards" />}>
           <p class={"muted"}>{t("dash.not_found")}</p>
         </Page>
       );

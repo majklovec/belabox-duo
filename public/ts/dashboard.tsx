@@ -15,7 +15,7 @@ import type {
   SwitcherStatus,
   WidgetType,
 } from "../types";
-import { badge, button, widgetTable, type Child } from "./components/ui";
+import { Badge, Button, WidgetTable, type Child } from "./components/ui";
 import { configFieldName } from "../types";
 import { createCardHost, type DeviceCard } from "./device/store";
 /* REFACTOR-modules.md §7: the core names no module by id. Per-device cards
@@ -292,9 +292,11 @@ function statusWidget(
     [t("mgmt.th.role"), d.role ? roleTag(d.role) : "—"],
     [
       t("mgmt.th.status"),
-      d.online
-        ? badge(t("dev.badge.online"), "on")
-        : badge(t("dev.badge.offline"), "off"),
+      d.online ? (
+        <Badge text={t("dev.badge.online")} kind="on" />
+      ) : (
+        <Badge text={t("dev.badge.offline")} kind="off" />
+      ),
     ],
   ];
   if (d.role !== "encoder" && conn?.live.srtla) {
@@ -312,12 +314,17 @@ function statusWidget(
   if (d.role !== "relay" && d.encoder) {
     rows.push([
       t("dev.card.encoder"),
-      d.encoder.running
-        ? badge(d.encoder.config?.pipeline ?? t("dev.badge.streaming"), "on")
-        : badge(t("dev.badge.stopped"), "warn"),
+      d.encoder.running ? (
+        <Badge
+          text={d.encoder.config?.pipeline ?? t("dev.badge.streaming")}
+          kind="on"
+        />
+      ) : (
+        <Badge text={t("dev.badge.stopped")} kind="warn" />
+      ),
     ]);
   }
-  return widgetTable(rows);
+  return <WidgetTable rows={rows} />;
 }
 
 /** Card widgets render the full interactive module card (same as the device page);
@@ -455,9 +462,11 @@ function widgetBadge(w: ServerDashboardWidget): m.Vnode {
     case "relay": {
       const st = connectionFor(effectiveDeviceId(w))?.live.status?.state;
       const offline = !st;
-      return badge(
-        offline ? t("dev.badge.offline") : t("dev.badge.online"),
-        offline ? "off" : "on",
+      return (
+        <Badge
+          text={offline ? t("dev.badge.offline") : t("dev.badge.online")}
+          kind={offline ? "off" : "on"}
+        />
       );
     }
     case "combined":
@@ -467,19 +476,24 @@ function widgetBadge(w: ServerDashboardWidget): m.Vnode {
       const e =
         deviceById(deviceId)?.encoder ?? conn?.live.status?.state?.encoder;
       if (!e)
-        return badge(
-          conn ? t("dash.widget_waiting") : t("dev.badge.offline"),
-          conn ? "" : "off",
+        return (
+          <Badge
+            text={conn ? t("dash.widget_waiting") : t("dev.badge.offline")}
+            kind={conn ? "" : "off"}
+          />
         );
-      return badge(
-        e.running ? t("dev.badge.online") : t("dev.badge.stopped"),
-        e.running ? "on" : "warn",
+      return (
+        <Badge
+          text={e.running ? t("dev.badge.online") : t("dev.badge.stopped")}
+          kind={e.running ? "on" : "warn"}
+        />
       );
     }
     case "obs": {
       const d = deviceById(w.deviceId);
       const conn = connectionFor(effectiveDeviceId(w));
-      if (!conn || !d?.online) return badge(t("dev.badge.offline"), "off");
+      if (!conn || !d?.online)
+        return <Badge text={t("dev.badge.offline")} kind="off" />;
       // p.head() is [connected/offline badge, refresh button]; the refresh stays in the panel.
       return obsPanelFor(w, conn).head()[0];
     }
@@ -487,10 +501,12 @@ function widgetBadge(w: ServerDashboardWidget): m.Vnode {
       const mod = widgetModuleForType(w.type);
       if (mod) return mod.badge(w, widgetCtx(w)) as m.Vnode;
       const d = deviceById(effectiveDeviceId(w));
-      if (!d) return badge(t("dash.widget_missing"), "warn");
-      return badge(
-        d.online ? t("dev.badge.online") : t("dev.badge.offline"),
-        d.online ? "on" : "off",
+      if (!d) return <Badge text={t("dash.widget_missing")} kind="warn" />;
+      return (
+        <Badge
+          text={d.online ? t("dev.badge.online") : t("dev.badge.offline")}
+          kind={d.online ? "on" : "off"}
+        />
       );
     }
   }
@@ -599,8 +615,9 @@ function configEditorForm(w: ServerDashboardWidget): m.Vnode {
         }),
         <div class={"dash-config-actions"} key={"actions"}>
           {[
-            button(t("ui.save"), {
-              onclick: (e: Event) => {
+            <Button
+              label={t("ui.save")}
+              onclick={(e: Event) => {
                 e.preventDefault();
                 w.config = Object.fromEntries(
                   fields.map((field) => {
@@ -615,14 +632,15 @@ function configEditorForm(w: ServerDashboardWidget): m.Vnode {
                 widgetConfigState.delete(key);
                 widgetConfigSaver?.(w);
                 m.redraw();
-              },
-            }),
-            button(t("ui.cancel"), {
-              onclick: () => {
+              }}
+            />,
+            <Button
+              label={t("ui.cancel")}
+              onclick={() => {
                 widgetConfigState.delete(widgetKey(w));
                 m.redraw();
-              },
-            }),
+              }}
+            />
           ]}
         </div>,
       ]}

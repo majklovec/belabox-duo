@@ -2,23 +2,24 @@
 import m from "mithril";
 import type { ServerDashboardWidget, Status, SrtlaStats } from "../../public/types";
 import {
-	actions,
-	badge,
-	brk,
-	button,
+	Actions,
+	Badge,
+	Break,
+	Button,
 	Card,
 	type Child,
-	checkField,
-	definitionList,
-	field,
-	fieldGroup,
-	form,
-	input,
-	schedulerOptions,
+	CheckField,
+	DefinitionList,
+	Field,
+	FieldGroup,
+	Form,
+	Input,
+	SchedulerOptions,
 } from "../../public/ts/components/ui";
 import { formatBitrate, since } from "../../public/ts/util";
 import { t } from "../../public/ts/i18n";
 import { card, type DeviceCard } from "../../public/ts/device/store";
+import { encoderStart, streamButtons } from "../encoder/frontend";
 import type { BridgedModule, ChannelWidgetModule, WidgetContext } from "./types";
 
 type SrtlaOptions = Status["state"]["srtlaOptions"];
@@ -48,8 +49,8 @@ const qualityValue = (host: DeviceCard): boolean =>
 
 function controlBadge(status: Status): Child {
 	const c = status.srtlaControl;
-	if (c?.connected) return badge(t("dev.connected"), "on");
-	if (c?.supported) return badge(t("dev.control_connecting"), "warn");
+	if (c?.connected) return <Badge text={t("dev.connected")} kind={"on"} />;
+	if (c?.supported) return <Badge text={t("dev.control_connecting")} kind={"warn"} />;
 	return (
 		<span class={"muted"} title={t("dev.control_unavailable_title")}>
 			{t("dev.control_unavailable")}
@@ -63,84 +64,92 @@ export function srtlaCardBody(host: DeviceCard, status: Status): m.Vnode {
 	const combined = status.role === "combined";
 	return (
 		<Card title={t("dev.card.srtla")} class={"mod-srtla"}>
-			{definitionList([
-				[
-					t("dev.row.state"),
-					s.running ? badge(t("dev.row_state_running"), "on") : badge(t("dev.badge.stopped"), "off"),
-				],
-				[t("dev.row.started"), s.running ? since(s.startedAt) : null],
-				[
-					t("dev.reloads"),
-					t("dev.reloads_detail", s.reloadCount ?? 0, since(s.lastReloadAt), status.monitor.reloadMode),
-				],
-				[
-					t("dev.monitor"),
-					status.monitor.running ? badge(t("dev.monitor_watching"), "on") : badge(t("ui.off"), "warn"),
-				],
-				[t("dev.control"), s.running ? controlBadge(status) : null],
-			])}
-			{form(
-				// Enter in the receiver fields of a combined device means "start the stream"
-				{ onSubmit: combined ? host.encoderStart : () => srtlaStart(host) },
-				fieldGroup(
-					t("dev.group.connection"),
-					!combined && [
-						field(
-							t("dev.field.srt_listen_port"),
-							input(fields, "listenPort", { placeholder: "6000", required: true }),
-						),
-						" ⇨ ",
+			<DefinitionList
+				rows={[
+					[
+						t("dev.row.state"),
+						s.running ? <Badge text={t("dev.row_state_running")} kind={"on"} /> : <Badge text={t("dev.badge.stopped")} kind={"off"} />,
 					],
-					field(
-						t("dev.field.remote_host"),
-						input(fields, "remoteHost", { placeholder: "rec.example.com", required: true }),
-					),
-					field(
-						t("dev.field.remote_port"),
-						input(fields, "remotePort", { placeholder: "5000", required: true }),
-					),
-				),
-				fieldGroup(
-					t("dev.quality_scoring"),
-					field(
-						t("dev.scheduler"),
-						<select
-							disabled={busy.has("srtla-mode")}
-							value={modeValue(host)}
-							onchange={(e: Event) => void setOption(host, "mode", (e.target as HTMLSelectElement).value)}
-						>
-							{schedulerOptions()}
-						</select>,
-					),
-					checkField(
-						t("dev.quality_scoring"),
-						<input
-							type={"checkbox"}
-							checked={qualityValue(host)}
-							disabled={busy.has("srtla-quality") || modeValue(host) === "classic"}
-							onchange={(e: Event) =>
-								void setOption(host, "quality", (e.target as HTMLInputElement).checked)
-							}
-						/>,
-						{ title: t("dev.quality_scoring_title") },
-					),
-				),
-				brk(),
-				combined
-					? host.streamButtons("stream.stop")
-					: actions(
-							button(t("ui.start"), { type: "submit", disabled: !host.enabled("srtla-start") }),
-							button(t("ui.stop"), {
-								class: "danger",
-								disabled: !host.enabled("srtla-stop"),
-								onclick: () => host.press("srtla-stop", "srtla.stop"),
-							}),
-							button(t("ui.reload"), {
-								disabled: !host.enabled("srtla-reload"),
-								onclick: () => host.press("srtla-reload", "srtla.reload"),
-							}),
-						),
-			)}
+					[t("dev.row.started"), s.running ? since(s.startedAt) : null],
+					[
+						t("dev.reloads"),
+						t("dev.reloads_detail", s.reloadCount ?? 0, since(s.lastReloadAt), status.monitor.reloadMode),
+					],
+					[
+						t("dev.monitor"),
+						status.monitor.running ? <Badge text={t("dev.monitor_watching")} kind={"on"} /> : <Badge text={t("ui.off")} kind={"warn"} />,
+					],
+					[t("dev.control"), s.running ? controlBadge(status) : null],
+				]}
+			/>
+			<Form onSubmit={combined ? () => encoderStart(host) : () => srtlaStart(host)}>
+				<FieldGroup legend={t("dev.group.connection")}>
+					{!combined && (
+						<>
+							<Field
+								label={t("dev.field.srt_listen_port")}
+								control={<Input target={fields} prop="listenPort" placeholder={"6000"} required={true} />}
+							/>
+							<span> ⇨ </span>
+						</>
+					)}
+					<Field
+						label={t("dev.field.remote_host")}
+						control={<Input target={fields} prop="remoteHost" placeholder={"rec.example.com"} required={true} />}
+					/>
+					<Field
+						label={t("dev.field.remote_port")}
+						control={<Input target={fields} prop="remotePort" placeholder={"5000"} required={true} />}
+					/>
+				</FieldGroup>
+				<FieldGroup legend={t("dev.quality_scoring")}>
+					<Field
+						label={t("dev.scheduler")}
+						control={
+							<select
+								disabled={busy.has("srtla-mode")}
+								value={modeValue(host)}
+								onchange={(e: Event) => void setOption(host, "mode", (e.target as HTMLSelectElement).value)}
+							>
+								<SchedulerOptions />
+							</select>
+						}
+					/>
+					<CheckField
+						label={t("dev.quality_scoring")}
+						title={t("dev.quality_scoring_title")}
+						control={
+							<input
+								type={"checkbox"}
+								checked={qualityValue(host)}
+								disabled={busy.has("srtla-quality") || modeValue(host) === "classic"}
+								onchange={(e: Event) =>
+									void setOption(host, "quality", (e.target as HTMLInputElement).checked)
+								}
+							/>
+						}
+					/>
+				</FieldGroup>
+				<Break />
+				{combined
+					? streamButtons(host, "stream.stop")
+					: (
+						<Actions>
+							<Button label={t("ui.start")} type={"submit"} disabled={!host.enabled("srtla-start")} />
+							<Button
+								label={t("ui.stop")}
+								class={"danger"}
+								disabled={!host.enabled("srtla-stop")}
+								onclick={() => host.press("srtla-stop", "srtla.stop")}
+							/>
+							<Button
+								label={t("ui.reload")}
+								disabled={!host.enabled("srtla-reload")}
+								onclick={() => host.press("srtla-reload", "srtla.reload")}
+							/>
+						</Actions>
+					)}
+			</Form>
 		</Card>
 	);
 }
@@ -157,7 +166,7 @@ function srtlaLinksRows(s: SrtlaStats): [string, Child][] {
 	return (s.links ?? []).map((l) => [
 		l.label ?? l.ip,
 		<span>
-			{l.connected ? badge(t("dev.badge.online"), "on") : badge(t("dev.badge.offline"), "off")}{" "}
+			{l.connected ? <Badge text={t("dev.badge.online")} kind={"on"} /> : <Badge text={t("dev.badge.offline")} kind={"off"} />}{" "}
 			<span class={"muted"}>{`${formatBitrate(l.bitrate_bytes_per_sec)} · ${l.rtt_ms} ms`}</span>
 		</span>,
 	]);
@@ -193,8 +202,8 @@ function statsBody(w: ServerDashboardWidget, ctx: WidgetContext): m.Children {
 function statsBadge(w: ServerDashboardWidget, ctx: WidgetContext): m.Vnode {
 	const s = srtlaStatsOf(ctx);
 	if (!s)
-		return badge(ctx.deviceLive ? t("dash.widget_waiting") : t("dev.badge.offline"), ctx.deviceLive ? "" : "off");
-	return badge(`${s.active_links ?? 0}/${s.total_links ?? 0}`, "on");
+		return <Badge text={ctx.deviceLive ? t("dash.widget_waiting") : t("dev.badge.offline")} kind={ctx.deviceLive ? "" : "off"} />;
+	return <Badge text={`${s.active_links ?? 0}/${s.total_links ?? 0}`} kind={"on"} />;
 }
 
 const srtlaStatsWidget: ChannelWidgetModule<ServerDashboardWidget> = {

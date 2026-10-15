@@ -17,10 +17,10 @@ import type {
 	SrtlaStatsEvent,
 	Status,
 } from "../../types";
-import { actions, button, type KeysOf } from "../components/ui";
+import type { KeysOf } from "../components/ui";
 import { type Level } from "../icons";
 import { t } from "../i18n";
-import { optionalNumber, setHeaderColor, uuid } from "../util";
+import { setHeaderColor, uuid } from "../util";
 import { type Params, RpcClient, RpcError, socketUrl } from "../services/rpc";
 import { applyLog, log } from "./log";
 
@@ -87,9 +87,6 @@ export interface DeviceCard {
 	enabled: (id: StateButton) => boolean;
 	act: <T = unknown>(key: string | null, method: string, params?: Params) => Promise<T | undefined>;
 	press: (id: StateButton, method: string, params?: Params) => void;
-	selectedPipeline: () => Pipeline | undefined;
-	encoderStart: () => void;
-	streamButtons: (stopMethod: string) => m.Children;
 	/** Apply a `status` push: state + form prefill; warms the pipeline list. */
 	applyStatus: (status: Status) => void;
 	/** Apply a `srtla.stats` push. */
@@ -154,45 +151,6 @@ export function createCardHost(opts: {
 	const press = (id: StateButton, method: string, params?: Params): void => {
 		if (enabled(id)) void act(id, method, params);
 	};
-
-	const selectedPipeline = (): Pipeline | undefined => st.pipelines.find((p) => p.id === fields.pipeline);
-
-	/** Submit the encoder / stream form (see the encoder module card for the fields). */
-	const encoderStart = (): void => {
-		const status = st.status;
-		if (!status) return;
-		const pipeline = selectedPipeline();
-		const common = {
-			pipeline: fields.pipeline,
-			minBitrate: optionalNumber(fields.minBitrate),
-			maxBitrate: optionalNumber(fields.maxBitrate),
-			latency: optionalNumber(fields.latency),
-			delay: optionalNumber(fields.delay),
-			streamid: fields.streamid || undefined,
-			// Options the selected pipeline does not support are hidden; do not send their stale values
-			audioSource: pipeline?.asrc ? fields.audioSource || undefined : "default",
-			audioCodec: pipeline?.acodec ? fields.audioCodec || undefined : undefined,
-			bitrateOverlay: pipeline?.overlay ? fields.bitrateOverlay : false,
-		};
-		if (status.role === "combined") {
-			if (!fields.remoteHost || !fields.remotePort) return;
-			press("encoder-start", "stream.start", { ...common, remoteHost: fields.remoteHost, remotePort: fields.remotePort });
-		} else {
-			if (!fields.encHost || !fields.encPort) return;
-			press("encoder-start", "encoder.start", { ...common, host: fields.encHost, port: fields.encPort });
-		}
-	};
-
-	/** Start / Stop buttons for the stream (encoder card, or the SRTLA card of a combined device). */
-	const streamButtons = (stopMethod: string) =>
-		actions(
-			button(t("ui.start"), { type: "submit", disabled: !enabled("encoder-start") }),
-			button(t("ui.stop"), {
-				class: "danger",
-				disabled: !enabled("encoder-stop"),
-				onclick: () => press("encoder-stop", stopMethod),
-			}),
-		);
 
 	// ------------------------------------------------------------------ prefill
 	/** Fill an empty form field from the device's settings, unless the user is typing in it. */
@@ -297,7 +255,7 @@ export function createCardHost(opts: {
 		pipelinesLoaded = false;
 	};
 
-	return { st, fields, cera, touched, busy, enabled, act, press, selectedPipeline, encoderStart, streamButtons, applyStatus, handleStats, loadPipelines, onReconnect };
+	return { st, fields, cera, touched, busy, enabled, act, press, applyStatus, handleStats, loadPipelines, onReconnect };
 }
 
 // ----------------------------------------------------------------------
@@ -335,9 +293,6 @@ export const busy = card.busy;
 export const enabled = card.enabled;
 export const act = card.act;
 export const press = card.press;
-export const selectedPipeline = card.selectedPipeline;
-export const encoderStart = card.encoderStart;
-export const streamButtons = card.streamButtons;
 
 // Frontend event dispatch is injected by the module registry instead of
 // imported from it: store.ts is reached by every module frontend (store →

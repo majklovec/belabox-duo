@@ -14,12 +14,11 @@ import type {
 } from "../types";
 import { configFieldName } from "../types";
 import {
+  Button,
+  Field,
+  Input,
   Page,
-  button,
-  field,
-  fieldGroup,
-  input,
-  serverNav,
+  ServerNav,
 } from "./components/ui";
 import {
   devices,
@@ -210,14 +209,14 @@ const App: m.Component = {
     const dash = state.dash;
     if (state.notFound) {
       return (
-        <Page title={t("dash.title")} nav={serverNav("dashboards")}>
+        <Page title={t("dash.title")} nav={<ServerNav active={"dashboards"} />}>
           <p class={"muted"}>{t("dash.not_found")}</p>
         </Page>
       );
     }
     if (!dash)
       return (
-        <Page title={t("dash.title")} nav={serverNav("dashboards")}>
+        <Page title={t("dash.title")} nav={<ServerNav active={"dashboards"} />}>
           <p class={"muted"}>{t("mgmt.loading")}</p>
         </Page>
       );
@@ -244,36 +243,40 @@ const App: m.Component = {
               }}
             >
               {[
-                field(
-                  t("dash.widget_type"),
-                  <select
-                    value={selectedValue()}
-                    onchange={(e: Event) =>
-                      onTypeChange((e.target as HTMLSelectElement).value)
-                    }
-                  >
-                    {[
-                      ...groups.map((g) => (
-                        <optgroup key={g.label} label={g.label}>
-                          {g.types.map((ty) => (
-                            <option
-                              key={optionValue(g.device, ty)}
-                              value={optionValue(g.device, ty)}
-                            >
-                              {typeLabel(ty)}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )),
-                    ]}
-                  </select>,
-                ),
+                <Field
+                  label={t("dash.widget_type")}
+                  control={
+                    <select
+                      value={selectedValue()}
+                      onchange={(e: Event) =>
+                        onTypeChange((e.target as HTMLSelectElement).value)
+                      }
+                    >
+                      {[
+                        ...groups.map((g) => (
+                          <optgroup key={g.label} label={g.label}>
+                            {g.types.map((ty) => (
+                              <option
+                                key={optionValue(g.device, ty)}
+                                value={optionValue(g.device, ty)}
+                              >
+                                {typeLabel(ty)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )),
+                      ]}
+                    </select>
+                  }
+                />,
                 ...(type
                   ? (widgetModule(type)?.configFields ?? []).map((f) => {
                       const name = configFieldName(f);
-                      return typeof f !== "string" && f.type === "select"
-                        ? field(
-                            t(`dash.widget_${name}`),
+                      return typeof f !== "string" && f.type === "select" ? (
+                        <Field
+                          key={name}
+                          label={t(`dash.widget_${name}`)}
+                          control={
                             <select
                               value={state.config[name] ?? f.options[0]}
                               onchange={(e: Event) => {
@@ -286,23 +289,32 @@ const App: m.Component = {
                                   {t(`dash.widget_${name}.${opt}`)}
                                 </option>
                               ))}
-                            </select>,
-                          )
-                        : field(
-                            t(`dash.widget_${name}`),
-                            input(state.config, name, {
-                              type: "text",
-                              placeholder: t(`dash.widget_${name}`),
-                            }),
-                          );
+                            </select>
+                          }
+                        />
+                      ) : (
+                        <Field
+                          key={name}
+                          label={t(`dash.widget_${name}`)}
+                          control={
+                            <Input
+                              target={state.config}
+                              prop={name}
+                              type={"text"}
+                              placeholder={t(`dash.widget_${name}`)}
+                            />
+                          }
+                        />
+                      );
                     })
                   : []),
                 <div class={"dash-config-actions dash-add-actions"}>
                   {[
-                    button(t("dash.add"), {
-                      type: "submit",
-                      disabled: state.saveState === "saving",
-                    }),
+                    <Button
+                      label={t("dash.add")}
+                      type={"submit"}
+                      disabled={state.saveState === "saving"}
+                    />,
                     state.saveState === "saving" ? (
                       <span class={"dash-save dash-save-saving"}>
                         {t("dash.saving")}
