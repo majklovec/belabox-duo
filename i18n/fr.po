@@ -467,28 +467,7 @@ msgstr "Mbps"
 msgid "dev.unit_mbs"
 msgstr "{0} Mb/s"
 
-msgid "kickchat.card"
-msgstr "Chat Kick"
-
-msgid "kickchat.connected"
-msgstr "connecté"
-
-msgid "kickchat.disabled"
-msgstr "Module désactivé"
-
-msgid "kickchat.disconnected"
-msgstr "déconnecté"
-
-msgid "kickchat.empty"
-msgstr "Aucun message pour l'instant"
-
-msgid "tiktokchat.empty"
-msgstr "Pas encore de messages"
-
-msgid "twitchchat.empty"
-msgstr "Pas encore de messages"
-
-msgid "youtubechat.empty"
+msgid "chat.empty"
 msgstr "Pas encore de messages"
 
 msgid "kickstats.card"
@@ -1166,17 +1145,8 @@ msgstr "Encodeur + relais"
 msgid "wtype.encoder"
 msgstr "Encodeur"
 
-msgid "wtype.kick_chat"
-msgstr "Chat Kick"
-
-msgid "wtype.tiktok_chat"
-msgstr "Chat TikTok"
-
-msgid "wtype.twitch_chat"
-msgstr "Chat Twitch"
-
-msgid "wtype.youtube_chat"
-msgstr "Chat YouTube"
+msgid "wtype.chat"
+msgstr "Chat"
 
 msgid "wtype.kick_stats"
 msgstr "Stats Kick"
@@ -1196,13 +1166,27 @@ msgstr "Statut"
 msgid "dash.widget_channel"
 msgstr "Chaîne"
 
+msgid "dash.widget_youtube"
+msgstr "Chaîne YouTube"
+
+msgid "dash.widget_twitch"
+msgstr "Chaîne Twitch"
+
+msgid "dash.widget_tiktok"
+msgstr "Chaîne TikTok"
+
+msgid "dash.widget_kick"
+msgstr "Chaîne Kick"
+
 msgid "dash.widget_history"
 msgstr "Lignes d'historique"
 
 msgid "dash.widget_order"
 msgstr "Nouveaux messages"
+
 msgid "dash.widget_order.top"
 msgstr "En haut"
+
 msgid "dash.widget_order.bottom"
 msgstr "En bas"
 

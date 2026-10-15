@@ -545,28 +545,7 @@ msgstr "Bitrate / max"
 msgid "mgmt.title"
 msgstr "Belabox Duo control"
 
-msgid "kickchat.card"
-msgstr "Chat Kick"
-
-msgid "kickchat.connected"
-msgstr "connected"
-
-msgid "kickchat.disabled"
-msgstr "Module disabled"
-
-msgid "kickchat.disconnected"
-msgstr "disconnected"
-
-msgid "kickchat.empty"
-msgstr "No messages yet"
-
-msgid "tiktokchat.empty"
-msgstr "No messages yet"
-
-msgid "twitchchat.empty"
-msgstr "No messages yet"
-
-msgid "youtubechat.empty"
+msgid "chat.empty"
 msgstr "No messages yet"
 
 msgid "kickstats.card"
@@ -1166,17 +1145,8 @@ msgstr "Combined"
 msgid "wtype.encoder"
 msgstr "Encoder"
 
-msgid "wtype.kick_chat"
-msgstr "Chat Kick"
-
-msgid "wtype.tiktok_chat"
-msgstr "TikTok chat"
-
-msgid "wtype.twitch_chat"
-msgstr "Twitch chat"
-
-msgid "wtype.youtube_chat"
-msgstr "YouTube chat"
+msgid "wtype.chat"
+msgstr "Chat"
 
 msgid "wtype.kick_stats"
 msgstr "Stats Kick"
@@ -1196,13 +1166,27 @@ msgstr "Status"
 msgid "dash.widget_channel"
 msgstr "Channel"
 
+msgid "dash.widget_youtube"
+msgstr "YouTube channel"
+
+msgid "dash.widget_twitch"
+msgstr "Twitch channel"
+
+msgid "dash.widget_tiktok"
+msgstr "TikTok channel"
+
+msgid "dash.widget_kick"
+msgstr "Kick channel"
+
 msgid "dash.widget_history"
 msgstr "History lines"
 
 msgid "dash.widget_order"
 msgstr "New messages"
+
 msgid "dash.widget_order.top"
 msgstr "On top"
+
 msgid "dash.widget_order.bottom"
 msgstr "At the bottom"
 

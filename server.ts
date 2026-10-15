@@ -97,12 +97,12 @@ const REQUEST_TIMEOUT_MS = 60_000;
 const ID_RE = /^[\w.-]{1,64}$/;
 // /d/<id>, /d/<id>/, /d/<id>/ws, /d/<id>/settings[/], /d/<id>/setup[/]
 const DEVICE_PATH_RE = /^\/d\/([^/]+)(?:(\/)(?:(ws)|(settings|setup)(\/)?)?)?$/;
-const WIDGET_TYPES: WidgetType[] = ["obs", "stats", "status", "relay", "encoder", "combined", "kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"];
+const WIDGET_TYPES: WidgetType[] = ["obs", "stats", "status", "relay", "encoder", "combined", "kick-stats", "chat"];
 const DASH_PATH_RE = /^\/api\/dashboards(?:\/([\w.-]{1,64}))?$/;
 const viewersTopic = (id: string) => `viewers:${id}`;
 const dashboardsTopic = "dashboards:kick";
 const devicesTopic = "devices:list";
-const INDEPENDENT_WIDGETS: ReadonlySet<WidgetType> = new Set(["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"]);
+const INDEPENDENT_WIDGETS: ReadonlySet<WidgetType> = new Set(["kick-stats", "chat"]);
 const DASH_COLUMNS = 12;
 /** Default `{w, h}` per widget type — seeds new widgets and migrates v1 rows. */
 const WIDGET_SIZE: Record<WidgetType, { w: number; h: number }> = {
@@ -113,10 +113,16 @@ const WIDGET_SIZE: Record<WidgetType, { w: number; h: number }> = {
 	encoder: { w: 6, h: 5 },
 	combined: { w: 6, h: 10 },
 	"kick-stats": { w: 3, h: 3 },
-	"kick-chat": { w: 3, h: 8 },
-	"tiktok-chat": { w: 3, h: 8 },
-	"twitch-chat": { w: 3, h: 8 },
-	"youtube-chat": { w: 3, h: 8 },
+	chat: { w: 3, h: 8 },
+};
+
+/** Legacy single-platform chat widget types, folded into the merged `chat`
+ * widget on load (their config `channel` becomes the platform field). */
+const LEGACY_CHAT_TYPES: Record<string, string> = {
+	"kick-chat": "kick",
+	"twitch-chat": "twitch",
+	"tiktok-chat": "tiktok",
+	"youtube-chat": "youtube",
 };
 
 // ----------------------------------------------------------------------
@@ -543,7 +549,16 @@ function normalizeDashboard(raw: Record<string, unknown>, index: number): Server
 	let migrated = false;
 	const widgets: ServerDashboardWidget[] = widgetsRaw.map((rr) => {
 		const item = (rr && typeof rr === "object" ? rr : {}) as Record<string, unknown>;
-		const type = String(item.type);
+		let type = String(item.type);
+		// Legacy single-platform chat widgets become the merged `chat` widget:
+		// their `config.channel` moves to the platform's config field.
+		const legacyPlatform = LEGACY_CHAT_TYPES[type];
+		if (legacyPlatform) {
+			type = "chat";
+			const cfg = (item.config && typeof item.config === "object" ? item.config : {}) as Record<string, unknown>;
+			const channel = typeof cfg["channel"] === "string" ? (cfg["channel"] as string) : "";
+			if (channel) item.config = { ...cfg, [legacyPlatform]: channel };
+		}
 		const size = WIDGET_SIZE[(type as WidgetType)] ?? { w: 4, h: 4 };
 		const isV1 = item.x === undefined && item.w === undefined && item.width !== undefined;
 		let x: number, y: number, w: number, h: number;

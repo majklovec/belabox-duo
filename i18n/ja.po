@@ -467,29 +467,8 @@ msgstr "Mbps"
 msgid "dev.unit_mbs"
 msgstr "{0} Mb/s"
 
-msgid "kickchat.card"
-msgstr "Kick チャット"
-
-msgid "kickchat.connected"
-msgstr "接続中"
-
-msgid "kickchat.disabled"
-msgstr "モジュール無効"
-
-msgid "kickchat.disconnected"
-msgstr "切断中"
-
-msgid "kickchat.empty"
+msgid "chat.empty"
 msgstr "メッセージはまだありません"
-
-msgid "tiktokchat.empty"
-msgstr "まだメッセージはありません"
-
-msgid "twitchchat.empty"
-msgstr "まだメッセージはありません"
-
-msgid "youtubechat.empty"
-msgstr "まだメッセージはありません"
 
 msgid "kickstats.card"
 msgstr "Kick 統計"
@@ -1166,17 +1145,8 @@ msgstr "エンコーダー + リレー"
 msgid "wtype.encoder"
 msgstr "エンコーダー"
 
-msgid "wtype.kick_chat"
-msgstr "Kick チャット"
-
-msgid "wtype.tiktok_chat"
-msgstr "TikTok チャット"
-
-msgid "wtype.twitch_chat"
-msgstr "Twitch チャット"
-
-msgid "wtype.youtube_chat"
-msgstr "YouTube チャット"
+msgid "wtype.chat"
+msgstr "チャット"
 
 msgid "wtype.kick_stats"
 msgstr "Kick 統計"
@@ -1196,13 +1166,27 @@ msgstr "ステータス"
 msgid "dash.widget_channel"
 msgstr "チャンネル"
 
+msgid "dash.widget_youtube"
+msgstr "YouTubeチャンネル"
+
+msgid "dash.widget_twitch"
+msgstr "Twitchチャンネル"
+
+msgid "dash.widget_tiktok"
+msgstr "TikTokチャンネル"
+
+msgid "dash.widget_kick"
+msgstr "Kickチャンネル"
+
 msgid "dash.widget_history"
 msgstr "履歴行数"
 
 msgid "dash.widget_order"
 msgstr "新しいメッセージ"
+
 msgid "dash.widget_order.top"
 msgstr "上"
+
 msgid "dash.widget_order.bottom"
 msgstr "下"
 

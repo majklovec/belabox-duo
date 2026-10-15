@@ -19,7 +19,7 @@ modules/
   srtla/
   modems/
   obs-controller/
-  kick-stats/  twitch-chat/  kick-chat/  youtube-chat/  tiktok-chat/   # channel widget modules
+  kick-stats/  chat/                                                  # channel widget modules
 ```
 
 Each module ships exactly:
@@ -63,7 +63,7 @@ Default-exports an object the registry validates structurally:
 | `dispatch(method, params)`         | yes      | handle an RPC call routed to this module                                                                        |
 | `status?()`                        | no       | status fragment merged into `sys.status` (`buildStatus` asks it; the core never imports the module for this)    |
 | `services?`                        | no       | `{ capabilities?: Record<string, Capability> }` — see the capability bus                                        |
-| `hub?`                             | no       | channel-widget hub (`widgetType`, `snapshotKey`, `configFields`, `channelSpec`, `create`, `enabled?`)           |
+| `hub?`                             | no       | channel-widget hub (`widgetType`, `snapshotKey`, `configFields`, `channelSpec` (one spec per channel, `null` for unconfigured), `create`, `enabled?`)   |
 | `dependencies?`                    | no       | ids of modules that must have `start()`ed first (see ordering)                                                  |
 
 ### Frontend (`modules/<id>/frontend.tsx`)

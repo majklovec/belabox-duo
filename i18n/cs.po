@@ -467,28 +467,7 @@ msgstr "Mbps"
 msgid "dev.unit_mbs"
 msgstr "{0} Mb/s"
 
-msgid "kickchat.card"
-msgstr "Chat Kick"
-
-msgid "kickchat.connected"
-msgstr "připojeno"
-
-msgid "kickchat.disabled"
-msgstr "Modul vypnutý"
-
-msgid "kickchat.disconnected"
-msgstr "odpojeno"
-
-msgid "kickchat.empty"
-msgstr "Zatím žádné zprávy"
-
-msgid "tiktokchat.empty"
-msgstr "Zatím žádné zprávy"
-
-msgid "twitchchat.empty"
-msgstr "Zatím žádné zprávy"
-
-msgid "youtubechat.empty"
+msgid "chat.empty"
 msgstr "Zatím žádné zprávy"
 
 msgid "kickstats.card"
@@ -1166,17 +1145,8 @@ msgstr "Enkodér + relay"
 msgid "wtype.encoder"
 msgstr "Enkodér"
 
-msgid "wtype.kick_chat"
-msgstr "Chat Kick"
-
-msgid "wtype.tiktok_chat"
-msgstr "Chat TikTok"
-
-msgid "wtype.twitch_chat"
-msgstr "Chat Twitch"
-
-msgid "wtype.youtube_chat"
-msgstr "Chat YouTube"
+msgid "wtype.chat"
+msgstr "Chat"
 
 msgid "wtype.kick_stats"
 msgstr "Stats Kick"
@@ -1195,6 +1165,18 @@ msgstr "Stav"
 
 msgid "dash.widget_channel"
 msgstr "Kanál"
+
+msgid "dash.widget_youtube"
+msgstr "YouTube kanál"
+
+msgid "dash.widget_twitch"
+msgstr "Twitch kanál"
+
+msgid "dash.widget_tiktok"
+msgstr "TikTok kanál"
+
+msgid "dash.widget_kick"
+msgstr "Kick kanál"
 
 msgid "dash.widget_history"
 msgstr "Délka historie zpráv"

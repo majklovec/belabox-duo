@@ -467,29 +467,8 @@ msgstr "Mbps"
 msgid "dev.unit_mbs"
 msgstr "{0} Mb/s"
 
-msgid "kickchat.card"
-msgstr "Kick-чат"
-
-msgid "kickchat.connected"
-msgstr "подключён"
-
-msgid "kickchat.disabled"
-msgstr "Модуль отключён"
-
-msgid "kickchat.disconnected"
-msgstr "отключён"
-
-msgid "kickchat.empty"
+msgid "chat.empty"
 msgstr "Сообщений пока нет"
-
-msgid "tiktokchat.empty"
-msgstr "Пока нет сообщений"
-
-msgid "twitchchat.empty"
-msgstr "Пока нет сообщений"
-
-msgid "youtubechat.empty"
-msgstr "Пока нет сообщений"
 
 msgid "kickstats.card"
 msgstr "Kick-статистика"
@@ -1166,17 +1145,8 @@ msgstr "Энкодер + ретранслятор"
 msgid "wtype.encoder"
 msgstr "Энкодер"
 
-msgid "wtype.kick_chat"
-msgstr "Kick-чат"
-
-msgid "wtype.tiktok_chat"
-msgstr "Чат TikTok"
-
-msgid "wtype.twitch_chat"
-msgstr "Чат Twitch"
-
-msgid "wtype.youtube_chat"
-msgstr "Chat YouTube"
+msgid "wtype.chat"
+msgstr "Чат"
 
 msgid "wtype.kick_stats"
 msgstr "Kick-статистика"
@@ -1196,13 +1166,27 @@ msgstr "Статус"
 msgid "dash.widget_channel"
 msgstr "Канал"
 
+msgid "dash.widget_youtube"
+msgstr "YouTube-канал"
+
+msgid "dash.widget_twitch"
+msgstr "Twitch-канал"
+
+msgid "dash.widget_tiktok"
+msgstr "TikTok-канал"
+
+msgid "dash.widget_kick"
+msgstr "Kick-канал"
+
 msgid "dash.widget_history"
 msgstr "Строк истории"
 
 msgid "dash.widget_order"
 msgstr "Новые сообщения"
+
 msgid "dash.widget_order.top"
 msgstr "Сверху"
+
 msgid "dash.widget_order.bottom"
 msgstr "Снизу"
 

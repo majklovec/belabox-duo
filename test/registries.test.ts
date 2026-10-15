@@ -15,7 +15,7 @@ import { safeModules } from "../src/modules";
  */
 const DEVICE_ORDER = ["encoder", "modems", "obs-controller", "srtla"];
 /** The channel widget modules (device-independent dashboard widgets). */
-const WIDGET_IDS = ["kick-stats", "kick-chat", "tiktok-chat", "twitch-chat", "youtube-chat"];
+const WIDGET_IDS = ["kick-stats", "chat"];
 
 /**
  * The frontend registry cannot be imported outside the browser graph (it
@@ -110,7 +110,7 @@ describe("module registries", () => {
 		const f = scanFrontends();
 		const backendDeviceIds = new Set(DEVICE_ORDER);
 		const widgetIds = f.flatMap((fe) => fe.registrations).filter((r) => r.kind === "widget").map((r) => r.id);
-		expect(widgetIds.length).toBeGreaterThanOrEqual(5);
+		expect(widgetIds.length).toBeGreaterThanOrEqual(2);
 		expect(widgetIds.filter((id) => backendDeviceIds.has(id)).length).toBe(0);
 	});
 

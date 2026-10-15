@@ -63,7 +63,10 @@ interface ModuleRegistration {
 		widgetType: string;
 		snapshotKey: string;
 		configFields: readonly WidgetConfigField[];
-		channelSpec: (config: Record<string, string> | undefined) => string | null;
+		/** The channels a widget of this type keeps attached (null entries for
+		 * unconfigured sources — the merged chat widget returns one spec per
+		 * platform channel; single-channel widgets return one spec). */
+		channelSpec: (config: Record<string, string> | undefined) => readonly (string | null)[];
 		create: (publish: (msg: string) => void) => ChannelHub;
 		enabled?(config: Record<string, unknown> | undefined): boolean;
 	};
@@ -312,7 +315,7 @@ interface WidgetEntry {
 	type: string;
 	snapshotKey: string;
 	configFields: readonly WidgetConfigField[];
-	spec: (config: Record<string, string> | undefined) => string | null;
+	spec: (config: Record<string, string> | undefined) => readonly (string | null)[];
 	hub: ChannelHub | null;
 }
 
@@ -355,18 +358,18 @@ export function destroyWidgetHub(): void {
 	}
 }
 
-/** Channels to keep attached, from one type's dashboard widgets. */
+/** Channels to keep attached, from one type's dashboard widgets. A widget can
+ * contribute several (the merged chat widget, one spec per platform channel). */
 export function widgetChannelSpecs(
 	dashboards: ServerDashboard[],
 	type: string,
-	spec: (config: Record<string, string> | undefined) => string | null,
+	spec: (config: Record<string, string> | undefined) => readonly (string | null)[],
 ): ChannelSpecs {
 	const channels = new Set<string>();
 	for (const dash of dashboards) {
 		for (const w of dash.widgets) {
 			if (w.type !== type) continue;
-			const name = spec(w.config);
-			if (name) channels.add(name);
+			for (const name of spec(w.config)) if (name) channels.add(name);
 		}
 	}
 	return channels;

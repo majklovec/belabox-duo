@@ -467,29 +467,8 @@ msgstr "Mbps"
 msgid "dev.unit_mbs"
 msgstr "{0} Mb/s"
 
-msgid "kickchat.card"
-msgstr "Kick 聊天"
-
-msgid "kickchat.connected"
-msgstr "已连接"
-
-msgid "kickchat.disabled"
-msgstr "模块已禁用"
-
-msgid "kickchat.disconnected"
-msgstr "已断开"
-
-msgid "kickchat.empty"
-msgstr "暂无消息"
-
-msgid "tiktokchat.empty"
-msgstr "暂无消息"
-
-msgid "twitchchat.empty"
-msgstr "暂无消息"
-
-msgid "youtubechat.empty"
-msgstr "暂无消息"
+msgid "chat.empty"
+msgstr "还没有消息"
 
 msgid "kickstats.card"
 msgstr "Kick 统计"
@@ -1166,17 +1145,8 @@ msgstr "编码器 + 中继"
 msgid "wtype.encoder"
 msgstr "编码器"
 
-msgid "wtype.kick_chat"
-msgstr "Kick 聊天"
-
-msgid "wtype.tiktok_chat"
-msgstr "TikTok 聊天"
-
-msgid "wtype.twitch_chat"
-msgstr "Twitch 聊天"
-
-msgid "wtype.youtube_chat"
-msgstr "YouTube 聊天"
+msgid "wtype.chat"
+msgstr "聊天"
 
 msgid "wtype.kick_stats"
 msgstr "Kick 统计"
@@ -1196,13 +1166,27 @@ msgstr "状态"
 msgid "dash.widget_channel"
 msgstr "频道"
 
+msgid "dash.widget_youtube"
+msgstr "YouTube 频道"
+
+msgid "dash.widget_twitch"
+msgstr "Twitch 频道"
+
+msgid "dash.widget_tiktok"
+msgstr "TikTok 频道"
+
+msgid "dash.widget_kick"
+msgstr "Kick 频道"
+
 msgid "dash.widget_history"
 msgstr "历史行数"
 
 msgid "dash.widget_order"
 msgstr "新消息"
+
 msgid "dash.widget_order.top"
 msgstr "顶部"
+
 msgid "dash.widget_order.bottom"
 msgstr "底部"
 

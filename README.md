@@ -186,10 +186,7 @@ Every capability is a **self-contained module** under [`modules/`](modules/READM
 | Widget | Source |
 | ------ | ------ |
 | `kick-stats` | Polls Kick's public channel API every 30 s; pushes live viewer/online stats for a line chart (1 h window). |
-| `kick-chat` | Joins Kick's public chat (Pusher chatroom, no auth); pushes `kick.chat` events per channel. |
-| `twitch-chat` | One IRC-over-websocket connection per channel (anonymous `justinfan` nick, no auth); IRCv3 tags for color and display name. |
-| `youtube-chat` | Polls YouTube's live-chat endpoint per creator handle (~1 s cadence, no auth) via [`youtube-chat-next`](https://www.npmjs.com/package/youtube-chat-next). |
-| `tiktok-chat` | One [`tiktok-live-connector`](https://www.npmjs.com/package/tiktok-live-connector) websocket per channel (no auth); the module owns its reconnection loop. |
+| `chat` | One widget, one merged feed: config has a channel per platform (`youtube`, `twitch`, `tiktok`, `kick`) and every filled channel is joined, its messages merged into the single view. Per-platform transports live in `modules/chat/providers/`: Kick joins the public chat Pusher room (no auth), Twitch one IRC-over-websocket connection per channel (anonymous `justinfan` nick, IRCv3 tags), YouTube polls the live-chat endpoint per creator handle (~1 s cadence) via [`youtube-chat-next`](https://www.npmjs.com/package/youtube-chat-next), TikTok one [`tiktok-live-connector`](https://www.npmjs.com/package/tiktok-live-connector) websocket (reconnect loop owned by the module). |
 
 All chat/stats widgets share the same guarantees: rolling message history so reconnects don't re-send, and a `seen` set that dedupes message ids across reconnects.
 

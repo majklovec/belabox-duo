@@ -13,10 +13,11 @@ export const KICK_STATS_POLL_MS = 30_000;
  * validation and the frontend editor). */
 export const KICK_STATS_CONFIG_FIELDS = ["channel"] as const;
 
-/** Channel-hub spec from one widget's config (null when no channel set). */
-export function statsSpecFromConfig(config: Record<string, string> | undefined): string | null {
+/** Channel-hub specs from one widget's config (kick-stats carries a single
+ * channel; the hub contract lists one spec per source, null when unconfigured). */
+export function statsSpecsFromConfig(config: Record<string, string> | undefined): readonly (string | null)[] {
 	const name = (config?.["channel"] ?? "").trim().toLowerCase();
-	return name || null;
+	return [name || null];
 }
 /** Per-channel latest stats sample, for the merged hub snapshot. */
 export interface StatsSnapshot {
@@ -152,7 +153,7 @@ export default {
 		widgetType: "kick-stats",
 		snapshotKey: "stats",
 		configFields: KICK_STATS_CONFIG_FIELDS,
-		channelSpec: statsSpecFromConfig,
+		channelSpec: statsSpecsFromConfig,
 		create: (publish: PublishFn): StatsChannelManager => new StatsChannelManager(publish),
 	},
 };

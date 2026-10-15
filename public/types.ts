@@ -117,7 +117,7 @@ export interface SrtlaState {
 }
 
 // ----------------------------------------------------------------------
-// Channel widget wire shapes (kick/tiktok/twitch/youtube modules).
+// Channel widget wire shapes (chat + kick-stats modules).
 //
 // Device-independent dashboard widgets: state lives in the dashboards API,
 // one backend instance per module serves all widgets of that type, and the
@@ -125,13 +125,10 @@ export interface SrtlaState {
 // what the hub delivers over the websocket (RemoteDeviceState.kick).
 // ----------------------------------------------------------------------
 
-/** Widget types owned by a channel widget module (device-independent widgets). */
+/** Widget module ids (the merged `chat` widget covers all platforms). */
 export const WIDGET_MODULE_IDS = [
 	"kick-stats",
-	"kick-chat",
-	"tiktok-chat",
-	"twitch-chat",
-	"youtube-chat",
+	"chat",
 ] as const;
 export type WidgetModuleId = (typeof WIDGET_MODULE_IDS)[number];
 
@@ -174,7 +171,7 @@ export interface ChatLive {
 export interface ChannelLive {
 	stats?: StatsLive | null;
 	chat?: ChatLive[];
-	/** kick-chat: the hub's websocket for this channel was open. */
+	/** chat: the hub's socket/poller for this channel was open. */
 	connected?: boolean;
 }
 
@@ -358,10 +355,7 @@ export type WidgetType =
 	| "encoder"
 	| "combined"
 	| "kick-stats"
-	| "kick-chat"
-	| "tiktok-chat"
-	| "twitch-chat"
-	| "youtube-chat";
+	| "chat";
 
 /**
  * A channel widget's config parameter, declared by its module in editor order.

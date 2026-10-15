@@ -3,7 +3,7 @@
     {
       "id": "1f982e5d-e121-49a7-b4dc-24b169642e4f",
       "name": "Dashboard",
-      "version": 15,
+      "version": 17,
       "widgets": [
         {
           "id": "14306d92-1646-4e89-9f16-26a6911fe513",
@@ -19,7 +19,7 @@
         {
           "id": "c36d444b-6ed0-4b5c-a487-779c9cde191e",
           "deviceId": "",
-          "type": "kick-chat",
+          "type": "chat",
           "name": "Chat Kick",
           "x": 0,
           "y": 10,
@@ -27,9 +27,12 @@
           "h": 4,
           "visible": true,
           "config": {
-            "channel": "cicero_mt",
+            "youtube": "RobDiesALot",
+            "twitch": "",
+            "tiktok": "",
+            "kick": "robdiesalot",
             "history": "100",
-            "order": "top"
+            "order": "bottom"
           }
         },
         {

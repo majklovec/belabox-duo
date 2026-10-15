@@ -1,30 +1,44 @@
 /**
- * kick-chat widget — local wire/state types. The module is self-contained:
+ * chat widget — local wire/state types. The module is self-contained:
  * it declares the shapes it exchanges over the dashboard websocket and the
  * hub/manager contract it implements. The core reaches this module only
  * structurally (the registry validates the shape), so no type crosses a
  * module boundary.
+ *
+ * One `chat` widget merges the messages of every platform whose channel is
+ * filled in its config (YouTube, Twitch, TikTok, Kick). The hub (backend.ts)
+ * keeps one provider per platform+channel; each provider pushes on its
+ * platform wire event (`youtube.chat`, `twitch.chat`, `tiktok.chat`,
+ * `kick.chat`) so the dashboard websocket carries the frames unchanged.
  */
 
-/** One chat message (Kick message id used for deduplication). */
+/** One chat message (platform message id used for deduplication). */
 export interface ChatLive {
 	id: string | number;
 	username?: string;
-	/** The sender's Kick identity color (hex), for username display. */
+	/** The sender's platform color (hex), for username display. */
 	color?: string;
 	text?: string;
 	type?: string;
+	/** Message time (epoch ms) — where the platform provides it. */
 	ts?: number;
 }
 
-/** One channel's live state fragment on the wire. */
+/** The platform a live fragment / spec key refers to. */
+export type ChatPlatform = "youtube" | "twitch" | "tiktok" | "kick";
+
+/** A hub spec: `<platform>:<channel>` (channel lowercased, no `@`). */
+export type ChatSpec = `${ChatPlatform}:${string}`;
+
+/** One channel's snapshot entry: connection state + rolling messages. */
 export interface ChannelLive {
-	chat?: ChatLive[];
-	/** the hub's websocket for this channel was open */
+	/** the provider's socket/poller for this channel was open */
 	connected?: boolean;
+	/** most recent messages, newest first */
+	chat?: ChatLive[];
 }
 
-/** Channels to keep attached (lowercased names). */
+/** Channels to keep attached (spec keys). */
 export type ChannelSpecs = Set<string>;
 
 /** Deliver a serialized event frame to subscribers. */
