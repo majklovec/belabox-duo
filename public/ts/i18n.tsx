@@ -1,10 +1,12 @@
-/* Browser i18n. Runs its own i18next instance and loads the JSON bundles of
- * the selected languages on demand from /i18n/<lang>.json (served by
- * server.ts / the device API from the embedded catalogs). The header
- * <LanguageSelect> is the Mithril component that drives the switch: it
- * persists the choice, updates <html lang>, fetches the bundle and redraws. */
+/* Browser i18n. Runs its own i18next instance whose catalogs are fetched on
+ * demand by the i18next-http-backend plugin from /i18n/<lang>.json (served by
+ * server.ts / the device API from the embedded catalogs). The plugin loads the
+ * current and fallback languages during init and any further language on
+ * changeLanguage. The header <LanguageSelect> is the Mithril component that
+ * drives the switch: it persists the choice, updates <html lang> and redraws. */
 import m from "mithril";
 import i18next, { type TOptions } from "i18next";
+import httpBackend from "i18next-http-backend";
 import type { MithrilJSXComponent } from "./jsx";
 import {
 	DEFAULT_LANGUAGE,
@@ -35,34 +37,17 @@ function readInitial(): Language {
 let current: Language = readInitial();
 document.documentElement.lang = current;
 
-/** Bundle cache: language codes whose catalog i18next already holds. */
-const loaded = new Set<string>();
-const inflight = new Map<string, Promise<void>>();
-
-/** fetch /i18n/<lng>.json and hand it to i18next (deduplicated, cached). */
-async function loadBundle(lng: Language): Promise<void> {
-	if (loaded.has(lng)) return;
-	const pending = inflight.get(lng);
-	if (pending) return pending;
-	const p = (async () => {
-		const res = await fetch(`/i18n/${lng}.json`);
-		if (!res.ok) throw new Error(`i18n: loading ${lng} failed (${res.status})`);
-		const data = (await res.json()) as Record<string, string>;
-		i18n.addResourceBundle(lng, "translation", data, true, true);
-		loaded.add(lng);
-	})();
-	inflight.set(lng, p);
-	try {
-		await p;
-	} catch (err) {
-		inflight.delete(lng);
-		throw err;
-	}
-}
-
-i18n.init({
+const initPromise = i18n.use(httpBackend).init({
 	lng: current,
 	fallbackLng: DEFAULT_LANGUAGE,
+	backend: {
+		// Absolute URL so non-browser fetch (Bun) and cross-origin hosts both
+		// work; in the page this is same-origin.
+		loadPath: (languages: string[]) =>
+			`${window.location.origin}/i18n/${languages[0]}.json`,
+		addPath: false,
+		reloadInterval: false,
+	},
 	// Keys are flat strings that may contain dots, so no path splitting.
 	keySeparator: false,
 	nsSeparator: false,
@@ -73,16 +58,15 @@ i18n.init({
 });
 
 /**
- * Resolves once i18next is initialized and both the selected language's
- * bundle and the English fallback are loaded (mountPage awaits this).
+ * Resolves once i18next is initialized and the catalogs it loads on init
+ * (the selected language plus the English fallback) have settled
+ * (mountPage awaits this).
  */
-export const i18nReady: Promise<void> = (async () => {
-	await Promise.all(
-		current === (DEFAULT_LANGUAGE as string)
-			? [loadBundle(current)]
-			: [loadBundle(current), loadBundle(DEFAULT_LANGUAGE as Language)],
-	);
-})().then(() => undefined);
+export const i18nReady: Promise<void> = initPromise.then(() =>
+	new Promise<void>((resolve, reject) =>
+		i18n.loadResources((error) => (error ? reject(error) : resolve())),
+	),
+).then(() => undefined);
 
 /** Translate using the current UI language; positional args fill {0}, {1}, ... */
 export function t(key: string, ...args: (string | number | undefined)[]): string {
@@ -112,11 +96,10 @@ export function setLanguage(next: string): void {
 		/* ignore */
 	}
 	m.redraw(); // the select updates immediately, before the bundle lands
-	void (async () => {
-		await loadBundle(current);
-		await i18n.changeLanguage(current);
-		m.redraw();
-	})();
+	void i18n
+		.changeLanguage(current) // the http backend fetches the catalog
+		.then(() => m.redraw())
+		.catch((error) => console.error(`failed to load i18n catalog for ${current}`, error));
 }
 
 /** <option> per language, labelled by its flag and native name. */

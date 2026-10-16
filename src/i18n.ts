@@ -14,8 +14,16 @@
 //     directory at the binary root, so this path finds it with no filesystem
 //     access (a compiled binary is a flat file and cannot reach disk).
 // The first candidate that resolves wins, which is why one resolver serves
-// both contexts. The browser likewise loads languages on demand from
-// /i18n/<lang>.json (see public/ts/i18n.tsx).
+// both contexts.
+//
+// The browser loads the same catalogs on demand from /i18n/<lang>.json (see
+// public/ts/i18n.tsx) using the i18next-http-backend plugin over HTTP. This
+// core deliberately does not: the plugin routes only http(s) URLs through
+// fetch (its request dispatcher in node_modules/i18next-http-backend/lib/
+// request.js skips fetch for file: URLs and falls back to XHR, which this
+// runtime lacks), and it has nothing to fetch from before the HTTP server
+// starts — including the synchronous `--help` path, where i18next is already
+// initialized (initGate) and no catalog is loaded at all.
 //
 // t()/translate() keep their historical signatures: `{0}`, `{1}`, ... in the
 // catalogs are replaced by the positional arguments (i18next interpolation
