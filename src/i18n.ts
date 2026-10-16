@@ -31,11 +31,22 @@
 // raw key — the same behavior the PO implementation had.
 
 import i18next, { type TOptions } from "i18next";
+import {
+	asLanguage,
+	DEFAULT_LANGUAGE,
+	isLanguage,
+	type Language,
+} from "./languages";
 import { setLogTranslator } from "./logMessages";
-import { DEFAULT_LANGUAGE, asLanguage, isLanguage, type Language } from "./languages";
 
-export { DEFAULT_LANGUAGE, LANGUAGES, LANGUAGE_INFO, asLanguage, isLanguage } from "./languages";
 export type { Language } from "./languages";
+export {
+	asLanguage,
+	DEFAULT_LANGUAGE,
+	isLanguage,
+	LANGUAGE_INFO,
+	LANGUAGES,
+} from "./languages";
 
 const i18n = i18next.createInstance();
 
@@ -84,7 +95,9 @@ function readRaw(lng: Language): Promise<Record<string, string>> {
 				last = error;
 			}
 		}
-		throw last instanceof Error ? last : new Error(`missing i18n catalog for ${lng}`);
+		throw last instanceof Error
+			? last
+			: new Error(`missing i18n catalog for ${lng}`);
 	})();
 }
 
@@ -123,13 +136,21 @@ export function setCurrentLanguage(lang: unknown): void {
 	current = asLanguage(lang);
 	void readCatalog(current)
 		.then(() => i18n.changeLanguage(current))
-		.catch((error) => console.error(`failed to load i18n catalog for ${current}`, error));
+		.catch((error) =>
+			console.error(`failed to load i18n catalog for ${current}`, error),
+		);
 }
 
 /** Maps t(key, a, b) onto i18next's `{0}`, `{1}` interpolation data. */
-function interpolate(key: string, args: readonly unknown[], lng?: Language): string {
+function interpolate(
+	key: string,
+	args: readonly unknown[],
+	lng?: Language,
+): string {
 	const data: Record<string, unknown> = {};
-	args.forEach((arg, i) => (data[String(i)] = arg ?? ""));
+	args.forEach((arg, i) => {
+		data[String(i)] = arg ?? "";
+	});
 	return i18n.t(key, { ...(data as object), lng } as TOptions) as string;
 }
 
@@ -138,7 +159,11 @@ function interpolate(key: string, args: readonly unknown[], lng?: Language): str
  * back to English, unknown keys fall back to English, then to the raw key.
  * `{0}`, `{1}`, ... are replaced by the corresponding arguments.
  */
-export function translate(lang: unknown, key: string, ...args: unknown[]): string {
+export function translate(
+	lang: unknown,
+	key: string,
+	...args: unknown[]
+): string {
 	return interpolate(key, args, asLanguage(lang));
 }
 
