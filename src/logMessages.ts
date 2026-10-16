@@ -5,8 +5,16 @@
  * Sections and actions are canonical English constants (they are stored in log
  * entries and used for filtering); success wording is localized at creation time using
  * the current UI language. Display-time section localization uses label().
+ *
+ * Stays dependency-free (the web UI imports it): the runtime installs its
+ * translator with setLogTranslator (Bun → src/i18n, browser → public/ts/i18n).
  */
-import { t } from "./i18n";
+
+/** Translator injected by whichever runtime uses the log wording (see above). */
+let translate: (key: string, ...args: unknown[]) => string = (key) => key;
+export const setLogTranslator = (fn: (key: string, ...args: unknown[]) => string): void => {
+	translate = fn;
+};
 
 /** Cap shared by every view of the event log (device, control server, UI). */
 export const LOG_MAX = 200;
@@ -42,14 +50,14 @@ export interface MethodLog {
 const log = (section: string, action: string, done: string | ((p: Params) => string)): MethodLog => ({
     section,
     action,
-    done: typeof done === "string" ? () => t(done) : done,
+    done: typeof done === "string" ? () => translate(done) : done,
 });
 
 /** Methods that change something; read-only ones (status, *.list, …) are not logged. */
 const METHOD_LOG: Record<string, MethodLog> = {
     "encoder.start": log("Encoder", "Start", "mlog.done.started"),
     "encoder.stop": log("Encoder", "Stop", "mlog.done.stopped"),
-    "encoder.bitrate": log("Encoder", "Bitrate change", (p) => t("mlog.done.bitrate", p.minBitrate, p.maxBitrate)),
+    "encoder.bitrate": log("Encoder", "Bitrate change", (p) => translate("mlog.done.bitrate", p.minBitrate, p.maxBitrate)),
     "ceracoder.set": log("Encoder", "Bitrate control", "mlog.done.cera_settings"),
     "stream.start": log("Stream", "Start", "mlog.done.started"),
     "stream.stop": log("Stream", "Stop", "mlog.done.stopped"),
@@ -58,21 +66,21 @@ const METHOD_LOG: Record<string, MethodLog> = {
     "srtla.reload": log("SRTLA", "Reload", "mlog.done.reloaded"),
     "srtla.options": log("SRTLA", "Options update", (p) =>
         [
-            p.mode !== undefined && t("mlog.done.mode", p.mode),
-            p.quality !== undefined && t(p.quality ? "mlog.done.quality_on" : "mlog.done.quality_off"),
+            p.mode !== undefined && translate("mlog.done.mode", p.mode),
+            p.quality !== undefined && translate(p.quality ? "mlog.done.quality_on" : "mlog.done.quality_off"),
         ].filter(Boolean).join(", ")),
     "modems.select": log("Interfaces", "Bond selection", "mlog.done.bond_updated"),
-    "modems.toggle": log("Interfaces", "Bond toggle", (p) => t("mlog.done.bond_toggled", p.iface)),
+    "modems.toggle": log("Interfaces", "Bond toggle", (p) => translate("mlog.done.bond_toggled", p.iface)),
     reconfigure: log("Interfaces", "Reconfigure", "mlog.done.reconfigured"),
-    "modems.enable": log("Modems", "Enable", (p) => t("mlog.done.modem_enabled", p.index)),
-    "modems.disable": log("Modems", "Disable", (p) => t("mlog.done.modem_disabled", p.index)),
-    "modems.connect": log("Modems", "Connect", (p) => t("mlog.done.modem_connected", p.index)),
-    "modems.disconnect": log("Modems", "Disconnect", (p) => t("mlog.done.modem_disconnected", p.index)),
-    "modems.reset": log("Modems", "Reset", (p) => t("mlog.done.modem_reset", p.index)),
-    "autostart.set": log("Autostart", "Update", (p) => t(p.enabled ? "mlog.done.enabled" : "mlog.done.disabled")),
-    "modules.enable": log("Modules", "Enable", (p) => t("mlog.done.module_enabled", p.id)),
-    "modules.disable": log("Modules", "Disable", (p) => t("mlog.done.module_disabled", p.id)),
-    "modules.configure": log("Modules", "Configuration", (p) => t("mlog.done.module_configured", p.id)),
+    "modems.enable": log("Modems", "Enable", (p) => translate("mlog.done.modem_enabled", p.index)),
+    "modems.disable": log("Modems", "Disable", (p) => translate("mlog.done.modem_disabled", p.index)),
+    "modems.connect": log("Modems", "Connect", (p) => translate("mlog.done.modem_connected", p.index)),
+    "modems.disconnect": log("Modems", "Disconnect", (p) => translate("mlog.done.modem_disconnected", p.index)),
+    "modems.reset": log("Modems", "Reset", (p) => translate("mlog.done.modem_reset", p.index)),
+    "autostart.set": log("Autostart", "Update", (p) => translate(p.enabled ? "mlog.done.enabled" : "mlog.done.disabled")),
+    "modules.enable": log("Modules", "Enable", (p) => translate("mlog.done.module_enabled", p.id)),
+    "modules.disable": log("Modules", "Disable", (p) => translate("mlog.done.module_disabled", p.id)),
+    "modules.configure": log("Modules", "Configuration", (p) => translate("mlog.done.module_configured", p.id)),
 };
 
 /** Whether the device records this method in its event log. */
@@ -102,7 +110,7 @@ const SECTIONS: Record<string, string> = {
 export function methodLog(method: string): MethodLog {
     const own = (table: Record<string, MethodLog>) => (Object.hasOwn(table, method) ? table[method] : undefined);
     return own(METHOD_LOG) ?? own(READ_LOG)
-        ?? log(SECTIONS[method.split(".")[0]] ?? method, method, () => t("mlog.done.generic", method));
+        ?? log(SECTIONS[method.split(".")[0]] ?? method, method, () => translate("mlog.done.generic", method));
 }
 
 /** Canonical label (section / action) → i18n key. Labels are English constants so log
@@ -148,5 +156,5 @@ const LABEL_KEYS: Record<string, string> = {
 /** Localize a canonical log section/action label for display (unknown labels pass through). */
 export function label(name: string): string {
     const key = LABEL_KEYS[name];
-    return key ? t(key) : name;
+    return key ? translate(key) : name;
 }

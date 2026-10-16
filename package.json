@@ -6,11 +6,11 @@
     "dev": "bun server.ts",
     "test": "bun test",
     "prebuild:obs-client": "bun scripts/gen-modules.ts",
-    "build:obs-client": "bun build --compile --minify --sourcemap ./obs-client.ts --outfile dist/obs-client",
+    "build:obs-client": "bun build --compile --minify --sourcemap --format=esm --asset i18n ./obs-client.ts --outfile dist/obs-client",
     "prebuild:client": "bun scripts/gen-modules.ts",
-    "build:client": "bun build --compile --minify --sourcemap --bytecode ./client.ts --outfile dist/client",
+    "build:client": "bun build --compile --minify --sourcemap --format=esm --bytecode --asset i18n ./client.ts --outfile dist/client",
     "prebuild:server": "bun scripts/gen-modules.ts",
-    "build:server": "bun build --compile --minify --sourcemap --bytecode ./server.ts --outfile dist/server"
+    "build:server": "bun build --compile --minify --sourcemap --format=esm --bytecode --asset i18n ./server.ts --outfile dist/server"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "gridstack": "^11",
+    "i18next": "^26.4.6",
     "mithril": "^2.3.8",
     "tiktok-live-connector": "^2.5.0",
     "youtube-chat-next": "^3.1.0",

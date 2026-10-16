@@ -6,7 +6,7 @@
  * shared contract (modules/types.ts) is deleted by the self-containment
  * refactor. Runtime constants that belong to a single module live there now.
  */
-import type { Language } from "../src/i18n";
+type Language = import("../src/languages").Language;
 import type { Iface, ModemConfig } from "../src/routing";
 import type { SrtlaControlState } from "../src/srtlaControl";
 import type { SrtlaOptions, SrtlaTarget, StreamTarget } from "../src/state";

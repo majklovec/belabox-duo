@@ -89,6 +89,7 @@ jobs:
           for app in obs-client client; do
             bun build --compile --minify --sourcemap \
               --target=${{ matrix.target }} \
+              --asset i18n \
               ./${app}.ts \
               --outfile ${app}-prof${{ matrix.ext }}
           done
@@ -111,6 +112,7 @@ jobs:
 
             ARGS="--compile --minify --sourcemap --format=esm --bytecode \
               --target=${{ matrix.target }} \
+              --asset i18n \
               ./${app}.ts \
               --outfile ${OUTIF}${{ matrix.ext }}"
 

@@ -1,90 +1,128 @@
-// i18n core. Translations live in i18n/*.po (PO format, English is the source
-// of truth); missing keys fall back to English, then to the raw key.
-// Positional placeholders: t("x.y", 1, "two") replaces {0}, {1}, ...
+// i18n core for the Bun runtimes (control server, compiled device binary),
+// built on i18next.
 //
-// t() resolves the language from the module-level current language (see
-// setCurrentLanguage). Callers translating into a language other than the
-// current one (e.g. the control server logging for a specific device) use
-// translate() directly.
+// Translations live as JSON catalogs in i18n/ (the source of truth, English
+// in i18n/en.json). Only the default language is loaded eagerly; every other
+// language is read on demand the first time it is requested and cached, so no
+// catalog is loaded up front.
+//
+// A catalog is resolved from two candidate locations:
+//   * `../i18n/<lang>.json` relative to this file — the real directory, for
+//     the unbundled control server (bun server.ts) and dev;
+//   * `./i18n/<lang>.json` relative to this file — the embedded copy, for
+//     compiled binaries. `bun build --compile --asset i18n` embeds the whole
+//     directory at the binary root, so this path finds it with no filesystem
+//     access (a compiled binary is a flat file and cannot reach disk).
+// The first candidate that resolves wins, which is why one resolver serves
+// both contexts. The browser likewise loads languages on demand from
+// /i18n/<lang>.json (see public/ts/i18n.tsx).
+//
+// t()/translate() keep their historical signatures: `{0}`, `{1}`, ... in the
+// catalogs are replaced by the positional arguments (i18next interpolation
+// configured accordingly). Missing keys fall back to English, then to the
+// raw key — the same behavior the PO implementation had.
 
-// PO files are imported as plain modules: a file path under the Bun runtime,
-// an asset URL in the bundled browser pages — i18nReady below loads the text
-// from the right source. Entry points (client.ts, server.ts, public/ts/i18n.ts)
-// `await ready` before anything calls t().
-import cs from "../i18n/cs.po";
-import de from "../i18n/de.po";
-import en from "../i18n/en.po";
-import es from "../i18n/es.po";
-import fr from "../i18n/fr.po";
-import it from "../i18n/it.po";
-import ja from "../i18n/ja.po";
-import pl from "../i18n/pl.po";
-import pt from "../i18n/pt.po";
-import ru from "../i18n/ru.po";
-import sk from "../i18n/sk.po";
-import zh from "../i18n/zh.po";
+import i18next, { type TOptions } from "i18next";
+import { setLogTranslator } from "./logMessages";
+import { DEFAULT_LANGUAGE, asLanguage, isLanguage, type Language } from "./languages";
 
-/** Supported languages in menu order, each with its native name and flag. */
-export const LANGUAGE_INFO = [
-  { code: "cs", name: "Čeština", flag: "🇨🇿" },
-  { code: "sk", name: "Slovenčina", flag: "🇸🇰" },
-  { code: "pl", name: "Polski", flag: "🇵🇱" },
-  { code: "en", name: "English", flag: "🇬🇧" },
-  { code: "de", name: "Deutsch", flag: "🇩🇪" },
-  { code: "es", name: "Español", flag: "🇪🇸" },
-  { code: "fr", name: "Français", flag: "🇫🇷" },
-  { code: "it", name: "Italiano", flag: "🇮🇹" },
-  { code: "pt", name: "Português", flag: "🇵🇹" },
-  { code: "ru", name: "Русский", flag: "🇷🇺" },
-  { code: "zh", name: "中文", flag: "🇨🇳" },
-  { code: "ja", name: "日本語", flag: "🇯🇵" },
-] as const;
+export { DEFAULT_LANGUAGE, LANGUAGES, LANGUAGE_INFO, asLanguage, isLanguage } from "./languages";
+export type { Language } from "./languages";
 
-export type Language = (typeof LANGUAGE_INFO)[number]["code"];
-export const LANGUAGES: readonly Language[] = LANGUAGE_INFO.map((l) => l.code);
-export const DEFAULT_LANGUAGE: Language = "en";
+const i18n = i18next.createInstance();
 
-export const isLanguage = (value: unknown): value is Language => (LANGUAGES as readonly unknown[]).includes(value);
-export const asLanguage = (value: unknown): Language => (isLanguage(value) ? value : DEFAULT_LANGUAGE);
+/** Unbundled (disk) path first, then the embedded copy in a compiled binary. */
+function candidateUrls(lng: Language): URL[] {
+	return [
+		new URL(`../i18n/${lng}.json`, import.meta.url),
+		new URL(`./i18n/${lng}.json`, import.meta.url),
+	];
+}
 
-/** Parsed catalogs: key → translation per language; set by i18nReady. */
-let MESSAGES: Record<Language, Record<string, string>> | undefined = undefined;
+const cached = new Map<Language, Record<string, string>>();
+const inFlight = new Map<Language, Promise<Record<string, string>>>();
+
+/** The English catalog, loaded once at startup so i18next has a fallback. */
+const initGate: Promise<void> = (async () => {
+	const en = await readRaw(DEFAULT_LANGUAGE);
+	cached.set(DEFAULT_LANGUAGE, en);
+	await i18n.init({
+		resources: { en: { translation: en } },
+		lng: DEFAULT_LANGUAGE,
+		fallbackLng: DEFAULT_LANGUAGE,
+		// Keys are flat strings that may contain dots, so no path splitting.
+		keySeparator: false,
+		nsSeparator: false,
+		// Positional placeholders: {0}, {1}, ... (escapeValue off — values are
+		// plain text, never HTML-escaped by i18next).
+		interpolation: { prefix: "{", suffix: "}", escapeValue: false },
+		returnNull: false,
+	});
+})();
+
+export const i18nReady: Promise<void> = initGate;
 
 /**
- * Reads PO text from a module binding — a file path under the Bun runtime,
- * an asset URL once bundled.
+ * Read a catalog, trying each candidate location in turn.
+ * @internal
  */
-async function loadPO(ref: string): Promise<string> {
-	if (typeof Bun !== "undefined") return Bun.file(ref).text();
-	return (await fetch(ref)).text();
+function readRaw(lng: Language): Promise<Record<string, string>> {
+	return (async () => {
+		let last: unknown;
+		for (const url of candidateUrls(lng)) {
+			try {
+				return (await Bun.file(url).json()) as Record<string, string>;
+			} catch (error) {
+				last = error;
+			}
+		}
+		throw last instanceof Error ? last : new Error(`missing i18n catalog for ${lng}`);
+	})();
 }
 
 /**
- * Loads and parses all catalogs. Entry points (client.ts, server.ts,
- * public/ts/i18n.ts) await this before anything calls t().
+ * Load a catalog into i18next, caching it and deduplicating concurrent reads.
+ * The default language is served from the cache populated by `initGate`.
  */
-export const i18nReady: Promise<void> = (async () => {
-	MESSAGES = {
-		cs: parsePO(await loadPO(cs)),
-		sk: parsePO(await loadPO(sk)),
-		pl: parsePO(await loadPO(pl)),
-		en: parsePO(await loadPO(en)),
-		de: parsePO(await loadPO(de)),
-		es: parsePO(await loadPO(es)),
-		fr: parsePO(await loadPO(fr)),
-		it: parsePO(await loadPO(it)),
-		pt: parsePO(await loadPO(pt)),
-		ru: parsePO(await loadPO(ru)),
-		zh: parsePO(await loadPO(zh)),
-		ja: parsePO(await loadPO(ja)),
-	};
-})();
+function readCatalog(lng: Language): Promise<Record<string, string>> {
+	const hit = cached.get(lng);
+	if (hit) return Promise.resolve(hit);
+	const pending = inFlight.get(lng);
+	if (pending) return pending;
+	const load = (async () => {
+		const bundle = await readRaw(lng);
+		cached.set(lng, bundle);
+		// Guard i18next's addResourceBundle behind init (the default language
+		// is already inside `resources`, so this only runs for other languages).
+		await initGate;
+		i18n.addResourceBundle(lng, "translation", bundle, true, true);
+		return bundle;
+	})();
+	const tracked = load.finally(() => inFlight.delete(lng));
+	inFlight.set(lng, tracked);
+	return tracked;
+}
 
-/** The language t()/label() currently resolve to; set at startup and on change. */
+/** The language t() currently resolves to; set at startup and on change. */
 let current: Language = DEFAULT_LANGUAGE;
 
+/**
+ * Switch t() to a language. Synchronous: `current` flips immediately (the
+ * default English keeps working as a fallback) while the catalog loads in the
+ * background, then i18next is pointed at it once the read settles.
+ */
 export function setCurrentLanguage(lang: unknown): void {
-  current = asLanguage(lang);
+	current = asLanguage(lang);
+	void readCatalog(current)
+		.then(() => i18n.changeLanguage(current))
+		.catch((error) => console.error(`failed to load i18n catalog for ${current}`, error));
+}
+
+/** Maps t(key, a, b) onto i18next's `{0}`, `{1}` interpolation data. */
+function interpolate(key: string, args: readonly unknown[], lng?: Language): string {
+	const data: Record<string, unknown> = {};
+	args.forEach((arg, i) => (data[String(i)] = arg ?? ""));
+	return i18n.t(key, { ...(data as object), lng } as TOptions) as string;
 }
 
 /**
@@ -93,121 +131,22 @@ export function setCurrentLanguage(lang: unknown): void {
  * `{0}`, `{1}`, ... are replaced by the corresponding arguments.
  */
 export function translate(lang: unknown, key: string, ...args: unknown[]): string {
-  const messages = MESSAGES;
-  if (!messages) return key; // catalogs not loaded yet — entry points await i18nReady
-  const language = asLanguage(lang);
-  let msg = messages[language][key] ?? messages.en[key];
-  if (msg === undefined) return key;
-  args.forEach((arg, i) => (msg = msg.replace(`{${i}}`, String(arg ?? ""))));
-  return msg;
+	return interpolate(key, args, asLanguage(lang));
 }
 
 /** Translate using the current language. */
 export function t(key: string, ...args: unknown[]): string {
-  return translate(current, key, ...args);
+	return interpolate(key, args, current);
 }
 
+// The log wording (src/logMessages) localizes through the installed translator.
+setLogTranslator(t);
 
 /**
- * Parses a PO file content string into a record of msgid → msgstr.
- * Skips the header entry (empty msgid) and ignores comments.
+ * The catalog for a language, for the device API (src/api.ts) and the control
+ * server (server.ts) to serve as /i18n/<lang>.json. Loads on demand and
+ * caches. null for unknown codes.
  */
-export function parsePO(poContent: string): Record<string, string> {
-  const lines = poContent.split(/\r?\n/);
-  const result: Record<string, string> = {};
-
-  let currentMsgid: string | null = null;
-  let currentMsgstr: string | null = null;
-  let currentField: 'msgid' | 'msgstr' | null = null;
-  let buffer = '';
-
-  // Store the accumulated buffer into the current field and reset it.
-  const finishField = () => {
-    if (currentField === 'msgid') {
-      currentMsgid = buffer;
-    } else if (currentField === 'msgstr') {
-      currentMsgstr = buffer;
-    }
-    currentField = null;
-    buffer = '';
-  };
-
-  // Commit the current msgid/msgstr pair if valid, then reset state.
-  const commit = () => {
-    finishField();
-    if (currentMsgid !== null && currentMsgstr !== null && currentMsgid !== '') {
-      result[currentMsgid] = currentMsgstr;
-    }
-    currentMsgid = null;
-    currentMsgstr = null;
-  };
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-
-    // Empty line: end of an entry
-    if (line === '') {
-      commit();
-      continue;
-    }
-
-    // Comments are ignored
-    if (line.startsWith('#')) {
-      continue;
-    }
-
-    // New msgid
-    if (line.startsWith('msgid ')) {
-      finishField();
-      const rest = line.substring(6).trim();
-      if (rest) {
-        try {
-          buffer = JSON.parse(rest);
-        } catch {
-          // Fallback: strip surrounding quotes
-          buffer = rest.replace(/^"|"$/g, '');
-        }
-      } else {
-        buffer = '';
-      }
-      currentField = 'msgid';
-      continue;
-    }
-
-    // New msgstr
-    if (line.startsWith('msgstr ')) {
-      finishField();
-      const rest = line.substring(7).trim();
-      if (rest) {
-        try {
-          buffer = JSON.parse(rest);
-        } catch {
-          buffer = rest.replace(/^"|"$/g, '');
-        }
-      } else {
-        buffer = '';
-      }
-      currentField = 'msgstr';
-      continue;
-    }
-
-    // Continuation line (starts with a double quote)
-    if (line.startsWith('"')) {
-      try {
-        const part = JSON.parse(line);
-        buffer += part;
-      } catch {
-        const part = line.replace(/^"|"$/g, '');
-        buffer += part;
-      }
-      continue;
-    }
-
-    // Any other line is ignored
-  }
-
-  // Commit the last entry (if any)
-  commit();
-
-  return result;
+export function catalog(lang: string): Promise<Record<string, string> | null> {
+	return isLanguage(lang) ? readCatalog(lang) : Promise.resolve(null);
 }

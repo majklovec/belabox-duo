@@ -10,7 +10,8 @@ import index from "../public/index.html";
 import settings from "../public/settings.html";
 import setup from "../public/setup.html";
 import { ALLOWED_ORIGINS, API_HOST, API_PORT } from "./config";
-import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./http";
+import { i18nResponse, imageResponse, notFound, originAllowed, text, upgradeRequired } from "./http";
+import { catalog } from "./i18n";
 import { handleRequest } from "./methods";
 import { addStatusSink, logHistoryEvent, statsEvent, statusEvent } from "./push";
 import { latestSrtlaStats } from "./srtlaControl";
@@ -30,6 +31,7 @@ const routes = () => ({
 async function fetch(req: Request | BunRequest, srv: Server<undefined>): Promise<Response | undefined> {
 	const path = new URL(req.url).pathname;
 	if (path === "/settings" || path === "/setup") return Response.redirect(`${path}/`, 308);
+	if (path.startsWith("/i18n/")) return await i18nResponse(path, catalog);
 	const image = await imageResponse(path);
 	if (image) return image;
 	if (path !== WS_PATH) return notFound();

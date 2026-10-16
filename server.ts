@@ -71,8 +71,8 @@ import type { ServerWebSocket } from "bun";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import type { DeviceInfo, DeviceSummary, ServerDashboard, ServerDashboardWidget, SrtlaStats, SrtlaStatsEvent, Status, WidgetType } from "./public/types";
 import { arg, argFail, flag, intArg } from "./src/args";
-import { imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
-import { i18nReady, isLanguage, type Language, translate } from "./src/i18n";
+import { i18nResponse, imageResponse, notFound, originAllowed, text, upgradeRequired } from "./src/http";
+import { catalog, i18nReady, isLanguage, type Language, translate } from "./src/i18n";
 import { initWidgetHub, syncWidgetHub, widgetConfigFields, widgetHubSnapshot } from "./src/registry";
 import { configFieldName } from "./public/types";
 import { LOG_MAX, type LogEntry, type LogEvent, type LogLevel } from "./src/logMessages";
@@ -180,7 +180,8 @@ const assets = new Map<string, Blob>();
 {
     // One build for all pages: shared code (mithril, UI components) lands in common chunks.
     // Regenerate the frontend module manifest (REFACTOR-modules.md §4.1) so any
-    // new modules/<id>/frontend.tsx is in the bundle before we build it.
+    // new modules/<id>/frontend.tsx is in the bundle before we build it
+    // (npm pre hooks don't run for `bun server.ts`).
     await Bun.$`bun scripts/gen-modules.ts`.quiet();
     const result = await Bun.build({
         entrypoints: PAGES.map((name) => new URL(`./public/${name}.html`, import.meta.url).pathname),
@@ -203,7 +204,7 @@ const assets = new Map<string, Blob>();
 }
 
 // Log strings (t()/translate) are only served from request handlers, but make
-// sure the PO catalogs are loaded before the server accepts any request.
+// sure the i18next catalogs are loaded before the server accepts any request.
 await i18nReady;
 
 const htmlResponse = (page: PageName) =>
@@ -811,6 +812,7 @@ const server = Bun.serve({
         if (!uiAuthorized(req)) return unauthorized();
 
         if (path === "/") return htmlResponse("devices");
+        if (path.startsWith("/i18n/")) return await i18nResponse(path, catalog);
         if (path === "/api/devices") return Response.json(summaries());
         if (path === "/dashboards/") return htmlResponse("dashboards");
         if (path.startsWith("/api/dashboards")) return dashApi(req, url);

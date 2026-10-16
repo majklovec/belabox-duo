@@ -3,7 +3,7 @@
     {
       "id": "1f982e5d-e121-49a7-b4dc-24b169642e4f",
       "name": "Dashboard",
-      "version": 17,
+      "version": 31,
       "widgets": [
         {
           "id": "14306d92-1646-4e89-9f16-26a6911fe513",
@@ -13,7 +13,7 @@
           "x": 0,
           "y": 0,
           "w": 6,
-          "h": 10,
+          "h": 18,
           "visible": true
         },
         {
@@ -22,15 +22,15 @@
           "type": "chat",
           "name": "Chat Kick",
           "x": 0,
-          "y": 10,
+          "y": 18,
           "w": 3,
-          "h": 4,
+          "h": 8,
           "visible": true,
           "config": {
-            "youtube": "RobDiesALot",
-            "twitch": "",
-            "tiktok": "",
-            "kick": "robdiesalot",
+            "youtube": "destiny",
+            "twitch": "agraelus",
+            "tiktok": "nikyera",
+            "kick": "cicero_mt",
             "history": "100",
             "order": "bottom"
           }
@@ -41,7 +41,7 @@
           "type": "kick-stats",
           "name": "Stats Kick",
           "x": 3,
-          "y": 10,
+          "y": 18,
           "w": 3,
           "h": 4,
           "visible": true,
@@ -57,7 +57,7 @@
           "x": 6,
           "y": 0,
           "w": 6,
-          "h": 13,
+          "h": 16,
           "visible": true
         }
       ],

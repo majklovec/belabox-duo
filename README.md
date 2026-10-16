@@ -237,7 +237,7 @@ bun run build:client   # → dist/client
 bun run build:server   # → dist/server
 ```
 
-Modules are discovered by a runtime scan of `modules/`; the manifests in `modules/.generated.*.ts` are produced by `scripts/gen-modules.ts` (wired into `predev`/`pretest`/`prebuild:*`). The UI is localized via the `.po` files in `i18n/` (12 languages).
+Modules are discovered by a runtime scan of `modules/`; the manifests in `modules/.generated.*.ts` are produced by `scripts/gen-modules.ts` (wired into `predev`/`pretest`/`prebuild:*`). The UI is localized via the JSON catalogs in `i18n/` (12 languages), served to the browser on demand from `/i18n/<lang>.json`.
 
 ## Credits
 
