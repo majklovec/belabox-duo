@@ -281,7 +281,7 @@ const App: m.Component = {
               aria-pressed={state.editMode}
               onclick={() => setEdit(!state.editMode)}
             >
-              {state.editMode ? t("dash.done") : t("dash.edit")}
+              {t(state.editMode ? "dash.done" : "dash.edit")}
             </button>
           ) : undefined
         }
